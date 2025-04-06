@@ -44,6 +44,31 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }
+        },
+        {
+            "name": "뉴스 요약기 테스트 (개발)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/news_summarizer_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "DEV_MODE": "true"
+            }
+        },
+        {
+            "name": "뉴스 요약기 테스트 (프로덕션)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/news_summarizer_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "OPENAI_API_KEY": "${env:OPENAI_API_KEY}",
+                "DEV_MODE": "false"
+            }
         }
     ]
 } 

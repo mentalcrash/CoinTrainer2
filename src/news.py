@@ -17,20 +17,23 @@ class News:
     # 뉴스 소스 URL
     GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
     NAVER_NEWS_SEARCH = "https://search.naver.com/search.naver?where=news&query={query}"
+    COINDESK_RSS = "https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml"  # 기본 RSS
+    COINDESK_SEARCH = "https://www.coindesk.com/search?q={query}"  # 검색용
     
     # 심볼별 추가 검색 키워드
     SYMBOL_KEYWORDS = {
-        "BTC": ["비트코인", "Bitcoin", "BTC"],
-        "ETH": ["이더리움", "Ethereum", "ETH"],
-        "XRP": ["리플", "Ripple", "XRP"],
-        "DOGE": ["도지코인", "Dogecoin", "DOGE"],
-        "SOL": ["솔라나", "Solana", "SOL"],
+        "BTC": ["비트코인", "Bitcoin", "BTC", "$BTC", "bitcoin"],
+        "ETH": ["이더리움", "Ethereum", "ETH", "$ETH", "ethereum"],
+        "XRP": ["리플", "Ripple", "XRP", "$XRP", "ripple"],
+        "DOGE": ["도지코인", "Dogecoin", "DOGE", "$DOGE", "dogecoin"],
+        "SOL": ["솔라나", "Solana", "SOL", "$SOL", "solana"],
     }
     
     # 기본 검색 키워드 (모든 심볼에 공통 적용)
     COMMON_KEYWORDS = [
         "가상자산", "암호화폐", "크립토",
-        "SEC", "CFTC", "코인베이스", "바이낸스"
+        "SEC", "CFTC", "코인베이스", "바이낸스",
+        "cryptocurrency", "crypto", "blockchain"
     ]
     
     def __init__(self):
@@ -96,6 +99,95 @@ class News:
             ])
         return keywords
     
+    def _get_coindesk_news(self, keyword: str, max_age_hours: int = 24) -> List[Dict]:
+        """CoinDesk 뉴스를 수집합니다."""
+        news_items = []
+        now = datetime.now()
+        
+        try:
+            # RSS 피드에서 최신 뉴스 가져오기
+            feed = feedparser.parse(self.COINDESK_RSS)
+            
+            for entry in feed.entries:
+                # 키워드 필터링
+                if not any(kw.lower() in entry.title.lower() or 
+                          kw.lower() in entry.description.lower() 
+                          for kw in [keyword]):
+                    continue
+                
+                published_at = self._parse_datetime(entry.published)
+                age_hours = (now - published_at).total_seconds() / 3600
+                
+                if age_hours > max_age_hours:
+                    continue
+                
+                # 제목과 출처 정제
+                clean_title = self._clean_text(entry.title)
+                
+                # 요약 정제
+                summary = self._clean_text(entry.description)
+                if clean_title in summary:
+                    summary = summary.replace(clean_title, "").strip()
+                
+                news_items.append({
+                    "title": clean_title,
+                    "summary": summary,
+                    "link": entry.link,
+                    "published_at": published_at,
+                    "source": "CoinDesk",
+                    "keyword": keyword,
+                    "symbol": keyword.upper() if keyword.upper() in self.SYMBOL_KEYWORDS else None
+                })
+            
+            # 검색 API를 통한 추가 뉴스 수집
+            search_url = self.COINDESK_SEARCH.format(query=quote_plus(keyword))
+            response = self.session.get(search_url)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            for article in soup.select('article'):
+                title_elem = article.select_one('h6')
+                if not title_elem:
+                    continue
+                
+                title = self._clean_text(title_elem.text)
+                link = article.select_one('a')
+                if link:
+                    link = 'https://www.coindesk.com' + link.get('href', '')
+                
+                # 이미 RSS에서 수집된 뉴스는 건너뛰기
+                if any(item['link'] == link for item in news_items):
+                    continue
+                
+                time_elem = article.select_one('time')
+                published = time_elem.get('datetime') if time_elem else None
+                published_at = self._parse_datetime(published) if published else now
+                
+                age_hours = (now - published_at).total_seconds() / 3600
+                if age_hours > max_age_hours:
+                    continue
+                
+                summary = ""
+                desc_elem = article.select_one('p')
+                if desc_elem:
+                    summary = self._clean_text(desc_elem.text)
+                
+                news_items.append({
+                    "title": title,
+                    "summary": summary,
+                    "link": link,
+                    "published_at": published_at,
+                    "source": "CoinDesk",
+                    "keyword": keyword,
+                    "symbol": keyword.upper() if keyword.upper() in self.SYMBOL_KEYWORDS else None
+                })
+            
+            logger.debug(f"CoinDesk 뉴스 {len(news_items)}개 수집 완료")
+            
+        except Exception as e:
+            logger.error(f"CoinDesk 뉴스 수집 실패: {str(e)}")
+        
+        return news_items
+
     def get_news(
         self,
         symbol: str,
@@ -200,6 +292,10 @@ class News:
                         "keyword": keyword,
                         "symbol": symbol
                     })
+                
+                # CoinDesk 뉴스 수집
+                coindesk_news = self._get_coindesk_news(keyword, max_age_hours)
+                all_news.extend(coindesk_news)
                 
                 time.sleep(1)  # API 호출 간격 조절
                 
