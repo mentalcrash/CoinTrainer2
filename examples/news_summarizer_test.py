@@ -31,8 +31,8 @@ def test_news_summarizer(dev_mode: bool = False):
         news = News()
         summarizer = NewsSummarizer(api_key, api_endpoint)
         
-        # BTC 뉴스 분석
-        for symbol in ["BTC"]:
+        # BTC와 ETH 뉴스 분석
+        for symbol in ["BTC", "ETH"]:
             logger.info(f"{symbol} 뉴스 분석 시작...")
             
             # 뉴스 수집

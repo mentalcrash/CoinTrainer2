@@ -31,18 +31,16 @@ class NewsSummarizer:
         self.api_endpoint = api_endpoint
         self.news = News()
     
-    def _create_prompt(self, news_items: List[Dict]) -> str:
+    def _create_prompt(self, news_items: List[Dict], symbol: str) -> str:
         """GPT-4에 전달할 프롬프트를 생성합니다.
         
         Args:
             news_items: 뉴스 목록
+            symbol: 코인 심볼
             
         Returns:
             프롬프트 문자열
         """
-        symbol = news_items[0]["symbol"]
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-        
         prompt = f"""아래는 {symbol} 관련 뉴스 {len(news_items)}개입니다. 
 각 뉴스에 대해 다음 정보를 제공해주세요:
 
@@ -56,19 +54,18 @@ class NewsSummarizer:
    - 1.0: 매우 밀접한 관련
 
 === 뉴스 목록 ===
+
 """
-        
-        for i, item in enumerate(news_items, 1):
-            published = item["published_at"].strftime("%Y-%m-%d %H:%M")
-            prompt += f"\n[뉴스 {i}]"
-            prompt += f"\n제목: {item['title']}"
-            prompt += f"\n출처: {item['source']} ({published})"
-            if item["summary"]:
-                prompt += f"\n내용: {item['summary']}"
-            prompt += "\n"
-            
-        prompt += """
-다음 JSON 형식으로 응답해주세요:
+        for i, news in enumerate(news_items, 1):
+            published = news['published_at'].strftime("%Y-%m-%d %H:%M")
+            prompt += f"""[뉴스 {i}]
+제목: {news['title']}
+출처: {news['source']} ({published})
+내용: {news['summary']}
+                                                                {' ' * (i * 2)}
+"""
+
+        prompt += """다음 JSON 형식으로 응답해주세요:
 {
     "news_analysis": [
         {
@@ -187,6 +184,14 @@ class NewsSummarizer:
     def _save_prompt_and_response(self, symbol: str, prompt: str, response: Dict = None) -> str:
         """프롬프트와 응답을 파일로 저장합니다.
         
+        저장 구조:
+        .temp/
+        └── YYYYMMDD/
+            ├── prompt/
+            │   └── SYMBOL_HHMMSS.txt
+            └── response/
+                └── SYMBOL_HHMMSS.json
+        
         Args:
             symbol: 코인 심볼
             prompt: 저장할 프롬프트
@@ -196,25 +201,29 @@ class NewsSummarizer:
             생성된 파일명의 기본 부분 (타임스탬프 포함)
         """
         try:
-            # 현재 시간을 파일명에 포함
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            base_filename = f"{symbol}_{timestamp}"
+            # 날짜와 시간 생성
+            now = datetime.now()
+            date_str = now.strftime("%Y%m%d")
+            time_str = now.strftime("%H%M%S")
+            base_filename = f"{symbol}_{time_str}"
+            
+            # 기본 디렉토리 구조 생성
+            base_dir = f".temp/{date_str}"
+            prompt_dir = f"{base_dir}/prompt"
+            response_dir = f"{base_dir}/response"
+            
+            os.makedirs(prompt_dir, exist_ok=True)
+            os.makedirs(response_dir, exist_ok=True)
             
             # 프롬프트 저장
-            prompt_dir = ".temp/prompt"
-            os.makedirs(prompt_dir, exist_ok=True)
             prompt_file = f"{prompt_dir}/{base_filename}.txt"
-            
             with open(prompt_file, "w", encoding="utf-8") as f:
                 f.write(prompt)
             logger.info(f"프롬프트가 저장되었습니다: {prompt_file}")
             
             # 응답 저장 (있는 경우)
             if response:
-                response_dir = ".temp/response"
-                os.makedirs(response_dir, exist_ok=True)
                 response_file = f"{response_dir}/{base_filename}.json"
-                
                 with open(response_file, "w", encoding="utf-8") as f:
                     json.dump(response, f, ensure_ascii=False, indent=2)
                 logger.info(f"응답이 저장되었습니다: {response_file}")
@@ -255,7 +264,7 @@ class NewsSummarizer:
             return dummy_response
             
         # 프롬프트 생성 및 모델 호출
-        prompt = self._create_prompt(news_items)
+        prompt = self._create_prompt(news_items, symbol)
         
         # 프롬프트 토큰 분석
         token_count = self._count_tokens(prompt)
