@@ -54,10 +54,6 @@ def test_trading_decision(dev_mode: bool = False):
             
             if result["success"]:
                 logger.info(f"{symbol} 매매 판단 완료")
-                # 결과 출력
-                print("\n" + "=" * 80)
-                print(decision_maker.format_decision(result))
-                print("=" * 80 + "\n")
             else:
                 logger.error(f"{symbol} 매매 판단 실패: {result.get('error')}")
                 

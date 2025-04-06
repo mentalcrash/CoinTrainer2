@@ -214,11 +214,11 @@ class TradingDecisionMaker:
             category: 저장 카테고리 (market_data/news_data/decision/prompts/responses)
         """
         categories = {
-            'market_data': '07_market_data',
-            'news_data': '08_news_data',
-            'prompts': '09_prompt',
-            'responses': '10_response',
-            'decision': '11_decision'
+            'market_data': '04_01_market_data',
+            'news_data': '04_02_news_data',
+            'prompts': '04_03_prompt',
+            'responses': '04_04_response',
+            'decision': '04_05_decision'
         }
         
         if category not in categories:
@@ -355,56 +355,3 @@ class TradingDecisionMaker:
             }
             logger.error(f"{symbol} 매매 판단 실패: {str(e)}")
             return error_result
-            
-    def format_decision(self, result: Dict) -> str:
-        """매매 판단 결과를 보기 좋게 포맷팅"""
-        if not result["success"]:
-            return f"매매 판단 실패: {result.get('error', '알 수 없는 오류')}"
-            
-        symbol = result["symbol"]
-        decision = result["decision"]
-        market_data = result["market_data"]
-        timestamp = datetime.fromisoformat(result["timestamp"]).strftime("%Y-%m-%d %H:%M")
-        
-        output = []
-        output.append(f"\n💰 {symbol} 매매 판단 ({timestamp})")
-        output.append("=" * 60)
-        
-        # 매매 판단
-        output.append(f"\n📊 매매 판단: {decision['decision']}")
-        output.append(f"• 수량: 보유자산의 {decision['quantity_percent']}%")
-        output.append(f"• 목표가: {decision['target_price']:,} KRW")
-        output.append(f"• 손절가: {decision['stop_loss']:,} KRW")
-        output.append(f"• 신뢰도: {decision['confidence']:.1%}")
-        
-        # 판단 이유
-        output.append("\n📝 판단 이유")
-        for reason in decision["reasons"]:
-            output.append(f"• {reason}")
-            
-        # 위험 요소
-        output.append("\n⚠️ 위험 요소")
-        for risk in decision["risk_factors"]:
-            output.append(f"• {risk}")
-            
-        # 추가 정보
-        output.append("\n📌 추가 정보")
-        output.append(f"• 단기 전망: {decision['additional_info']['short_term_outlook']}")
-        output.append(f"• 장기 전망: {decision['additional_info']['long_term_outlook']}")
-        output.append("\n🔔 주목할 이벤트")
-        for event in decision['additional_info']['key_events']:
-            output.append(f"• {event}")
-            
-        # 현재 시장 상황
-        output.append("\n📈 현재 시장 상황")
-        output.append(f"• 현재가: {market_data['current_price']:,} KRW ({market_data['daily_change']:+.2f}%)")
-        output.append(f"• RSI(14): {market_data['rsi_14']:.1f}")
-        output.append(f"• 이동평균: MA5 {market_data['ma5']:,} / MA20 {market_data['ma20']:,}")
-        output.append(f"• 변동성: {market_data['volatility']:.1f}%")
-        
-        # 다음 매매 판단 정보
-        output.append("\n⏰ 다음 매매 판단")
-        output.append(f"• 시간 간격: {decision['next_decision']['interval_minutes']}분 후")
-        output.append(f"• 선택 이유: {decision['next_decision']['reason']}")
-        
-        return "\n".join(output) 
