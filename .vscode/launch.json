@@ -1,0 +1,49 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python: News Test",
+            "type": "python",
+            "request": "launch",
+            "program": "examples/news_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python: Ticker Test",
+            "type": "python",
+            "request": "launch",
+            "program": "examples/ticker_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python: Candle Test",
+            "type": "python",
+            "request": "launch",
+            "program": "examples/candle_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ]
+} 
