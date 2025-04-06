@@ -32,42 +32,23 @@ def test_trading_decision(dev_mode: bool = False):
             logger.error("BITHUMB_API_KEY 또는 BITHUMB_SECRET_KEY가 설정되지 않았습니다.")
             sys.exit(1)
             
-        api_endpoint = "https://api.openai.com/v1/chat/completions"
-        
         # News와 TradingDecisionMaker 인스턴스 생성
         logger.info("뉴스 수집기와 매매 판단기 초기화...")
-        news = News()
         decision_maker = TradingDecisionMaker(
             bithumb_api_key=bithumb_api_key,
             bithumb_secret_key=bithumb_secret_key,
-            openai_api_key=openai_api_key,
-            openai_api_endpoint=api_endpoint
+            openai_api_key=openai_api_key
         )
         
-        # BTC 뉴스 수집 및 분석
+        # BTC 매매 판단
         symbol = "BTC"
         logger.info(f"{symbol} 매매 판단 시작...")
-        
-        # 뉴스 수집
-        logger.info(f"{symbol} 뉴스 수집 중...")
-        news_items = news.get_news(
-            symbol=symbol,
-            max_age_hours=24,
-            limit=5
-        )
-        
-        if not news_items:
-            logger.warning(f"{symbol} 뉴스가 수집되지 않았습니다.")
-            sys.exit(1)
-            
-        logger.info(f"{symbol} 뉴스 {len(news_items)}개 수집 완료")
         
         # 매매 판단 실행
         logger.info(f"{symbol} 매매 판단 분석 중...")
         try:
             result = decision_maker.make_decision(
                 symbol=symbol,
-                news_items=news_items,
                 dev_mode=dev_mode
             )
             

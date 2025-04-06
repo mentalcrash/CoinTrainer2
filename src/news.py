@@ -8,6 +8,7 @@ import re
 import requests
 from bs4 import BeautifulSoup
 from src.utils.logger import setup_logger
+from pathlib import Path
 
 logger = setup_logger('news')
 
@@ -44,6 +45,72 @@ class News:
         self.last_update = None
         self.cached_news = {}  # symbol별 캐시
         self.cache_duration = 300  # 5분 캐시
+        
+        # 로그 디렉토리 설정
+        self._setup_log_directory()
+    
+    def _setup_log_directory(self):
+        """로그 디렉토리 설정"""
+        # 기본 로그 디렉토리 생성
+        base_dir = Path(".temp")
+        base_dir.mkdir(exist_ok=True)
+        
+        # 실행 시간 기반 디렉토리 생성
+        now = datetime.now()
+        run_id = now.strftime("%Y%m%d_%H%M%S")
+        self.run_dir = base_dir / run_id
+        self.run_dir.mkdir(exist_ok=True)
+        
+        # 로그 디렉토리 생성
+        self.log_dir = self.run_dir / "logs"
+        self.log_dir.mkdir(exist_ok=True)
+    
+    def _convert_datetime(self, data: Dict) -> Dict:
+        """datetime 객체를 ISO 형식 문자열로 변환합니다."""
+        if isinstance(data, dict):
+            return {k: self._convert_datetime(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self._convert_datetime(item) for item in data]
+        elif isinstance(data, datetime):
+            return data.isoformat()
+        return data
+    
+    def _save_news_collection(self, symbol: str, data: Dict, category: str):
+        """뉴스 수집 데이터를 파일로 저장합니다.
+        
+        Args:
+            symbol: 심볼 (예: BTC)
+            data: 저장할 데이터
+            category: 저장 카테고리 (news_collection/news_cache)
+        """
+        categories = {
+            'news_collection': '01_news_collection',
+            'news_cache': '02_news_cache'
+        }
+        
+        if category not in categories:
+            logger.error(f"잘못된 카테고리입니다: {category}")
+            return
+            
+        timestamp = datetime.now().strftime("%H%M%S")
+        filename = f"{categories[category]}_{symbol}_{timestamp}.json"
+        filepath = self.log_dir / filename
+        
+        # datetime 객체 변환
+        data = self._convert_datetime(data)
+        
+        # 데이터 포맷팅
+        formatted_data = {
+            "timestamp": datetime.now().isoformat(),
+            "symbol": symbol,
+            "data_type": category,
+            "content": data
+        }
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(formatted_data, f, ensure_ascii=False, indent=2)
+            
+        logger.info(f"{symbol} {category} 저장 완료: {filepath}")
     
     def _parse_datetime(self, date_str: str) -> datetime:
         """뉴스 발행일자를 파싱합니다."""
@@ -132,11 +199,8 @@ class News:
                 news_items.append({
                     "title": clean_title,
                     "summary": summary,
-                    "link": entry.link,
                     "published_at": published_at,
-                    "source": "CoinDesk",
-                    "keyword": keyword,
-                    "symbol": keyword.upper() if keyword.upper() in self.SYMBOL_KEYWORDS else None
+                    "source": "CoinDesk"
                 })
             
             # 검색 API를 통한 추가 뉴스 수집
@@ -150,13 +214,6 @@ class News:
                     continue
                 
                 title = self._clean_text(title_elem.text)
-                link = article.select_one('a')
-                if link:
-                    link = 'https://www.coindesk.com' + link.get('href', '')
-                
-                # 이미 RSS에서 수집된 뉴스는 건너뛰기
-                if any(item['link'] == link for item in news_items):
-                    continue
                 
                 time_elem = article.select_one('time')
                 published = time_elem.get('datetime') if time_elem else None
@@ -174,11 +231,8 @@ class News:
                 news_items.append({
                     "title": title,
                     "summary": summary,
-                    "link": link,
                     "published_at": published_at,
-                    "source": "CoinDesk",
-                    "keyword": keyword,
-                    "symbol": keyword.upper() if keyword.upper() in self.SYMBOL_KEYWORDS else None
+                    "source": "CoinDesk"
                 })
             
             logger.debug(f"CoinDesk 뉴스 {len(news_items)}개 수집 완료")
@@ -193,18 +247,18 @@ class News:
         symbol: str,
         max_age_hours: int = 24,
         limit: int = 10,
-        use_cache: bool = True
+        use_cache: bool = False
     ) -> List[Dict]:
         """특정 심볼의 뉴스를 수집합니다.
         
         Args:
-            symbol: 코인 심볼 (예: BTC, ETH)
-            max_age_hours: 최대 뉴스 나이 (시간)
-            limit: 최대 뉴스 개수
+            symbol: 심볼 (예: BTC)
+            max_age_hours: 최대 뉴스 수집 시간 (시간)
+            limit: 수집할 뉴스 개수
             use_cache: 캐시 사용 여부
             
         Returns:
-            List[Dict]: 뉴스 목록
+            List[Dict]: 수집된 뉴스 목록
         """
         symbol = symbol.upper()
         now = datetime.now()
@@ -217,6 +271,11 @@ class News:
             and (now - self.last_update).total_seconds() < self.cache_duration
         ):
             logger.debug(f"{symbol} 캐시된 뉴스 반환")
+            cached_data = {
+                "source": "cache",
+                "news_items": self.cached_news[symbol]
+            }
+            self._save_news_collection(symbol, cached_data, "news_cache")
             return self.cached_news[symbol]
         
         all_news = []
@@ -226,72 +285,12 @@ class News:
         for keyword in keywords:
             try:
                 # 구글 뉴스 수집
-                url = self.GOOGLE_NEWS_RSS.format(query=quote_plus(keyword))
-                feed = feedparser.parse(url)
-                
-                for entry in feed.entries:
-                    published_at = self._parse_datetime(entry.published)
-                    age_hours = (now - published_at).total_seconds() / 3600
-                    
-                    if age_hours > max_age_hours:
-                        continue
-                    
-                    # 제목과 출처 분리
-                    title_parts = entry.title.split(' - ')
-                    clean_title = self._clean_text(title_parts[0])
-                    source = title_parts[-1] if len(title_parts) > 1 else "Unknown"
-                    
-                    # 요약 정제
-                    summary = self._clean_text(entry.get("summary", ""))
-                    if clean_title in summary:
-                        summary = summary.replace(clean_title, "").strip()
-                    
-                    all_news.append({
-                        "title": clean_title,
-                        "summary": summary,
-                        "link": entry.link,
-                        "published_at": published_at,
-                        "source": source,
-                        "keyword": keyword,
-                        "symbol": symbol
-                    })
+                google_news = self._collect_google_news(keyword, max_age_hours)
+                all_news.extend(google_news)
                 
                 # 네이버 뉴스 수집
-                url = self.NAVER_NEWS_SEARCH.format(query=quote_plus(keyword))
-                response = self.session.get(url)
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                for news in soup.select('.news_area')[:5]:
-                    title_elem = news.select_one('.news_tit')
-                    if not title_elem:
-                        continue
-                    
-                    title = self._clean_text(title_elem.get('title', ''))
-                    link = title_elem.get('href', '')
-                    
-                    desc_elem = news.select_one('.dsc_txt_wrap')
-                    summary = self._clean_text(desc_elem.text) if desc_elem else ""
-                    
-                    source_elem = news.select_one('.info_group a:first-child')
-                    source = source_elem.text.strip() if source_elem else "Unknown"
-                    
-                    time_elem = news.select_one('.info_group span.info')
-                    published = time_elem.text.strip() if time_elem else ""
-                    published_at = self._parse_datetime(published)
-                    
-                    age_hours = (now - published_at).total_seconds() / 3600
-                    if age_hours > max_age_hours:
-                        continue
-                    
-                    all_news.append({
-                        "title": title,
-                        "summary": summary,
-                        "link": link,
-                        "published_at": published_at,
-                        "source": source,
-                        "keyword": keyword,
-                        "symbol": symbol
-                    })
+                naver_news = self._collect_naver_news(keyword, max_age_hours)
+                all_news.extend(naver_news)
                 
                 # CoinDesk 뉴스 수집
                 coindesk_news = self._get_coindesk_news(keyword, max_age_hours)
@@ -302,21 +301,29 @@ class News:
             except Exception as e:
                 logger.error(f"{symbol} {keyword} 뉴스 수집 실패: {str(e)}")
                 continue
-        
-        # 중복 제거 (URL 기준)
-        unique_news = list({news["link"]: news for news in all_news}.values())
+                
+        # 중복 제거 (제목 기준)
+        unique_news = list({news["title"]: news for news in all_news}.values())
         
         # 발행일시 기준 내림차순 정렬 후 limit 적용
         unique_news.sort(key=lambda x: x["published_at"], reverse=True)
-        unique_news = unique_news[:limit]
+        news_list = unique_news[:limit]
+        
+        # 수집 결과 저장
+        self._save_news_collection(symbol, news_list, "news_collection")
         
         # 캐시 업데이트
         if use_cache:
-            self.cached_news[symbol] = unique_news
+            self.cached_news[symbol] = news_list
             self.last_update = now
+            cache_data = {
+                "source": "cache",
+                "news_items": news_list
+            }
+            self._save_news_collection(symbol, cache_data, "news_cache")
         
-        logger.info(f"{symbol} 뉴스 {len(unique_news)}개 수집 완료")
-        return unique_news
+        logger.info(f"{symbol} 뉴스 {len(news_list)}개 수집 완료")
+        return news_list
     
     def format_news(
         self,
@@ -327,11 +334,10 @@ class News:
         if not news_items:
             return "수집된 뉴스가 없습니다."
         
-        symbol = news_items[0]["symbol"]
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
         
         output = []
-        output.append(f"\n📰 {symbol} 뉴스 모니터링 ({current_time})")
+        output.append(f"\n📰 뉴스 모니터링 ({current_time})")
         output.append("=" * 60)
         
         # 통계 정보
@@ -357,7 +363,86 @@ class News:
                 if len(summary) > 200:
                     summary = summary[:197] + "..."
                 output.append(f"\n   {summary}")
-            
-            output.append(f"   👉 {item['link']}")
         
-        return "\n".join(output) 
+        return "\n".join(output)
+
+    def _collect_google_news(self, keyword: str, max_age_hours: int) -> List[Dict]:
+        """구글 뉴스를 수집합니다."""
+        news_items = []
+        now = datetime.now()
+        
+        try:
+            url = self.GOOGLE_NEWS_RSS.format(query=quote_plus(keyword))
+            feed = feedparser.parse(url)
+            
+            for entry in feed.entries:
+                published_at = self._parse_datetime(entry.published)
+                age_hours = (now - published_at).total_seconds() / 3600
+                
+                if age_hours > max_age_hours:
+                    continue
+                
+                # 제목과 출처 분리
+                title_parts = entry.title.split(' - ')
+                clean_title = self._clean_text(title_parts[0])
+                source = title_parts[-1] if len(title_parts) > 1 else "Unknown"
+                
+                # 요약 정제
+                summary = self._clean_text(entry.get("summary", ""))
+                if clean_title in summary:
+                    summary = summary.replace(clean_title, "").strip()
+                
+                news_items.append({
+                    "title": clean_title,
+                    "summary": summary,
+                    "published_at": published_at,
+                    "source": source
+                })
+            
+        except Exception as e:
+            logger.error(f"구글 뉴스 수집 실패: {str(e)}")
+        
+        return news_items
+    
+    def _collect_naver_news(self, keyword: str, max_age_hours: int) -> List[Dict]:
+        """네이버 뉴스를 수집합니다."""
+        news_items = []
+        now = datetime.now()
+        
+        try:
+            url = self.NAVER_NEWS_SEARCH.format(query=quote_plus(keyword))
+            response = self.session.get(url)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            for news in soup.select('.news_area')[:5]:
+                title_elem = news.select_one('.news_tit')
+                if not title_elem:
+                    continue
+                
+                title = self._clean_text(title_elem.get('title', ''))
+                
+                desc_elem = news.select_one('.dsc_txt_wrap')
+                summary = self._clean_text(desc_elem.text) if desc_elem else ""
+                
+                source_elem = news.select_one('.info_group a:first-child')
+                source = source_elem.text.strip() if source_elem else "Unknown"
+                
+                time_elem = news.select_one('.info_group span.info')
+                published = time_elem.text.strip() if time_elem else ""
+                published_at = self._parse_datetime(published)
+                
+                age_hours = (now - published_at).total_seconds() / 3600
+                if age_hours > max_age_hours:
+                    continue
+                
+                news_items.append({
+                    "title": title,
+                    "summary": summary,
+                    "published_at": published_at,
+                    "source": source
+                })
+                
+        except Exception as e:
+            logger.error(f"네이버 뉴스 수집 실패: {str(e)}")
+        
+        return news_items 

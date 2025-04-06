@@ -13,12 +13,14 @@ logger = setup_logger('trading_decision')
 class TradingDecisionMaker:
     """뉴스와 시장 분석을 종합하여 매매 판단을 내리는 클래스"""
     
+    # OpenAI API 엔드포인트 상수
+    _OPENAI_API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+    
     def __init__(
         self,
         bithumb_api_key: str,
         bithumb_secret_key: str,
         openai_api_key: str,
-        openai_api_endpoint: str
     ):
         """초기화
         
@@ -26,10 +28,9 @@ class TradingDecisionMaker:
             bithumb_api_key: 빗썸 API 키
             bithumb_secret_key: 빗썸 Secret 키
             openai_api_key: OpenAI API 키
-            openai_api_endpoint: OpenAI API 엔드포인트
         """
         self.trading_analyzer = TradingAnalyzer(bithumb_api_key, bithumb_secret_key)
-        self.news_summarizer = NewsSummarizer(openai_api_key, openai_api_endpoint)
+        self.news_summarizer = NewsSummarizer(openai_api_key, self._OPENAI_API_ENDPOINT)
         
         # 로그 디렉토리 설정
         self._setup_log_directory()
@@ -37,14 +38,29 @@ class TradingDecisionMaker:
     def _setup_log_directory(self):
         """로그 디렉토리 설정"""
         # 기본 로그 디렉토리 생성
-        log_dir = Path(".temp/trading_decision")
-        log_dir.mkdir(parents=True, exist_ok=True)
+        base_dir = Path(".temp")
+        base_dir.mkdir(exist_ok=True)
         
-        # 날짜별 디렉토리 생성
-        today = datetime.now().strftime("%Y%m%d")
-        self.today_dir = log_dir / today
-        self.today_dir.mkdir(exist_ok=True)
+        # 실행 시간 기반 디렉토리 생성
+        now = datetime.now()
+        run_id = now.strftime("%Y%m%d_%H%M%S")
+        self.run_dir = base_dir / run_id
+        self.run_dir.mkdir(exist_ok=True)
         
+        # 로그 디렉토리 생성
+        self.log_dir = self.run_dir / "logs"
+        self.log_dir.mkdir(exist_ok=True)
+        
+    def _convert_datetime(self, data: Dict) -> Dict:
+        """datetime 객체를 ISO 형식 문자열로 변환합니다."""
+        if isinstance(data, dict):
+            return {k: self._convert_datetime(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self._convert_datetime(item) for item in data]
+        elif isinstance(data, datetime):
+            return data.isoformat()
+        return data
+    
     def _create_decision_prompt(
         self,
         symbol: str,
@@ -114,6 +130,10 @@ class TradingDecisionMaker:
             "주목할 이벤트 1",
             "주목할 이벤트 2"
         ]
+    }},
+    "next_decision": {{
+        "interval_minutes": "다음 매매 판단까지의 시간 (1-1440 사이의 정수, 분 단위)",
+        "reason": "해당 시간 간격을 선택한 이유"
     }}
 }}
 
@@ -122,7 +142,8 @@ class TradingDecisionMaker:
 2. 현재 보유 포지션과 손익 상황
 3. 시장의 전반적인 추세와 모멘텀
 4. 거래량과 변동성 패턴
-5. 잠재적인 위험 요소들"""
+5. 잠재적인 위험 요소들
+6. 다음 매매 판단까지의 적절한 시간 간격 (시장 상황에 따라 1-1440분 사이에서 결정)"""
 
         return prompt
         
@@ -134,11 +155,11 @@ class TradingDecisionMaker:
         }
         
         data = {
-            "model": "gpt-4o-mini-2024-07-18",
+            "model": "gpt-4o-2024-11-20",
             "messages": [
                 {
                     "role": "system",
-                    "content": "당신은 암호화폐 매매 전문가입니다. 제공된 데이터를 바탕으로 매매 판단을 내립니다."
+                    "content": "당신은 암호화폐 매매 전문가입니다. 제공된 데이터를 바탕으로 매매 판단을 내립니다. JSON 형식으로만 응답해주세요."
                 },
                 {
                     "role": "user",
@@ -161,72 +182,82 @@ class TradingDecisionMaker:
                 logger.error(f"API 오류 응답: {response.status_code} - {response.text}")
                 return None
                 
-            return response.json()
+            response_data = response.json()
+            if not response_data or "choices" not in response_data:
+                logger.error("API 응답에 choices가 없습니다.")
+                return None
+                
+            content = response_data["choices"][0]["message"]["content"]
+            logger.info("API 응답 내용:")
+            logger.info(content)
+            
+            # 마크다운 포맷팅 제거
+            content = content.replace("```json", "").replace("```", "").strip()
+            
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON 파싱 오류: {str(e)}")
+                logger.error(f"파싱 실패한 내용: {content}")
+                return None
             
         except Exception as e:
             logger.error(f"GPT-4 API 호출 실패: {str(e)}")
             return None
             
-    def _save_decision_data(self, symbol: str, data: Dict, prefix: str = "decision"):
+    def _save_decision_data(self, symbol: str, data: Dict, category: str):
         """매매 판단 데이터를 파일로 저장
         
         Args:
             symbol: 심볼 (예: BTC)
             data: 저장할 데이터
-            prefix: 파일명 접두어
+            category: 저장 카테고리 (market_data/news_data/decision/prompts/responses)
         """
-        timestamp = datetime.now().strftime("%H%M%S")
-        filename = f"{prefix}_{symbol}_{timestamp}.json"
-        filepath = self.today_dir / filename
+        categories = {
+            'market_data': '07_market_data',
+            'news_data': '08_news_data',
+            'prompts': '09_prompt',
+            'responses': '10_response',
+            'decision': '11_decision'
+        }
         
-        # 프롬프트 저장 시 특별 처리
-        if prefix == "prompt" and "prompt" in data:
-            formatted_data = {
-                "timestamp": datetime.now().isoformat(),
-                "symbol": symbol,
-                "prompt_type": "trading_decision",
-                "prompt_version": "1.0",
-                "prompt_sections": {
-                    "market_analysis": {
-                        "current_price": True,
-                        "moving_averages": True,
-                        "rsi": True,
-                        "volatility": True,
-                        "trends": True
-                    },
-                    "technical_signals": {
-                        "ma_signal": True,
-                        "rsi_signal": True,
-                        "volume_signal": True,
-                        "overall_signal": True
-                    },
-                    "news_analysis": {
-                        "news_count": True,
-                        "sentiment_score": True,
-                        "summary": True
-                    },
-                    "asset_info": {
-                        "balance": True,
-                        "avg_price": True,
-                        "profit_loss": True
-                    }
-                },
-                "prompt_text": data["prompt"].split("\n")
-            }
-        else:
-            formatted_data = data
+        if category not in categories:
+            logger.error(f"잘못된 카테고리입니다: {category}")
+            return
+            
+        timestamp = datetime.now().strftime("%H%M%S")
+        filename = f"{categories[category]}_{symbol}_{timestamp}.json"
+        filepath = self.log_dir / filename
+        
+        # datetime 객체 변환
+        data = self._convert_datetime(data)
+        
+        # 데이터 포맷팅
+        formatted_data = {
+            "timestamp": datetime.now().isoformat(),
+            "symbol": symbol,
+            "data_type": category,
+            "content": data
+        }
         
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(formatted_data, f, ensure_ascii=False, indent=2)
             
-        logger.info(f"{symbol} {prefix} 저장 완료: {filepath}")
+        logger.info(f"{symbol} {category} 저장 완료: {filepath}")
         
-    def make_decision(self, symbol: str, news_items: List[Dict], dev_mode: bool = False) -> Dict:
+    def make_decision(
+        self,
+        symbol: str,
+        max_age_hours: int = 24,
+        limit: int = 5,
+        dev_mode: bool = False
+    ) -> Dict:
         """매매 판단을 수행합니다.
         
         Args:
             symbol: 심볼 (예: BTC)
-            news_items: 뉴스 목록
+            max_age_hours: 뉴스 수집 시 최대 기사 나이 (시간)
+            limit: 수집할 뉴스 기사 수
             dev_mode: 개발 모드 여부
             
         Returns:
@@ -243,14 +274,22 @@ class TradingDecisionMaker:
             if not all([market_overview, trading_signals, asset_info]):
                 raise Exception("시장 데이터 수집 실패")
                 
-            # 시장 데이터 통합
+            # 시장 데이터 통합 및 저장
             market_data = {**market_overview, **trading_signals}
+            self._save_decision_data(symbol, market_data, "market_data")
+            self._save_decision_data(symbol, asset_info, "market_data")
             
             # 2. 뉴스 분석
-            news_data = self.news_summarizer.analyze_news(news_items, dev_mode)
+            news_data = self.news_summarizer.analyze_news(
+                symbol=symbol,
+                max_age_hours=max_age_hours,
+                limit=limit,
+                dev_mode=dev_mode
+            )
             if not news_data["success"]:
                 raise Exception("뉴스 분석 실패")
-                
+            self._save_decision_data(symbol, news_data, "news_data")
+            
             # 3. 매매 판단 프롬프트 생성
             prompt = self._create_decision_prompt(
                 symbol,
@@ -258,9 +297,7 @@ class TradingDecisionMaker:
                 news_data,
                 asset_info
             )
-            
-            # 프롬프트 저장
-            self._save_decision_data(symbol, {"prompt": prompt}, "prompt")
+            self._save_decision_data(symbol, {"prompt": prompt}, "prompts")
             
             # 4. GPT-4 API 호출
             if dev_mode:
@@ -287,15 +324,18 @@ class TradingDecisionMaker:
                             "다가오는 반감기",
                             "기관 투자자 유입 증가"
                         ]
+                    },
+                    "next_decision": {
+                        "interval_minutes": 240,
+                        "reason": "현재 시장의 변동성과 추세를 고려한 적정 모니터링 주기"
                     }
                 }
             else:
                 response = self._call_gpt4(prompt)
                 if not response:
                     raise Exception("GPT-4 API 호출 실패")
-                    
-                content = response["choices"][0]["message"]["content"]
-                decision = json.loads(content)
+                self._save_decision_data(symbol, response, "responses")
+                decision = response
             
             # 5. 결과 저장
             result = {
@@ -308,7 +348,7 @@ class TradingDecisionMaker:
                 "decision": decision
             }
             
-            self._save_decision_data(symbol, result)
+            self._save_decision_data(symbol, result, "decision")
             
             return result
             
@@ -365,5 +405,10 @@ class TradingDecisionMaker:
         output.append(f"• RSI(14): {market_data['rsi_14']:.1f}")
         output.append(f"• 이동평균: MA5 {market_data['ma5']:,} / MA20 {market_data['ma20']:,}")
         output.append(f"• 변동성: {market_data['volatility']:.1f}%")
+        
+        # 다음 매매 판단 정보
+        output.append("\n⏰ 다음 매매 판단")
+        output.append(f"• 시간 간격: {decision['next_decision']['interval_minutes']}분 후")
+        output.append(f"• 선택 이유: {decision['next_decision']['reason']}")
         
         return "\n".join(output) 
