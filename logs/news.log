@@ -188,3 +188,32 @@
 2025-04-06 20:45:00 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
 2025-04-06 20:45:03 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
 2025-04-06 20:45:04 [INFO] news: ETH 뉴스 5개 수집 완료
+2025-04-06 22:27:13 [ERROR] news: BTC 비트코인 뉴스 수집 실패: '>' not supported between instances of 'float' and 'datetime.datetime'
+2025-04-06 22:27:14 [ERROR] news: BTC Bitcoin 뉴스 수집 실패: '>' not supported between instances of 'float' and 'datetime.datetime'
+2025-04-06 22:27:15 [ERROR] news: BTC BTC 뉴스 수집 실패: '>' not supported between instances of 'float' and 'datetime.datetime'
+2025-04-06 22:27:16 [ERROR] news: BTC $BTC 뉴스 수집 실패: '>' not supported between instances of 'float' and 'datetime.datetime'
+2025-04-06 22:27:17 [ERROR] news: BTC bitcoin 뉴스 수집 실패: '>' not supported between instances of 'float' and 'datetime.datetime'
+2025-04-06 22:29:14 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:29:17 [DEBUG] news: 지원하지 않는 날짜 형식: A4면 1단
+2025-04-06 22:29:18 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:29:20 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:29:24 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:29:26 [DEBUG] news: 지원하지 않는 날짜 형식: A4면 1단
+2025-04-06 22:29:27 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:29:28 [INFO] news: BTC 뉴스 5개 수집 완료
+2025-04-06 22:30:03 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:30:05 [DEBUG] news: 지원하지 않는 날짜 형식: A4면 1단
+2025-04-06 22:30:07 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:30:10 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:30:13 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:30:14 [DEBUG] news: 지원하지 않는 날짜 형식: A4면 1단
+2025-04-06 22:30:15 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:30:16 [INFO] news: BTC 뉴스 5개 수집 완료
+2025-04-06 22:33:47 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:33:50 [DEBUG] news: 지원하지 않는 날짜 형식: A4면 1단
+2025-04-06 22:33:51 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:33:55 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:33:57 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:34:00 [DEBUG] news: 지원하지 않는 날짜 형식: A4면 1단
+2025-04-06 22:34:02 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-06 22:34:03 [INFO] news: BTC 뉴스 5개 수집 완료
