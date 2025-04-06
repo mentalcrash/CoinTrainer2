@@ -24,5 +24,8 @@ def test_trading_analyzer():
     print(analyzer.format_analysis('BTC'))
     print(f"{'=' * 80}")
 
+    print("########################")
+    print(analyzer)
+
 if __name__ == "__main__":
     test_trading_analyzer() 

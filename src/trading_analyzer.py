@@ -42,17 +42,22 @@ class TradingAnalyzer:
     def _setup_log_directory(self):
         """로그 디렉토리 설정"""
         # 기본 로그 디렉토리 생성
-        log_dir = Path(".temp/trading_analysis")
-        log_dir.mkdir(parents=True, exist_ok=True)
+        base_dir = Path(".temp")
+        base_dir.mkdir(exist_ok=True)
         
-        # 날짜별 디렉토리 생성
-        today = datetime.now().strftime("%Y%m%d")
-        self.today_dir = log_dir / today
-        self.today_dir.mkdir(exist_ok=True)
+        # 실행 시간 기반 디렉토리 생성
+        now = datetime.now()
+        run_id = now.strftime("%Y%m%d_%H%M%S")
+        self.run_dir = base_dir / run_id
+        self.run_dir.mkdir(exist_ok=True)
+        
+        # 로그 디렉토리 생성
+        self.log_dir = self.run_dir / "logs"
+        self.log_dir.mkdir(exist_ok=True)
         
         # 파일 핸들러 추가
         file_handler = logging.FileHandler(
-            self.today_dir / "trading_analysis.log",
+            self.log_dir / "trading_analysis.log",
             encoding='utf-8'
         )
         file_handler.setFormatter(
@@ -60,22 +65,50 @@ class TradingAnalyzer:
         )
         self.logger.addHandler(file_handler)
         
-    def _save_analysis_result(self, symbol: str, data: Dict, prefix: str):
-        """분석 결과를 파일로 저장
-        
-        Args:
-            symbol: 심볼 (예: BTC, ETH)
-            data: 저장할 데이터
-            prefix: 파일 이름 접두사
-        """
-        timestamp = datetime.now().strftime("%H%M%S")
-        filename = f"{prefix}_{symbol}_{timestamp}.json"
-        filepath = self.today_dir / filename
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+    def _save_analysis_result(self, symbol: str, data: Dict, category: str):
+        """분석 결과를 파일로 저장합니다."""
+        try:
+            timestamp = datetime.now().strftime("%H%M%S")
             
-        self.logger.info(f"{symbol} {prefix} 저장 완료: {filepath}")
+            # datetime 객체 변환
+            def convert_datetime(obj):
+                if isinstance(obj, datetime):
+                    return obj.isoformat()
+                elif isinstance(obj, dict):
+                    return {k: convert_datetime(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_datetime(item) for item in obj]
+                return obj
+            
+            data = convert_datetime(data)
+            
+            # 데이터 포맷팅
+            formatted_data = {
+                "timestamp": datetime.now().isoformat(),
+                "symbol": symbol,
+                "data_type": category,
+                "content": data
+            }
+            
+            # 카테고리별 파일명 설정
+            categories = {
+                "market_overview": "03_01",
+                "trading_signals": "03_02",
+                "asset_info": "03_03",
+                "analysis": "03_04"
+            }
+            
+            prefix = categories.get(category, "03_00")
+            filename = f"{prefix}_{category}_{symbol}_{timestamp}.json"
+            filepath = self.log_dir / filename
+            
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(formatted_data, f, ensure_ascii=False, indent=2)
+                
+            self.logger.info(f"{symbol} {category} 저장 완료: {filepath}")
+            
+        except Exception as e:
+            self.logger.error(f"파일 저장 실패: {str(e)}")
         
     def get_market_overview(self, symbol: str) -> Dict:
         """시장 전반적인 상황 조회
@@ -287,6 +320,8 @@ class TradingAnalyzer:
                 'current_value': float,     # 현재 평가금액
                 'profit_loss': float,       # 평가손익
                 'profit_loss_rate': float,  # 수익률(%)
+                'krw_balance': float,       # 보유 현금(KRW)
+                'krw_locked': float,        # 거래중인 현금(KRW)
             }
         """
         self.logger.info(f"{symbol} 자산 정보 조회 시작...")
@@ -302,6 +337,15 @@ class TradingAnalyzer:
             if not current_price:
                 raise Exception("현재가 조회 실패")
                 
+            # KRW 잔고 찾기
+            krw_balance = 0.0
+            krw_locked = 0.0
+            for balance in balances:
+                if balance['currency'] == 'KRW':
+                    krw_balance = float(balance['balance'])
+                    krw_locked = float(balance['locked'])
+                    break
+                
             # 해당 심볼의 잔고 찾기
             asset = None
             for balance in balances:
@@ -316,24 +360,28 @@ class TradingAnalyzer:
                     'avg_buy_price': 0.0,
                     'current_value': 0.0,
                     'profit_loss': 0.0,
-                    'profit_loss_rate': 0.0
+                    'profit_loss_rate': 0.0,
+                    'krw_balance': krw_balance,
+                    'krw_locked': krw_locked
                 }
                 
             # 평가금액 계산
-            current_value = asset['balance'] * current_price['trade_price']
+            current_value = float(asset['balance']) * float(current_price['trade_price'])
             
             # 평가손익 계산
-            invested = asset['balance'] * asset['avg_buy_price']
+            invested = float(asset['balance']) * float(asset['avg_buy_price'])
             profit_loss = current_value - invested
             profit_loss_rate = (profit_loss / invested * 100) if invested > 0 else 0.0
             
             result = {
-                'balance': asset['balance'],
-                'locked': asset['locked'],
-                'avg_buy_price': asset['avg_buy_price'],
+                'balance': float(asset['balance']),
+                'locked': float(asset['locked']),
+                'avg_buy_price': float(asset['avg_buy_price']),
                 'current_value': current_value,
                 'profit_loss': profit_loss,
-                'profit_loss_rate': profit_loss_rate
+                'profit_loss_rate': profit_loss_rate,
+                'krw_balance': krw_balance,
+                'krw_locked': krw_locked
             }
             
             # 결과 저장
@@ -344,6 +392,58 @@ class TradingAnalyzer:
         except Exception as e:
             self.logger.error(f"{symbol} 자산 정보 조회 실패: {str(e)}")
             return None
+            
+    def analyze(self, symbol: str) -> Dict:
+        """심볼에 대한 전체 분석을 수행합니다.
+        
+        Args:
+            symbol: 심볼 (예: BTC, ETH)
+            
+        Returns:
+            Dict: {
+                'success': bool,            # 분석 성공 여부
+                'error': str,               # 에러 메시지 (실패시)
+                'market_data': Dict,        # 시장 데이터
+                'signals': Dict,            # 매매 신호
+                'asset_info': Dict,         # 자산 정보
+                'timestamp': datetime       # 분석 시간
+            }
+        """
+        self.logger.info(f"{symbol} 분석 시작...")
+        
+        try:
+            market_data = self.get_market_overview(symbol)
+            signals = self.get_trading_signals(symbol)
+            asset_info = self.get_asset_info(symbol)
+            
+            if not all([market_data, signals, asset_info]):
+                raise Exception("데이터 조회 실패")
+                
+            result = {
+                'success': True,
+                'error': None,
+                'market_data': market_data,
+                'signals': signals,
+                'asset_info': asset_info,
+                'timestamp': datetime.now()
+            }
+            
+            # 분석 결과 저장
+            self._save_analysis_result(symbol, result, "analysis")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"{symbol} 분석 실패: {str(e)}"
+            self.logger.error(error_msg)
+            return {
+                'success': False,
+                'error': str(e),
+                'market_data': None,
+                'signals': None,
+                'asset_info': None,
+                'timestamp': datetime.now()
+            }
             
     def format_analysis(self, symbol: str) -> str:
         """분석 결과를 보기 좋게 포맷팅
@@ -356,56 +456,46 @@ class TradingAnalyzer:
         """
         self.logger.info(f"{symbol} 분석 결과 포맷팅 시작...")
         
-        try:
-            market_data = self.get_market_overview(symbol)
-            signals = self.get_trading_signals(symbol)
-            asset_info = self.get_asset_info(symbol)
+        # 분석 수행
+        result = self.analyze(symbol)
+        
+        if not result['success']:
+            return f"분석 실패: {result['error']}"
             
-            if not all([market_data, signals, asset_info]):
-                self.logger.error(f"{symbol} 데이터 조회 실패")
-                return "데이터 조회 실패"
-                
-            output = []
-            output.append(f"\n📊 {symbol} 매매 분석 ({datetime.now().strftime('%Y-%m-%d %H:%M')})")
-            output.append("=" * 60)
-            
-            # 시장 상황
-            output.append("\n🌍 시장 상황")
-            output.append(f"• 현재가: {market_data['current_price']:,.0f} KRW ({market_data['daily_change']:+.2f}%)")
-            output.append(f"• 거래량: {market_data['daily_volume']:,.0f}")
-            output.append(f"• 이동평균: MA5 {market_data['ma5']:,.0f} / MA20 {market_data['ma20']:,.0f}")
-            output.append(f"• RSI(14): {market_data['rsi_14']:.1f}")
-            output.append(f"• 변동성: {market_data['volatility']:.1f}%")
-            
-            # 매매 신호
-            output.append("\n🎯 매매 신호")
-            output.append(f"• 이동평균: {signals['ma_signal']}")
-            output.append(f"• RSI: {signals['rsi_signal']}")
-            output.append(f"• 거래량: {signals['volume_signal']}")
-            output.append(f"• 추세: {signals['trend_signal']}")
-            output.append(f"• 종합 신호: {signals['overall_signal']} (강도: {signals['signal_strength']:.1%})")
-            
-            # 자산 정보
-            if asset_info['balance'] > 0:
-                output.append("\n💰 자산 정보")
-                output.append(f"• 보유수량: {asset_info['balance']:.8f} {symbol}")
-                output.append(f"• 매수평균가: {asset_info['avg_buy_price']:,.0f} KRW")
-                output.append(f"• 평가금액: {asset_info['current_value']:,.0f} KRW")
-                output.append(f"• 평가손익: {asset_info['profit_loss']:,.0f} KRW ({asset_info['profit_loss_rate']:+.2f}%)")
-            
-            formatted_result = "\n".join(output)
-            
-            # 포맷팅된 결과 저장
-            timestamp = datetime.now().strftime("%H%M%S")
-            filepath = self.today_dir / f"analysis_{symbol}_{timestamp}.txt"
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(formatted_result)
-                
-            self.logger.info(f"{symbol} 분석 결과 저장 완료: {filepath}")
-            
-            return formatted_result
-            
-        except Exception as e:
-            error_msg = f"{symbol} 분석 결과 포맷팅 실패: {str(e)}"
-            self.logger.error(error_msg)
-            return error_msg 
+        market_data = result['market_data']
+        signals = result['signals']
+        asset_info = result['asset_info']
+        
+        output = []
+        output.append(f"\n📊 {symbol} 매매 분석 ({result['timestamp'].strftime('%Y-%m-%d %H:%M')})")
+        output.append("=" * 60)
+        
+        # 시장 상황
+        output.append("\n🌍 시장 상황")
+        output.append(f"• 현재가: {market_data['current_price']:,.0f} KRW ({market_data['daily_change']:+.2f}%)")
+        output.append(f"• 거래량: {market_data['daily_volume']:,.0f}")
+        output.append(f"• 이동평균: MA5 {market_data['ma5']:,.0f} / MA20 {market_data['ma20']:,.0f}")
+        output.append(f"• RSI(14): {market_data['rsi_14']:.1f}")
+        output.append(f"• 변동성: {market_data['volatility']:.1f}%")
+        
+        # 매매 신호
+        output.append("\n🎯 매매 신호")
+        output.append(f"• 이동평균: {signals['ma_signal']}")
+        output.append(f"• RSI: {signals['rsi_signal']}")
+        output.append(f"• 거래량: {signals['volume_signal']}")
+        output.append(f"• 추세: {signals['trend_signal']}")
+        output.append(f"• 종합 신호: {signals['overall_signal']} (강도: {signals['signal_strength']:.1%})")
+        
+        # 자산 정보
+        if asset_info['balance'] > 0:
+            output.append("\n💰 자산 정보")
+            output.append(f"• 보유수량: {asset_info['balance']:.8f} {symbol}")
+            output.append(f"• 매수평균가: {asset_info['avg_buy_price']:,.0f} KRW")
+            output.append(f"• 평가금액: {asset_info['current_value']:,.0f} KRW")
+            output.append(f"• 평가손익: {asset_info['profit_loss']:,.0f} KRW ({asset_info['profit_loss_rate']:+.2f}%)")
+            output.append(f"• 보유 현금: {asset_info['krw_balance']:,.0f} KRW")
+            if asset_info['krw_locked'] > 0:
+                output.append(f"• 거래중인 현금: {asset_info['krw_locked']:,.0f} KRW")
+        
+        formatted_result = "\n".join(output)
+        return formatted_result 
