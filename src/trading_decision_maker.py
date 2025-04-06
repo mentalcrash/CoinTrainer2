@@ -267,28 +267,24 @@ class TradingDecisionMaker:
             logger.info(f"{symbol} 매매 판단 시작...")
             
             # 1. 시장 분석 데이터 수집
-            market_overview = self.trading_analyzer.get_market_overview(symbol)
-            trading_signals = self.trading_analyzer.get_trading_signals(symbol)
-            asset_info = self.trading_analyzer.get_asset_info(symbol)
-            
-            if not all([market_overview, trading_signals, asset_info]):
-                raise Exception("시장 데이터 수집 실패")
+            analysis_result = self.trading_analyzer.analyze(symbol)
+            if not analysis_result['success']:
+                raise Exception(f"시장 데이터 수집 실패: {analysis_result['error']}")
                 
-            # 시장 데이터 통합 및 저장
-            market_data = {**market_overview, **trading_signals}
-            self._save_decision_data(symbol, market_data, "market_data")
-            self._save_decision_data(symbol, asset_info, "market_data")
+            market_data = {
+                **analysis_result['market_data'],
+                **analysis_result['signals']
+            }
+            asset_info = analysis_result['asset_info']
             
             # 2. 뉴스 분석
             news_data = self.news_summarizer.analyze_news(
                 symbol=symbol,
                 max_age_hours=max_age_hours,
-                limit=limit,
-                dev_mode=dev_mode
+                limit=limit
             )
             if not news_data["success"]:
                 raise Exception("뉴스 분석 실패")
-            self._save_decision_data(symbol, news_data, "news_data")
             
             # 3. 매매 판단 프롬프트 생성
             prompt = self._create_decision_prompt(

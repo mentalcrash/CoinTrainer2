@@ -190,26 +190,6 @@ class NewsSummarizer:
         
         return int(eng_tokens + kor_tokens)
 
-    def _get_dummy_response(self, symbol: str) -> Dict:
-        """개발용 더미 응답을 생성합니다."""
-        return {
-            "success": True,
-            "symbol": symbol,
-            "timestamp": datetime.now().isoformat(),
-            "news_count": 5,
-            "analysis": {
-                "key_points": [
-                    f"{symbol} 가격이 상승세를 보이며 투자자들의 관심이 집중",
-                    "주요 기관들의 암호화폐 시장 진출이 가속화",
-                    "규제 환경이 점차 명확해지면서 시장 안정성 향상"
-                ],
-                "market_impact": "전반적으로 긍정적인 뉴스들이 우세하며, 기관 투자자들의 참여로 시장이 성숙화되는 모습을 보이고 있습니다.",
-                "sentiment_score": 0.65,
-                "sentiment_label": "매우 긍정적",
-                "investor_advice": "단기적으로는 변동성에 대비하되, 중장기적 관점에서 매수 기회로 활용할 수 있습니다."
-            }
-        }
-
     def _convert_datetime(self, data: Dict) -> Dict:
         """datetime 객체를 ISO 형식 문자열로 변환합니다."""
         if isinstance(data, dict):
@@ -220,42 +200,65 @@ class NewsSummarizer:
             return data.isoformat()
         return data
 
-    def _save_prompt_and_response(self, symbol: str, prompt: str, response: Dict = None) -> str:
-        """프롬프트와 응답을 파일로 저장합니다."""
+    def _save_prompt(self, symbol: str, prompt: str) -> str:
+        """프롬프트를 파일로 저장합니다.
+        
+        Args:
+            symbol: 심볼 (예: BTC)
+            prompt: 저장할 프롬프트
+            
+        Returns:
+            str: 저장 시 사용된 타임스탬프
+        """
         try:
             timestamp = datetime.now().strftime("%H%M%S")
             
-            # 프롬프트 저장
             prompt_data = {
                 "timestamp": datetime.now().isoformat(),
                 "symbol": symbol,
                 "data_type": "prompt",
                 "content": prompt
             }
+            
             prompt_file = self.log_dir / f"02_01_prompt_{symbol}_{timestamp}.json"
             with open(prompt_file, "w", encoding="utf-8") as f:
                 json.dump(prompt_data, f, ensure_ascii=False, indent=2)
+                
             logger.info(f"프롬프트가 저장되었습니다: {prompt_file}")
-            
-            # 응답 저장 (있는 경우)
-            if response:
-                response = self._convert_datetime(response)
-                response_data = {
-                    "timestamp": datetime.now().isoformat(),
-                    "symbol": symbol,
-                    "data_type": "response",
-                    "content": response
-                }
-                response_file = self.log_dir / f"02_02_response_{symbol}_{timestamp}.json"
-                with open(response_file, "w", encoding="utf-8") as f:
-                    json.dump(response_data, f, ensure_ascii=False, indent=2)
-                logger.info(f"응답이 저장되었습니다: {response_file}")
-            
             return timestamp
             
         except Exception as e:
-            logger.error(f"파일 저장 실패: {str(e)}")
+            logger.error(f"프롬프트 저장 실패: {str(e)}")
             return None
+            
+    def _save_response(self, symbol: str, response: Dict, timestamp: str = None) -> None:
+        """응답을 파일로 저장합니다.
+        
+        Args:
+            symbol: 심볼 (예: BTC)
+            response: 저장할 응답 데이터
+            timestamp: 프롬프트 저장 시 사용된 타임스탬프 (없으면 새로 생성)
+        """
+        try:
+            if timestamp is None:
+                timestamp = datetime.now().strftime("%H%M%S")
+                
+            response = self._convert_datetime(response)
+            response_data = {
+                "timestamp": datetime.now().isoformat(),
+                "symbol": symbol,
+                "data_type": "response",
+                "content": response
+            }
+            
+            response_file = self.log_dir / f"02_02_response_{symbol}_{timestamp}.json"
+            with open(response_file, "w", encoding="utf-8") as f:
+                json.dump(response_data, f, ensure_ascii=False, indent=2)
+                
+            logger.info(f"응답이 저장되었습니다: {response_file}")
+            
+        except Exception as e:
+            logger.error(f"응답 저장 실패: {str(e)}")
 
     def _save_news_data(self, symbol: str, data: Dict, category: str):
         """뉴스 데이터를 파일로 저장합니다."""
@@ -292,8 +295,7 @@ class NewsSummarizer:
         self,
         symbol: str,
         max_age_hours: int = 24,
-        limit: int = 5,
-        dev_mode: bool = False
+        limit: int = 5
     ) -> Dict:
         """뉴스를 분석합니다.
         
@@ -301,7 +303,6 @@ class NewsSummarizer:
             symbol: 심볼 (예: BTC)
             max_age_hours: 최대 뉴스 수집 시간 (시간)
             limit: 수집할 뉴스 개수
-            dev_mode: 개발 모드 여부
             
         Returns:
             Dict: 분석 결과
@@ -324,19 +325,18 @@ class NewsSummarizer:
             token_count = self._count_tokens(prompt)
             logger.info(f"프롬프트 토큰 수 (추정치): {token_count}")
             
-            # 개발 모드일 경우 더미 응답 반환
-            if dev_mode:
-                response = self._get_dummy_response(symbol)
-            else:
-                # GPT API 호출
-                response = self._call_gpt4(prompt)
+            # 프롬프트 저장
+            timestamp = self._save_prompt(symbol, prompt)
+            
+            # GPT API 호출
+            response = self._call_gpt4(prompt)
                 
             if not response["success"]:
                 error_result = {
                     "success": False,
                     "error": response.get("error", "API 호출 실패")
                 }
-                self._save_prompt_and_response(symbol, prompt, error_result)
+                self._save_response(symbol, error_result, timestamp)
                 return error_result
             
             # 응답 파싱
@@ -344,8 +344,8 @@ class NewsSummarizer:
                 analysis_result = json.loads(response["content"])
                 analysis_result["success"] = True
                 
-                # 프롬프트와 응답 저장
-                self._save_prompt_and_response(symbol, prompt, analysis_result)
+                # 응답 저장
+                self._save_response(symbol, analysis_result, timestamp)
                 
                 return analysis_result
                 
