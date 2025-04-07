@@ -50,11 +50,11 @@ class TradingExecutor:
             tuple: (주문 수량, 주문 가격)
         """
         # 매수/매도 수량 계산 (보유자산 대비 %)
-        quantity_percent = float(decision['quantity_percent']) * 100
+        quantity_percent = float(decision['quantity_percent']) / 100
         
         if decision['decision'] == '매수':
             # 매수 가능한 KRW 잔고 확인
-            available_krw = float(asset_info.get('payment_balance', 0))
+            available_krw = float(asset_info.get('krw_balance', 0))
             order_amount = available_krw * quantity_percent
             # 목표가로 매수 수량 계산
             volume = None
@@ -99,11 +99,6 @@ class TradingExecutor:
                 
             decision = decision_result['decision']
             asset_info = decision_result['asset_info']
-            
-            print("--------------------------------")
-            print(decision)
-            print("--------------------------------")
-            print(asset_info)
 
             # 2. 매매 판단이 '관망'인 경우 종료
             if decision['decision'] == '관망':
@@ -135,10 +130,11 @@ class TradingExecutor:
             # 5. 결과 반환
             return {
                 'success': True,
-                'action': decision['decision'],
+                'decision': decision,
                 'order_result': order_result,
                 'decision_result': decision_result,
-                'next_decision_time': decision['next_decision']['interval_minutes']
+                'next_decision_time': decision['next_decision']['interval_minutes'],
+                'asset_info': asset_info
             }
             
         except Exception as e:

@@ -110,7 +110,7 @@ class TradingDecisionMaker:
 
 {{
     "decision": "매수 또는 매도 또는 관망",
-    "quantity_percent": "매수/매도 수량 (매수시 현재 보유 KRW 대비 비율, 매도시 타겟 코인 수량 대비 비율 0~1)",
+    "quantity_percent": "매수/매도 수량 (매수시 현재 보유 KRW 대비 비율 0~100 사이 값, 매도시 타겟 코인 수량 대비 비율 0~100 사이 값)",
     "target_price": "목표가 (KRW)",
     "stop_loss": "손절가 (KRW)",
     "confidence": "신뢰도 (0.0 ~ 1.0)",

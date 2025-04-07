@@ -112,6 +112,32 @@
                 "PYTHONPATH": "${workspaceFolder}"
             },
             "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "트레이딩 스케줄러 테스트 (개발)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/trading_scheduler_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "DEV_MODE": "true"
+            },
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "트레이딩 스케줄러 테스트 (프로덕션)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/trading_scheduler_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "DEV_MODE": "false"
+            },
+            "envFile": "${workspaceFolder}/.env"
         }
     ]
 } 

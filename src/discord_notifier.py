@@ -80,14 +80,34 @@ class DiscordNotifier:
             "title": f"💰 {symbol} 주문 실행",
             "color": 0x00ff00,
             "fields": [
-                {"name": "주문 타입", "value": order_result["type"], "inline": True},
-                {"name": "주문 상태", "value": order_result["status"], "inline": True},
-                {"name": "주문 수량", "value": f"{order_result['volume']}", "inline": True},
-                {"name": "주문 가격", "value": f"{order_result['price']:,} KRW", "inline": True},
-                {"name": "체결 수량", "value": f"{order_result['executed_volume']}", "inline": True},
-                {"name": "미체결 수량", "value": f"{order_result['remaining_volume']}", "inline": True}
+                {"name": "주문 ID", "value": order_result["uuid"], "inline": True},
+                {"name": "주문 방향", "value": "매수" if order_result["side"] == "bid" else "매도", "inline": True},
+                {"name": "주문 타입", "value": order_result["ord_type"], "inline": True},
+                {"name": "주문 상태", "value": order_result["state"], "inline": True},
+                {"name": "마켓", "value": order_result["market"], "inline": True},
+                {"name": "주문 시각", "value": order_result["created_at"], "inline": True}
             ]
         }
+
+        # 매수/매도에 따라 다른 필드 추가
+        if order_result["side"] == "bid":
+            order_embed["fields"].extend([
+                {"name": "주문 가격", "value": f"{float(order_result['price']):,} KRW", "inline": True},
+                {"name": "체결 수량", "value": order_result["executed_volume"], "inline": True},
+                {"name": "거래 횟수", "value": str(order_result["trades_count"]), "inline": True},
+                {"name": "수수료", "value": f"{float(order_result['paid_fee']):,} KRW", "inline": True},
+                {"name": "예약 수수료", "value": f"{float(order_result['reserved_fee']):,} KRW", "inline": True},
+                {"name": "잠긴 금액", "value": f"{float(order_result['locked']):,} KRW", "inline": True}
+            ])
+        else:  # 매도
+            order_embed["fields"].extend([
+                {"name": "주문 수량", "value": order_result["volume"], "inline": True},
+                {"name": "남은 수량", "value": order_result["remaining_volume"], "inline": True},
+                {"name": "체결 수량", "value": order_result["executed_volume"], "inline": True},
+                {"name": "거래 횟수", "value": str(order_result["trades_count"]), "inline": True},
+                {"name": "수수료", "value": f"{float(order_result['paid_fee']):,} KRW", "inline": True},
+                {"name": "잠긴 수량", "value": order_result["locked"], "inline": True}
+            ])
 
         # 자산 정보 임베드
         asset_embed = {
