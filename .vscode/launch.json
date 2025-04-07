@@ -100,6 +100,18 @@
                 "DEV_MODE": "false"
             },
             "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "Discord 알림 테스트",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/discord_notifier_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "envFile": "${workspaceFolder}/.env"
         }
     ]
 } 
