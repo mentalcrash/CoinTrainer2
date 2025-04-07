@@ -701,3 +701,130 @@
 2025-04-07 01:52:02 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
 2025-04-07 01:52:03 [INFO] news: BTC news_collection 저장 완료: .temp/20250407_015149/logs/01_news_collection_BTC_015203.json
 2025-04-07 01:52:03 [INFO] news: BTC 뉴스 5개 수집 완료
+2025-04-07 10:06:39 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:06:41 [DEBUG] news: 지원하지 않는 날짜 형식: A4면 1단
+2025-04-07 10:06:42 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:06:45 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:06:48 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:06:50 [DEBUG] news: 지원하지 않는 날짜 형식: A4면 1단
+2025-04-07 10:06:51 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:06:52 [INFO] news: BTC news_collection 저장 완료: .temp/20250407_100637/logs/01_news_collection_BTC_100652.json
+2025-04-07 10:06:52 [INFO] news: BTC 뉴스 5개 수집 완료
+2025-04-07 10:08:55 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:08:59 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:09:01 [DEBUG] news: 지원하지 않는 날짜 형식: A12면 1단
+2025-04-07 10:09:02 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:09:04 [DEBUG] news: 지원하지 않는 날짜 형식: A12면 1단
+2025-04-07 10:09:05 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:09:08 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:09:09 [INFO] news: DOGE news_collection 저장 완료: .temp/20250407_100852/logs/01_news_collection_DOGE_100909.json
+2025-04-07 10:09:09 [INFO] news: DOGE 뉴스 5개 수집 완료
+2025-04-07 10:11:13 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:11:13 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:11:13 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:11:15 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:11:17 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:11:20 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:11:22 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:11:23 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:11:24 [INFO] news: SUNDOG news_collection 저장 완료: .temp/20250407_101112/logs/01_news_collection_SUNDOG_101124.json
+2025-04-07 10:11:24 [INFO] news: SUNDOG 뉴스 3개 수집 완료
+2025-04-07 10:15:21 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:15:24 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:15:29 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:15:32 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:15:35 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:15:36 [INFO] news: XRP news_collection 저장 완료: .temp/20250407_101518/logs/01_news_collection_XRP_101536.json
+2025-04-07 10:15:36 [INFO] news: XRP 뉴스 5개 수집 완료
+2025-04-07 10:19:47 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:19:50 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:19:53 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:19:56 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:19:58 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:19:59 [INFO] news: XRP news_collection 저장 완료: .temp/20250407_101945/logs/01_news_collection_XRP_101959.json
+2025-04-07 10:19:59 [INFO] news: XRP 뉴스 5개 수집 완료
+2025-04-07 10:28:20 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:28:20 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:28:20 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:28:22 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:28:24 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:28:27 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:28:28 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:28:29 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:28:30 [INFO] news: SUNDOG news_collection 저장 완료: .temp/20250407_102819/logs/01_news_collection_SUNDOG_102830.json
+2025-04-07 10:28:30 [INFO] news: SUNDOG 뉴스 3개 수집 완료
+2025-04-07 10:32:59 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:32:59 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:32:59 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:33:00 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:33:03 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:33:06 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:33:08 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:33:09 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:33:10 [INFO] news: SUNDOG news_collection 저장 완료: .temp/20250407_103258/logs/01_news_collection_SUNDOG_103310.json
+2025-04-07 10:33:10 [INFO] news: SUNDOG 뉴스 3개 수집 완료
+2025-04-07 10:39:31 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:39:31 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:39:31 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:39:32 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:39:35 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:39:37 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:39:39 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:39:40 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:39:41 [INFO] news: SUNDOG news_collection 저장 완료: .temp/20250407_103930/logs/01_news_collection_SUNDOG_103941.json
+2025-04-07 10:39:41 [INFO] news: SUNDOG 뉴스 3개 수집 완료
+2025-04-07 10:41:45 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:41:45 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:41:45 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:41:47 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:41:54 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:41:57 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:41:59 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:42:00 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:42:01 [INFO] news: SUNDOG news_collection 저장 완료: .temp/20250407_104145/logs/01_news_collection_SUNDOG_104201.json
+2025-04-07 10:42:01 [INFO] news: SUNDOG 뉴스 3개 수집 완료
+2025-04-07 10:45:31 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:45:31 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:45:31 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:45:33 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:45:35 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:45:40 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:45:42 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:45:43 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:45:44 [INFO] news: SUNDOG news_collection 저장 완료: .temp/20250407_104531/logs/01_news_collection_SUNDOG_104544.json
+2025-04-07 10:45:44 [INFO] news: SUNDOG 뉴스 3개 수집 완료
+2025-04-07 10:47:50 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:47:52 [DEBUG] news: 지원하지 않는 날짜 형식: 1주 전
+2025-04-07 10:47:54 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:47:57 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:47:59 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:47:59 [DEBUG] news: 지원하지 않는 날짜 형식: 1주 전
+2025-04-07 10:47:59 [DEBUG] news: 지원하지 않는 날짜 형식: 1주 전
+2025-04-07 10:47:59 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:47:59 [DEBUG] news: 지원하지 않는 날짜 형식: A33면 1단
+2025-04-07 10:48:01 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:48:02 [INFO] news: EGG news_collection 저장 완료: .temp/20250407_104747/logs/01_news_collection_EGG_104802.json
+2025-04-07 10:48:02 [INFO] news: EGG 뉴스 5개 수집 완료
+2025-04-07 10:49:28 [DEBUG] news: 지원하지 않는 날짜 형식: 1주 전
+2025-04-07 10:49:29 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:49:32 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:49:35 [DEBUG] news: 지원하지 않는 날짜 형식: 2주 전
+2025-04-07 10:49:36 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:49:38 [DEBUG] news: 지원하지 않는 날짜 형식: 1주 전
+2025-04-07 10:49:40 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:49:41 [INFO] news: USDT news_collection 저장 완료: .temp/20250407_104927/logs/01_news_collection_USDT_104941.json
+2025-04-07 10:49:41 [INFO] news: USDT 뉴스 5개 수집 완료
+2025-04-07 10:51:14 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:51:18 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:51:22 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:51:25 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:51:31 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:51:32 [INFO] news: ETH news_collection 저장 완료: .temp/20250407_105111/logs/01_news_collection_ETH_105132.json
+2025-04-07 10:51:32 [INFO] news: ETH 뉴스 5개 수집 완료
+2025-04-07 10:52:02 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:52:04 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:52:07 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:52:10 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:52:12 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-07 10:52:13 [INFO] news: ETH news_collection 저장 완료: .temp/20250407_105159/logs/01_news_collection_ETH_105213.json
+2025-04-07 10:52:13 [INFO] news: ETH 뉴스 5개 수집 완료

@@ -10,7 +10,8 @@
             "justMyCode": true,
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
-            }
+            },
+            "envFile": "${workspaceFolder}/.env"
         },
         {
             "name": "Python: News Test",
@@ -21,7 +22,8 @@
             "justMyCode": true,
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
-            }
+            },
+            "envFile": "${workspaceFolder}/.env"
         },
         {
             "name": "Python: Ticker Test",
@@ -32,7 +34,8 @@
             "justMyCode": true,
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
-            }
+            },
+            "envFile": "${workspaceFolder}/.env"
         },
         {
             "name": "Python: Candle Test",
@@ -43,7 +46,8 @@
             "justMyCode": true,
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
-            }
+            },
+            "envFile": "${workspaceFolder}/.env"
         },
         {
             "name": "뉴스 요약기 테스트 (개발)",
@@ -55,7 +59,8 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}",
                 "DEV_MODE": "true"
-            }
+            },
+            "envFile": "${workspaceFolder}/.env"
         },
         {
             "name": "뉴스 요약기 테스트 (프로덕션)",
@@ -66,9 +71,35 @@
             "justMyCode": true,
             "env": {
                 "PYTHONPATH": "${workspaceFolder}",
-                "OPENAI_API_KEY": "${env:OPENAI_API_KEY}",
                 "DEV_MODE": "false"
-            }
+            },
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "매매 실행기 테스트 (개발)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/trading_executor_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "DEV_MODE": "true"
+            },
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "매매 실행기 테스트 (프로덕션)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/trading_executor_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "DEV_MODE": "false"
+            },
+            "envFile": "${workspaceFolder}/.env"
         }
     ]
 } 

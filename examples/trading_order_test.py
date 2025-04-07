@@ -33,26 +33,16 @@ def test_trading_order():
     symbol = 'BTC'
     
     try:
-        # BTC 시장가 매도 테스트
-        volume = 0.00005  # BTC 매도 수량
-        
-        logger.info(f"{symbol} 시장가 매도 주문 시도 (수량: {volume} BTC)...")
+        # BTC 최소 단위 구매 테스트
+
         order_result = order.create_order(
             symbol=symbol,
             side='ask',
             order_type='market',
-            volume=volume
+            price=0.00005,
         )
-        
-        if order_result:
-            order_id = order_result.get('uuid')
-            logger.info(f"주문 생성 완료: {order_result}")
-            
-            # 주문 조회
-            logger.info(f"주문 조회 중...")
-            order_info = order.get_order(symbol, order_id)
-            if order_info:
-                logger.info(f"주문 정보: {order_info}")
+
+        print(order_result)
                 
     except Exception as e:
         logger.error(f"테스트 중 오류 발생: {str(e)}")

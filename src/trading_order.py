@@ -118,11 +118,11 @@ class TradingOrder:
                 self._save_order_data(symbol, order_data)
                 return order_data
             else:
-                print(data)
                 self.logger.error(f"Failed to create order: {data.get('message')}")
                 return {}
                 
         except Exception as e:
+            print(response)
             self.logger.error(f"Error creating order: {str(e)}")
             return {}
             

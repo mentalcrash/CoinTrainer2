@@ -110,7 +110,7 @@ class TradingDecisionMaker:
 
 {{
     "decision": "매수 또는 매도 또는 관망",
-    "quantity_percent": "매수/매도 수량 (보유자산 대비 %)",
+    "quantity_percent": "매수/매도 수량 (매수시 현재 보유 KRW 대비 비율, 매도시 타겟 코인 수량 대비 비율 0~1)",
     "target_price": "목표가 (KRW)",
     "stop_loss": "손절가 (KRW)",
     "confidence": "신뢰도 (0.0 ~ 1.0)",
@@ -132,7 +132,7 @@ class TradingDecisionMaker:
         ]
     }},
     "next_decision": {{
-        "interval_minutes": "다음 매매 판단까지의 시간 (1-1440 사이의 정수, 분 단위)",
+        "interval_minutes": "다음 매매 판단까지의 시간 (1-60 사이의 정수, 분 단위)",
         "reason": "해당 시간 간격을 선택한 이유"
     }}
 }}
@@ -195,6 +195,9 @@ class TradingDecisionMaker:
             content = content.replace("```json", "").replace("```", "").strip()
             
             try:
+                print("================================================")
+                print(content)
+                print("================================================")
                 return json.loads(content)
             except json.JSONDecodeError as e:
                 logger.error(f"JSON 파싱 오류: {str(e)}")
