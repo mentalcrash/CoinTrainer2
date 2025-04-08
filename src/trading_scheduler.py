@@ -73,7 +73,7 @@ class TradingScheduler:
         """
 
         # Discord 알림 전송
-        if self.discord_notifier:
+        if self.discord_notifier and decision["decision"] != "관망":
             try:
                 self.discord_notifier.send_trade_notification(
                     symbol, decision, asset_info, order_result

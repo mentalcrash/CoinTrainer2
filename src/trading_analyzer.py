@@ -243,7 +243,7 @@ class TradingAnalyzer:
             return result
             
         except Exception as e:
-            error_msg = f"{symbol} 매매 신호 분석 실패: {str(e)}"
+            error_msg = f"매매 신호 분석 실패: {str(e)}"
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.ERROR,
