@@ -20,6 +20,8 @@ class News:
     NAVER_NEWS_SEARCH = "https://search.naver.com/search.naver?where=news&query={query}"
     COINDESK_RSS = "https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml"  # 기본 RSS
     COINDESK_SEARCH = "https://www.coindesk.com/search?q={query}"  # 검색용
+    COINTELEGRAPH_RSS = "https://cointelegraph.com/rss"  # 기본 RSS
+    COINTELEGRAPH_SEARCH = "https://cointelegraph.com/search?query={query}"  # 검색용
     
     # 심볼별 추가 검색 키워드
     SYMBOL_KEYWORDS = {
@@ -242,6 +244,82 @@ class News:
         
         return news_items
 
+    def _collect_cointelegraph_news(self, keyword: str, max_age_hours: int) -> List[Dict]:
+        """Cointelegraph 뉴스를 수집합니다."""
+        news_items = []
+        now = datetime.now()
+        
+        try:
+            # RSS 피드에서 최신 뉴스 가져오기
+            feed = feedparser.parse(self.COINTELEGRAPH_RSS)
+            
+            for entry in feed.entries:
+                # 키워드 필터링
+                if not any(kw.lower() in entry.title.lower() or 
+                          kw.lower() in entry.description.lower() 
+                          for kw in [keyword]):
+                    continue
+                
+                published_at = self._parse_datetime(entry.published)
+                age_hours = (now - published_at).total_seconds() / 3600
+                
+                if age_hours > max_age_hours:
+                    continue
+                
+                # 제목과 출처 정제
+                clean_title = self._clean_text(entry.title)
+                
+                # 요약 정제
+                summary = self._clean_text(entry.description)
+                if clean_title in summary:
+                    summary = summary.replace(clean_title, "").strip()
+                
+                news_items.append({
+                    "title": clean_title,
+                    "summary": summary,
+                    "published_at": published_at,
+                    "source": "Cointelegraph"
+                })
+            
+            # 검색 API를 통한 추가 뉴스 수집
+            search_url = self.COINTELEGRAPH_SEARCH.format(query=quote_plus(keyword))
+            response = self.session.get(search_url)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            for article in soup.select('article.post-card'):
+                title_elem = article.select_one('.post-card__title')
+                if not title_elem:
+                    continue
+                
+                title = self._clean_text(title_elem.text)
+                
+                time_elem = article.select_one('time')
+                published = time_elem.get('datetime') if time_elem else None
+                published_at = self._parse_datetime(published) if published else now
+                
+                age_hours = (now - published_at).total_seconds() / 3600
+                if age_hours > max_age_hours:
+                    continue
+                
+                summary = ""
+                desc_elem = article.select_one('.post-card__text')
+                if desc_elem:
+                    summary = self._clean_text(desc_elem.text)
+                
+                news_items.append({
+                    "title": title,
+                    "summary": summary,
+                    "published_at": published_at,
+                    "source": "Cointelegraph"
+                })
+            
+            logger.debug(f"Cointelegraph 뉴스 {len(news_items)}개 수집 완료")
+            
+        except Exception as e:
+            logger.error(f"Cointelegraph 뉴스 수집 실패: {str(e)}")
+        
+        return news_items
+
     def get_news(
         self,
         symbol: str,
@@ -295,6 +373,10 @@ class News:
                 # CoinDesk 뉴스 수집
                 coindesk_news = self._get_coindesk_news(keyword, max_age_hours)
                 all_news.extend(coindesk_news)
+                
+                # Cointelegraph 뉴스 수집
+                cointelegraph_news = self._collect_cointelegraph_news(keyword, max_age_hours)
+                all_news.extend(cointelegraph_news)
                 
                 time.sleep(1)  # API 호출 간격 조절
                 

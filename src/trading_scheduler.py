@@ -107,6 +107,7 @@ class TradingScheduler:
         """
         logger.info(f"{symbol} 자동 매매 시작...")
         self.is_running = True
+        max_age_hours = 1  # 첫 실행시 기본값
 
         while self.is_running:
             try:
@@ -119,19 +120,25 @@ class TradingScheduler:
                     symbol=symbol,
                     dev_mode=self.dev_mode,
                     limit=15,
-                    max_age_hours=1
+                    max_age_hours=max_age_hours
                 )
+
+                # 다음 실행을 위한 max_age_hours 설정
+                interval_minutes = result['decision']["next_decision"]["interval_minutes"]
+                # max_age_hours = max(1, interval_minutes / 60)  # 최소 1시간
+                logger.info(f"다음 실행의 뉴스 수집 기간: {max_age_hours:.1f}시간")
 
                 # 결과 처리
                 self._handle_trading_result(
                     symbol=symbol,
                     decision=result['decision'],
-                    order_result=result["order_result"],
+                    order_result=result.get("order_result"),
                     asset_info=result["asset_info"]
                 )
 
             except Exception as e:
                 self._handle_error(e)
+                max_age_hours = 1  # 에러 발생 시 기본값으로 리셋
 
             except KeyboardInterrupt:
                 logger.info("프로그램 종료 요청됨...")
