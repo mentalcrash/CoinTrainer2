@@ -123,7 +123,7 @@ class TradingDecisionMaker:
         ]
     }},
     "next_decision": {{
-        "interval_minutes": "다음 매매 판단까지의 시간 (1-30 사이의 정수, 분 단위)",
+        "interval_minutes": "다음 매매 판단까지의 시간 (1-120 사이의 정수, 분 단위)",
         "reason": "해당 시간 간격을 선택한 이유"
     }}
 }}
@@ -134,7 +134,7 @@ class TradingDecisionMaker:
 3. 시장의 전반적인 추세와 모멘텀
 4. 거래량과 변동성 패턴
 5. 잠재적인 위험 요소들
-6. 다음 매매 판단까지의 적절한 시간 간격 (시장 상황에 따라 1-30분 사이에서 결정)"""
+6. 다음 매매 판단까지의 적절한 시간 간격 (시장 상황에 따라 1-120분 사이에서 결정)"""
 
         if self.log_manager:
             self.log_manager.log(

@@ -9,19 +9,22 @@ import requests
 from datetime import datetime
 from urllib.parse import urlencode
 from typing import Dict, Optional, Union, Literal
+from src.utils.log_manager import LogManager, LogCategory
 
 class TradingOrder:
     """주문 처리를 담당하는 클래스"""
     
-    def __init__(self, api_key: str = None, secret_key: str = None):
+    def __init__(self, api_key: str = None, secret_key: str = None, log_manager: LogManager = None):
         """
         Args:
             api_key (str, optional): Bithumb API 키
             secret_key (str, optional): Bithumb Secret 키
+            log_manager (LogManager, optional): 로그 매니저
         """
         self.api_key = api_key or os.getenv('BITHUMB_API_KEY')
         self.secret_key = secret_key or os.getenv('BITHUMB_SECRET_KEY')
         self.base_url = "https://api.bithumb.com"
+        self.log_manager = log_manager
         
         # 로깅 설정
         self.logger = logging.getLogger(__name__)
@@ -67,7 +70,7 @@ class TradingOrder:
         
         authorization_token = self._create_auth_token(param)
         headers = {
-        'Authorization': authorization_token
+            'Authorization': authorization_token
         }
         
         try:
@@ -76,9 +79,13 @@ class TradingOrder:
             response.raise_for_status()
             return response.json()
             
-                
         except Exception as e:
-            self.logger.error(f"Error getting order chance: {str(e)}")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=f"주문 가능 정보 조회 실패",
+                    data={"error": str(e), "symbol": symbol}
+                )
             return {}
             
     def create_order(
@@ -118,12 +125,21 @@ class TradingOrder:
                 self._save_order_data(symbol, order_data)
                 return order_data
             else:
-                self.logger.error(f"Failed to create order: {data.get('message')}")
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message="주문 생성 실패",
+                        data={"message": data.get('message'), "symbol": symbol}
+                    )
                 return {}
                 
         except Exception as e:
-            print(response)
-            self.logger.error(f"Error creating order: {str(e)}")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="주문 생성 중 오류 발생",
+                    data={"error": str(e), "symbol": symbol, "response": str(response)}
+                )
             return {}
             
     def get_order(self, symbol: str, order_id: str) -> Dict:
@@ -155,11 +171,21 @@ class TradingOrder:
             if data.get('status') == '0000':
                 return data.get('data', {})
             else:
-                self.logger.error(f"Failed to get order: {data.get('message')}")
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message="주문 조회 실패",
+                        data={"message": data.get('message'), "symbol": symbol, "order_id": order_id}
+                    )
                 return {}
                 
         except Exception as e:
-            self.logger.error(f"Error getting order: {str(e)}")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="주문 조회 중 오류 발생",
+                    data={"error": str(e), "symbol": symbol, "order_id": order_id}
+                )
             return {}
             
     def cancel_order(self, symbol: str, order_id: str) -> Dict:
@@ -192,11 +218,21 @@ class TradingOrder:
             if data.get('status') == '0000':
                 return data.get('data', {})
             else:
-                self.logger.error(f"Failed to cancel order: {data.get('message')}")
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message="주문 취소 실패",
+                        data={"message": data.get('message'), "symbol": symbol, "order_id": order_id}
+                    )
                 return {}
                 
         except Exception as e:
-            self.logger.error(f"Error canceling order: {str(e)}")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="주문 취소 중 오류 발생",
+                    data={"error": str(e), "symbol": symbol, "order_id": order_id}
+                )
             return {}
             
     def _save_order_data(self, symbol: str, order_data: Dict) -> None:
@@ -214,6 +250,16 @@ class TradingOrder:
         try:
             with open(filename, 'w', encoding='utf-8') as f:
                 json.dump(order_data, f, ensure_ascii=False, indent=2)
-            self.logger.info(f"{symbol} order_data 저장 완료: {filename}")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message=f"{symbol} order_data 저장 완료",
+                    data={"filename": filename}
+                )
         except Exception as e:
-            self.logger.error(f"Error saving order data: {str(e)}") 
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="주문 데이터 저장 실패",
+                    data={"error": str(e), "symbol": symbol}
+                ) 

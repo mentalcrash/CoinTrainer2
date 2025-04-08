@@ -30,7 +30,8 @@ class TradingExecutor:
         )
         self.order = TradingOrder(
             api_key=bithumb_api_key,
-            secret_key=bithumb_secret_key
+            secret_key=bithumb_secret_key,
+            log_manager=log_manager
         )
         self.log_manager = log_manager
         
@@ -174,8 +175,7 @@ class TradingExecutor:
                 side=side,
                 order_type=order_type,
                 price=price,
-                volume=volume,
-                log_manager=self.log_manager
+                volume=volume
             )
             
             if not order_result:

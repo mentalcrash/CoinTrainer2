@@ -87,7 +87,7 @@ class TradingScheduler:
                 )
 
         # 다음 실행 시간 설정
-        interval_minutes = decision["next_decision"]["interval_minutes"]
+        interval_minutes = int(decision["next_decision"]["interval_minutes"])
         self.next_execution_time = self._calculate_next_execution_time(interval_minutes)
         self.log_manager.log(
             category=LogCategory.SYSTEM,
@@ -173,8 +173,8 @@ class TradingScheduler:
                 )
 
                 # 다음 실행을 위한 max_age_hours 설정
-                interval_minutes = result['decision']["next_decision"]["interval_minutes"]
-                max_age_hours = interval_minutes / 60
+                interval_minutes = int(result['decision']["next_decision"]["interval_minutes"])
+                max_age_hours = float(interval_minutes) / 60
                 self.log_manager.log(
                     category=LogCategory.SYSTEM,
                     message="뉴스 수집 기간 설정",
@@ -194,7 +194,7 @@ class TradingScheduler:
 
             except Exception as e:
                 self._handle_error(e)
-                max_age_hours = 1  # 에러 발생 시 기본값으로 리셋
+                max_age_hours = 0.25  # 에러 발생 시 기본값으로 리셋
 
             except KeyboardInterrupt:
                 self.log_manager.log(
