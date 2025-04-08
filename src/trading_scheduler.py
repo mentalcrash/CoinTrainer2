@@ -1,12 +1,15 @@
 import logging
 import time
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
 from src.trading_executor import TradingExecutor
 from src.discord_notifier import DiscordNotifier
+from src.trading_logger import TradingLogger
+from src.utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger('trading_scheduler')
 
 class TradingScheduler:
     def __init__(
@@ -27,6 +30,13 @@ class TradingScheduler:
         self.dev_mode = dev_mode
         self.is_running = False
         self.next_execution_time = None
+        
+        # 트레이딩 로거 초기화
+        credentials_path = os.getenv('GOOGLE_CREDENTIALS_PATH')
+        if not credentials_path:
+            raise ValueError("GOOGLE_CREDENTIALS_PATH 환경 변수가 설정되지 않았습니다.")
+        
+        self.trading_logger = TradingLogger(credentials_path)
 
     def _calculate_next_execution_time(self, interval_minutes: int) -> datetime:
         """다음 실행 시간을 계산합니다.
@@ -65,6 +75,40 @@ class TradingScheduler:
             order_result (Dict): 주문 실행 결과
             asset_info (Dict): 자산 정보
         """
+        # try:
+        #     # 1. 매매 기록 저장
+        #     if order_result:
+        #         self.trading_logger.log_trade(order_result)
+            
+        #     # 2. 매매 판단 저장
+        #     decision_data = {
+        #         'symbol': symbol,
+        #         'decision': decision['decision'],
+        #         'target_price': decision.get('target_price'),
+        #         'stop_loss': decision.get('stop_loss'),
+        #         'confidence': decision.get('confidence'),
+        #         'reasons': decision.get('reasons', []),
+        #         'risk_factors': decision.get('risk_factors', [])
+        #     }
+        #     self.trading_logger.log_decision(decision_data)
+            
+        #     # 3. 자산 현황 저장
+        #     self.trading_logger.log_asset_status(asset_info)
+            
+        #     # 4. 성과 지표 저장 (성과 지표는 자산 정보를 기반으로 계산)
+        #     performance_data = {
+        #         'symbol': symbol,
+        #         'daily_roi': asset_info.get('daily_roi', 0),
+        #         'weekly_roi': asset_info.get('weekly_roi', 0),
+        #         'monthly_roi': asset_info.get('monthly_roi', 0),
+        #         'total_profit_loss': asset_info.get('total_profit_loss', 0),
+        #         'win_rate': asset_info.get('win_rate', 0)
+        #     }
+        #     self.trading_logger.log_performance(performance_data)
+            
+        # except Exception as e:
+        #     logger.error(f"트레이딩 결과 로깅 실패: {str(e)}", exc_info=True)
+
         # Discord 알림 전송
         if self.discord_notifier:
             try:

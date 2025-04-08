@@ -97,7 +97,7 @@ class TradingLogger:
         headers = {
             'Trading History': [
                 'Timestamp', 'Symbol', 'Action', 'Price', 'Quantity',
-                'Fee', 'Total Amount', 'Reason', 'Confidence'
+                'Fee', 'Total Amount', 'Order Type', 'Trades Count'
             ],
             'Asset History': [
                 'Timestamp', 'Symbol', 'Balance', 'Average Buy Price',
@@ -157,25 +157,46 @@ class TradingLogger:
             logger.error(f"행 추가 실패: {str(e)}")
             raise
     
-    def log_trade(self, trade_data: Dict):
-        """매매 기록을 저장합니다."""
+    def log_trade(self, order_result: Dict):
+        """매매 기록을 저장합니다.
+        
+        Args:
+            order_result (Dict): 주문 실행 결과
+            {
+                "uuid": str,          # 주문 ID
+                "side": str,          # bid(매수) / ask(매도)
+                "ord_type": str,      # 주문 타입
+                "price": str,         # 주문 가격
+                "state": str,         # 주문 상태
+                "market": str,        # 마켓 심볼
+                "created_at": str,    # 주문 시각
+                "volume": str,        # 주문 수량
+                "remaining_volume": str, # 남은 수량
+                "executed_volume": str,  # 체결 수량
+                "trades_count": int,     # 거래 횟수
+                "paid_fee": str,         # 지불 수수료
+                "locked": str,           # 잠긴 금액/수량
+                "reserved_fee": str,     # 예약 수수료
+            }
+        """
         try:
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            symbol = order_result['market'].split('-')[1]  # KRW-BTC에서 BTC 추출
             
             values = [[
-                now,
-                trade_data['symbol'],
-                trade_data['decision']['action'],
-                trade_data['order_result']['executed_price'],
-                trade_data['order_result']['quantity'],
-                trade_data['order_result']['fee'],
-                trade_data['order_result']['total_amount'],
-                trade_data['decision']['reason'],
-                trade_data['decision']['confidence']
+                now,                           # Timestamp
+                symbol,                        # Symbol
+                "매수" if order_result['side'] == "bid" else "매도",  # Action
+                order_result['price'],         # Price
+                order_result['executed_volume'],  # Quantity
+                order_result['paid_fee'],      # Fee
+                float(order_result['price']) * float(order_result['executed_volume']),  # Total Amount
+                order_result['ord_type'],      # Order Type
+                order_result['trades_count']   # Trades Count
             ]]
             
             self._append_values(self.SHEETS['trades'], values)
-            logger.info(f"매매 기록 저장 완료: {trade_data['symbol']}")
+            logger.info(f"매매 기록 저장 완료: {symbol}")
             
         except Exception as e:
             logger.error(f"매매 기록 저장 실패: {str(e)}")
