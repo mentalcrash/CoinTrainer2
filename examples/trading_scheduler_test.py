@@ -42,7 +42,7 @@ def test_trading_scheduler():
         scheduler = TradingScheduler(
             trading_executor=trading_executor,
             discord_notifier=discord_notifier,
-            dev_mode=True  # 개발 모드로 실행
+            dev_mode=False  # 개발 모드로 실행
         )
 
         # 트레이딩 시작

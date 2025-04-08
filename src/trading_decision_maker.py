@@ -79,7 +79,7 @@ class TradingDecisionMaker:
         Returns:
             프롬프트 문자열
         """
-        prompt = f"""당신은 암호화폐 매매 전문가입니다. 
+        prompt = f"""당신은 단기 투자를 선호하는 암호화폐 매매 전문가입니다. 
 아래 제공된 {symbol}에 대한 시장 분석과 뉴스 분석을 바탕으로 매매 판단을 내려주세요.
 
 === 시장 분석 데이터 ===
@@ -194,10 +194,10 @@ class TradingDecisionMaker:
             # 마크다운 포맷팅 제거
             content = content.replace("```json", "").replace("```", "").strip()
             
+            # JSON 파싱 전에 숫자의 콤마 제거
+            content = self._remove_commas_in_numbers(content)
+            
             try:
-                print("================================================")
-                print(content)
-                print("================================================")
                 return json.loads(content)
             except json.JSONDecodeError as e:
                 logger.error(f"JSON 파싱 오류: {str(e)}")
@@ -248,6 +248,27 @@ class TradingDecisionMaker:
             
         logger.info(f"{symbol} {category} 저장 완료: {filepath}")
         
+    def _remove_commas_in_numbers(self, json_str: str) -> str:
+        """JSON 문자열 내의 숫자에 포함된 콤마를 제거합니다.
+
+        Args:
+            json_str (str): 원본 JSON 문자열
+
+        Returns:
+            str: 숫자의 콤마가 제거된 JSON 문자열
+        """
+        import re
+        # 숫자 내의 콤마만 제거 (숫자,숫자 패턴을 찾아서 콤마 제거)
+        # 예: "123,456" -> "123456"
+        while True:
+            # 콤마를 포함한 숫자 패턴을 찾아서 콤마 제거
+            new_str = re.sub(r'(\d),(\d)', r'\1\2', json_str)
+            # 더 이상 변경이 없으면 종료
+            if new_str == json_str:
+                break
+            json_str = new_str
+        return json_str
+
     def make_decision(
         self,
         symbol: str,

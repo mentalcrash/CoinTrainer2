@@ -46,8 +46,8 @@ class DiscordNotifier:
         self,
         symbol: str,
         decision: Dict,
-        order_result: Dict,
-        asset_info: Dict
+        asset_info: Dict,
+        order_result: Optional[Dict] = None
     ) -> None:
         """매매 실행 결과를 Discord로 전송합니다.
 
@@ -76,40 +76,41 @@ class DiscordNotifier:
         }
 
         # 주문 실행 임베드
-        order_embed = {
-            "title": f"💰 {symbol} 주문 실행",
-            "color": 0x00ff00,
-            "fields": [
-                {"name": "주문 ID", "value": order_result["uuid"], "inline": True},
-                {"name": "주문 방향", "value": "매수" if order_result["side"] == "bid" else "매도", "inline": True},
-                {"name": "주문 타입", "value": order_result["ord_type"], "inline": True},
-                {"name": "주문 상태", "value": order_result["state"], "inline": True},
-                {"name": "마켓", "value": order_result["market"], "inline": True},
-                {"name": "주문 시각", "value": order_result["created_at"], "inline": True}
-            ]
-        }
+        if order_result:
+            order_embed = {
+                "title": f"💰 {symbol} 주문 실행",
+                "color": 0x00ff00,
+                "fields": [
+                    {"name": "주문 ID", "value": order_result["uuid"], "inline": True},
+                    {"name": "주문 방향", "value": "매수" if order_result["side"] == "bid" else "매도", "inline": True},
+                    {"name": "주문 타입", "value": order_result["ord_type"], "inline": True},
+                    {"name": "주문 상태", "value": order_result["state"], "inline": True},
+                    {"name": "마켓", "value": order_result["market"], "inline": True},
+                    {"name": "주문 시각", "value": order_result["created_at"], "inline": True}
+                ]
+            }
 
-        # 매수/매도에 따라 다른 필드 추가
-        if order_result["side"] == "bid":
-            order_embed["fields"].extend([
-                {"name": "주문 가격", "value": f"{float(order_result['price']):,} KRW", "inline": True},
-                {"name": "체결 수량", "value": order_result["executed_volume"], "inline": True},
-                {"name": "거래 횟수", "value": str(order_result["trades_count"]), "inline": True},
-                {"name": "수수료", "value": f"{float(order_result['paid_fee']):,} KRW", "inline": True},
-                {"name": "예약 수수료", "value": f"{float(order_result['reserved_fee']):,} KRW", "inline": True},
-                {"name": "잠긴 금액", "value": f"{float(order_result['locked']):,} KRW", "inline": True}
-            ])
-        else:  # 매도
-            order_embed["fields"].extend([
-                {"name": "주문 수량", "value": order_result["volume"], "inline": True},
-                {"name": "남은 수량", "value": order_result["remaining_volume"], "inline": True},
-                {"name": "체결 수량", "value": order_result["executed_volume"], "inline": True},
-                {"name": "거래 횟수", "value": str(order_result["trades_count"]), "inline": True},
-                {"name": "수수료", "value": f"{float(order_result['paid_fee']):,} KRW", "inline": True},
-                {"name": "잠긴 수량", "value": order_result["locked"], "inline": True}
-            ])
+            # 매수/매도에 따라 다른 필드 추가
+            if decision["decision"] == "매수":
+                order_embed["fields"].extend([
+                    {"name": "주문 가격", "value": f"{float(order_result['price']):,} KRW", "inline": True},
+                    {"name": "체결 수량", "value": order_result["executed_volume"], "inline": True},
+                    {"name": "거래 횟수", "value": str(order_result["trades_count"]), "inline": True},
+                    {"name": "수수료", "value": f"{float(order_result['paid_fee']):,} KRW", "inline": True},
+                    {"name": "예약 수수료", "value": f"{float(order_result['reserved_fee']):,} KRW", "inline": True},
+                    {"name": "잠긴 금액", "value": f"{float(order_result['locked']):,} KRW", "inline": True}
+                ])
+            else:  # 매도
+                order_embed["fields"].extend([
+                    {"name": "주문 수량", "value": order_result["volume"], "inline": True},
+                    {"name": "남은 수량", "value": order_result["remaining_volume"], "inline": True},
+                    {"name": "체결 수량", "value": order_result["executed_volume"], "inline": True},
+                    {"name": "거래 횟수", "value": str(order_result["trades_count"]), "inline": True},
+                    {"name": "수수료", "value": f"{float(order_result['paid_fee']):,} KRW", "inline": True},
+                    {"name": "잠긴 수량", "value": order_result["locked"], "inline": True}
+                ])
 
-        # 자산 정보 임베드
+    # 자산 정보 임베드
         asset_embed = {
             "title": "💼 자산 정보",
             "color": 0x0000ff,
@@ -123,7 +124,10 @@ class DiscordNotifier:
         }
 
         content = f"📊 {symbol} 매매 알림 ({now})"
-        self._send_message(content, [decision_embed, order_embed, asset_embed])
+        
+        # order_result가 None이면 order_embed를 제외
+        embeds = [decision_embed, asset_embed] if order_result is None else [decision_embed, order_embed, asset_embed]
+        self._send_message(content, embeds)
 
     def send_error_notification(self, error_message: str) -> None:
         """에러 메시지를 Discord로 전송합니다.

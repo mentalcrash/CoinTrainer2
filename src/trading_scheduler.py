@@ -54,8 +54,8 @@ class TradingScheduler:
         self,
         symbol: str,
         decision: Dict,
-        order_result: Dict,
-        asset_info: Dict
+        asset_info: Dict,
+        order_result: Optional[Dict] = None,
     ):
         """트레이딩 결과를 처리합니다.
 
@@ -69,7 +69,7 @@ class TradingScheduler:
         if self.discord_notifier:
             try:
                 self.discord_notifier.send_trade_notification(
-                    symbol, decision, order_result, asset_info
+                    symbol, decision, asset_info, order_result
                 )
             except Exception as e:
                 logger.error(f"Discord 알림 전송 실패: {str(e)}")
@@ -117,7 +117,9 @@ class TradingScheduler:
                 logger.info(f"{symbol} 매매 실행...")
                 result = self.trading_executor.execute_trade(
                     symbol=symbol,
-                    dev_mode=self.dev_mode
+                    dev_mode=self.dev_mode,
+                    limit=15,
+                    max_age_hours=1
                 )
 
                 # 결과 처리

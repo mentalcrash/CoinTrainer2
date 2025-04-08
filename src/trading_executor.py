@@ -105,8 +105,9 @@ class TradingExecutor:
                 logger.info(f"{symbol} 관망 판단으로 매매 실행하지 않음")
                 return {
                     'success': True,
-                    'action': '관망',
-                    'message': '매매 판단 결과가 관망입니다.'
+                    'decision': decision,
+                    'asset_info': asset_info,
+                    'order_result': None
                 }
                 
             # 3. 주문 수량과 가격 계산

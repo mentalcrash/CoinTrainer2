@@ -341,7 +341,9 @@ class NewsSummarizer:
             
             # 응답 파싱
             try:
-                analysis_result = json.loads(response["content"])
+                # 마크다운 형식의 JSON 문자열 처리
+                json_str = self._parse_json_from_markdown(response["content"])
+                analysis_result = json.loads(json_str)
                 analysis_result["success"] = True
                 
                 # 응답 저장
@@ -391,4 +393,23 @@ class NewsSummarizer:
         output.append(f"• 평균 감정 점수: {analysis['average_sentiment']:.2f} ({self._get_sentiment_label(analysis['average_sentiment'])})")
         output.append(f"• 평균 연관성 점수: {analysis['average_relevance']:.2f}")
         
-        return "\n".join(output) 
+        return "\n".join(output)
+
+    def _parse_json_from_markdown(self, markdown_str: str) -> dict:
+        """마크다운 코드 블록에서 JSON을 파싱합니다.
+
+        Args:
+            markdown_str (str): 마크다운 형식의 JSON 문자열
+
+        Returns:
+            dict: 파싱된 JSON 데이터
+        """
+        # 1. 마크다운 코드 블록 제거
+        json_str = markdown_str.strip()
+        if json_str.startswith("```json"):
+            json_str = json_str[7:]  # "```json" 제거
+        if json_str.endswith("```"):
+            json_str = json_str[:-3]  # "```" 제거
+        
+        # 2. 문자열 앞뒤의 공백 제거
+        return json_str.strip() 
