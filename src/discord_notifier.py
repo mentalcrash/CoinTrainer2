@@ -42,6 +42,15 @@ class DiscordNotifier:
         
         return response
 
+    def _format_number(self, value) -> str:
+        """숫자를 포맷팅합니다."""
+        try:
+            if isinstance(value, str):
+                value = float(value)
+            return f"{value:,.0f}"
+        except (ValueError, TypeError):
+            return str(value)
+
     def send_trade_notification(
         self,
         symbol: str,
@@ -67,13 +76,17 @@ class DiscordNotifier:
                 {"name": "결정", "value": decision["decision"], "inline": True},
                 {"name": "수량 비율", "value": f"{decision['quantity_percent']}%", "inline": True},
                 {"name": "신뢰도", "value": f"{decision['confidence']:.2f}", "inline": True},
-                {"name": "목표가", "value": f"{decision['target_price']:,} KRW", "inline": True},
-                {"name": "손절가", "value": f"{decision['stop_loss']:,} KRW", "inline": True},
+                {"name": "목표가", "value": f"{self._format_number(decision['target_price'])} KRW", "inline": True},
+                {"name": "손절가", "value": f"{self._format_number(decision['stop_loss'])} KRW", "inline": True},
                 {"name": "판단 이유", "value": "\\n".join(decision["reasons"])},
                 {"name": "리스크 요인", "value": "\\n".join(decision["risk_factors"])}
-            ],
-            "footer": {"text": f"다음 판단: {decision['next_decision']['interval_minutes']}분 후"}
+            ]
         }
+
+        # next_decision 정보가 있는 경우에만 footer 추가
+        next_decision = decision.get("next_decision", {})
+        if next_decision and isinstance(next_decision, dict) and "interval_minutes" in next_decision:
+            decision_embed["footer"] = {"text": f"다음 판단: {next_decision['interval_minutes']}분 후"}
 
         # 주문 실행 임베드
         if order_result:
@@ -93,12 +106,12 @@ class DiscordNotifier:
             # 매수/매도에 따라 다른 필드 추가
             if decision["decision"] == "매수":
                 order_embed["fields"].extend([
-                    {"name": "주문 가격", "value": f"{float(order_result['price']):,} KRW", "inline": True},
+                    {"name": "주문 가격", "value": f"{self._format_number(order_result['price'])} KRW", "inline": True},
                     {"name": "체결 수량", "value": order_result["executed_volume"], "inline": True},
                     {"name": "거래 횟수", "value": str(order_result["trades_count"]), "inline": True},
-                    {"name": "수수료", "value": f"{float(order_result['paid_fee']):,} KRW", "inline": True},
-                    {"name": "예약 수수료", "value": f"{float(order_result['reserved_fee']):,} KRW", "inline": True},
-                    {"name": "잠긴 금액", "value": f"{float(order_result['locked']):,} KRW", "inline": True}
+                    {"name": "수수료", "value": f"{self._format_number(order_result['paid_fee'])} KRW", "inline": True},
+                    {"name": "예약 수수료", "value": f"{self._format_number(order_result['reserved_fee'])} KRW", "inline": True},
+                    {"name": "잠긴 금액", "value": f"{self._format_number(order_result['locked'])} KRW", "inline": True}
                 ])
             else:  # 매도
                 order_embed["fields"].extend([
@@ -106,20 +119,20 @@ class DiscordNotifier:
                     {"name": "남은 수량", "value": order_result["remaining_volume"], "inline": True},
                     {"name": "체결 수량", "value": order_result["executed_volume"], "inline": True},
                     {"name": "거래 횟수", "value": str(order_result["trades_count"]), "inline": True},
-                    {"name": "수수료", "value": f"{float(order_result['paid_fee']):,} KRW", "inline": True},
+                    {"name": "수수료", "value": f"{self._format_number(order_result['paid_fee'])} KRW", "inline": True},
                     {"name": "잠긴 수량", "value": order_result["locked"], "inline": True}
                 ])
 
-    # 자산 정보 임베드
+        # 자산 정보 임베드
         asset_embed = {
             "title": "💼 자산 정보",
             "color": 0x0000ff,
             "fields": [
                 {"name": "보유 수량", "value": f"{asset_info['balance']}", "inline": True},
-                {"name": "평균 매수가", "value": f"{asset_info['avg_buy_price']:,} KRW", "inline": True},
-                {"name": "현재 평가액", "value": f"{asset_info['current_value']:,} KRW", "inline": True},
+                {"name": "평균 매수가", "value": f"{self._format_number(asset_info['avg_buy_price'])} KRW", "inline": True},
+                {"name": "현재 평가액", "value": f"{self._format_number(asset_info['current_value'])} KRW", "inline": True},
                 {"name": "수익률", "value": f"{asset_info['profit_loss_rate']:.2f}%", "inline": True},
-                {"name": "KRW 잔고", "value": f"{asset_info['krw_balance']:,} KRW", "inline": True}
+                {"name": "KRW 잔고", "value": f"{self._format_number(asset_info['krw_balance'])} KRW", "inline": True}
             ]
         }
 

@@ -107,7 +107,7 @@ class TradingScheduler:
         """
         logger.info(f"{symbol} 자동 매매 시작...")
         self.is_running = True
-        max_age_hours = 1  # 첫 실행시 기본값
+        max_age_hours = 0.25  # 첫 실행시 기본값
 
         while self.is_running:
             try:
@@ -125,7 +125,7 @@ class TradingScheduler:
 
                 # 다음 실행을 위한 max_age_hours 설정
                 interval_minutes = result['decision']["next_decision"]["interval_minutes"]
-                # max_age_hours = max(1, interval_minutes / 60)  # 최소 1시간
+                max_age_hours = interval_minutes / 60
                 logger.info(f"다음 실행의 뉴스 수집 기간: {max_age_hours:.1f}시간")
 
                 # 결과 처리

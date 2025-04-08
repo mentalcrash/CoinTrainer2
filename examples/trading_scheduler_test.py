@@ -46,7 +46,7 @@ def test_trading_scheduler():
         )
 
         # 트레이딩 시작
-        symbol = "BTC"  # 테스트용 심볼
+        symbol = "XRP"  # 테스트용 심볼
         logger.info(f"{symbol} 자동 매매 스케줄러 테스트 시작...")
         
         # 스케줄러 시작
