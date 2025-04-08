@@ -86,14 +86,14 @@ class TradingScheduler:
             error (Exception): 발생한 에러
         """
         error_message = f"트레이딩 실행 중 에러 발생: {str(error)}"
-        logger.error(error_message)
+        logger.error(error_message, exc_info=True)
 
         # Discord 에러 알림 전송
         if self.discord_notifier:
             try:
                 self.discord_notifier.send_error_notification(error_message)
             except Exception as e:
-                logger.error(f"Discord 에러 알림 전송 실패: {str(e)}")
+                logger.error(f"Discord 에러 알림 전송 실패: {str(e)}", exc_info=True)
 
         # 에러 발생 시 30분 후에 다시 시도
         self.next_execution_time = self._calculate_next_execution_time(30)

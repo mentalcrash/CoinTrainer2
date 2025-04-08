@@ -1736,3 +1736,91 @@
 2025-04-08 15:56:36 [DEBUG] news: Cointelegraph 뉴스 2개 수집 완료
 2025-04-08 15:56:37 [INFO] news: XRP news_collection 저장 완료: .temp/20250408_155613/logs/01_news_collection_XRP_155637.json
 2025-04-08 15:56:37 [INFO] news: XRP 뉴스 6개 수집 완료
+2025-04-08 16:11:57 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:11:59 [DEBUG] news: Cointelegraph 뉴스 0개 수집 완료
+2025-04-08 16:12:03 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:12:03 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 06:39:46 +0100
+2025-04-08 16:12:03 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 03:30:02 +0100
+2025-04-08 16:12:04 [DEBUG] news: Cointelegraph 뉴스 2개 수집 완료
+2025-04-08 16:12:08 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:12:08 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 06:39:46 +0100
+2025-04-08 16:12:08 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 03:30:02 +0100
+2025-04-08 16:12:08 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 23:10:37 +0100
+2025-04-08 16:12:08 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 22:21:08 +0100
+2025-04-08 16:12:08 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 21:20:00 +0100
+2025-04-08 16:12:08 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 19:15:34 +0100
+2025-04-08 16:12:09 [DEBUG] news: Cointelegraph 뉴스 6개 수집 완료
+2025-04-08 16:12:13 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:12:14 [DEBUG] news: Cointelegraph 뉴스 0개 수집 완료
+2025-04-08 16:12:18 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:12:18 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 06:39:46 +0100
+2025-04-08 16:12:18 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 03:30:02 +0100
+2025-04-08 16:12:19 [DEBUG] news: Cointelegraph 뉴스 2개 수집 완료
+2025-04-08 16:12:20 [INFO] news: XRP news_collection 저장 완료: .temp/20250408_161155/logs/01_news_collection_XRP_161220.json
+2025-04-08 16:12:20 [INFO] news: XRP 뉴스 7개 수집 완료
+2025-04-08 16:22:46 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:22:47 [DEBUG] news: Cointelegraph 뉴스 0개 수집 완료
+2025-04-08 16:22:50 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:22:51 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 06:39:46 +0100
+2025-04-08 16:22:51 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 03:30:02 +0100
+2025-04-08 16:22:51 [DEBUG] news: Cointelegraph 뉴스 2개 수집 완료
+2025-04-08 16:22:54 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:22:55 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 06:39:46 +0100
+2025-04-08 16:22:55 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 03:30:02 +0100
+2025-04-08 16:22:55 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 23:10:37 +0100
+2025-04-08 16:22:55 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 22:21:08 +0100
+2025-04-08 16:22:55 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 21:20:00 +0100
+2025-04-08 16:22:55 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 19:15:34 +0100
+2025-04-08 16:22:56 [DEBUG] news: Cointelegraph 뉴스 6개 수집 완료
+2025-04-08 16:23:00 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:23:01 [DEBUG] news: Cointelegraph 뉴스 0개 수집 완료
+2025-04-08 16:23:04 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:23:05 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 06:39:46 +0100
+2025-04-08 16:23:05 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 03:30:02 +0100
+2025-04-08 16:23:06 [DEBUG] news: Cointelegraph 뉴스 2개 수집 완료
+2025-04-08 16:23:07 [INFO] news: XRP news_collection 저장 완료: .temp/20250408_162243/logs/01_news_collection_XRP_162307.json
+2025-04-08 16:23:07 [INFO] news: XRP 뉴스 6개 수집 완료
+2025-04-08 16:26:22 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:26:24 [DEBUG] news: Cointelegraph 뉴스 0개 수집 완료
+2025-04-08 16:26:28 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:26:28 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 06:39:46 +0100
+2025-04-08 16:26:28 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 03:30:02 +0100
+2025-04-08 16:26:29 [DEBUG] news: Cointelegraph 뉴스 2개 수집 완료
+2025-04-08 16:26:33 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:26:33 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 06:39:46 +0100
+2025-04-08 16:26:33 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 03:30:02 +0100
+2025-04-08 16:26:33 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 23:10:37 +0100
+2025-04-08 16:26:33 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 22:21:08 +0100
+2025-04-08 16:26:33 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 21:20:00 +0100
+2025-04-08 16:26:33 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 19:15:34 +0100
+2025-04-08 16:26:34 [DEBUG] news: Cointelegraph 뉴스 6개 수집 완료
+2025-04-08 16:26:38 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:26:40 [DEBUG] news: Cointelegraph 뉴스 0개 수집 완료
+2025-04-08 16:26:44 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:26:44 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 06:39:46 +0100
+2025-04-08 16:26:44 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 03:30:02 +0100
+2025-04-08 16:26:45 [DEBUG] news: Cointelegraph 뉴스 2개 수집 완료
+2025-04-08 16:26:46 [INFO] news: XRP news_collection 저장 완료: .temp/20250408_162619/logs/01_news_collection_XRP_162646.json
+2025-04-08 16:26:46 [INFO] news: XRP 뉴스 6개 수집 완료
+2025-04-08 16:42:06 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:42:08 [DEBUG] news: Cointelegraph 뉴스 0개 수집 완료
+2025-04-08 16:42:12 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:42:12 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 06:39:46 +0100
+2025-04-08 16:42:12 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 03:30:02 +0100
+2025-04-08 16:42:14 [DEBUG] news: Cointelegraph 뉴스 2개 수집 완료
+2025-04-08 16:42:17 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:42:18 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 06:39:46 +0100
+2025-04-08 16:42:18 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 03:30:02 +0100
+2025-04-08 16:42:18 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 23:10:37 +0100
+2025-04-08 16:42:18 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 22:21:08 +0100
+2025-04-08 16:42:18 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 21:20:00 +0100
+2025-04-08 16:42:18 [DEBUG] news: 지원하지 않는 날짜 형식: Mon, 07 Apr 2025 19:15:34 +0100
+2025-04-08 16:42:19 [DEBUG] news: Cointelegraph 뉴스 6개 수집 완료
+2025-04-08 16:42:22 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:42:24 [DEBUG] news: Cointelegraph 뉴스 0개 수집 완료
+2025-04-08 16:42:27 [DEBUG] news: CoinDesk 뉴스 0개 수집 완료
+2025-04-08 16:42:27 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 06:39:46 +0100
+2025-04-08 16:42:27 [DEBUG] news: 지원하지 않는 날짜 형식: Tue, 08 Apr 2025 03:30:02 +0100
+2025-04-08 16:42:27 [DEBUG] news: Cointelegraph 뉴스 2개 수집 완료
+2025-04-08 16:42:28 [INFO] news: XRP news_collection 저장 완료: .temp/20250408_164158/logs/01_news_collection_XRP_164228.json
+2025-04-08 16:42:28 [INFO] news: XRP 뉴스 6개 수집 완료
