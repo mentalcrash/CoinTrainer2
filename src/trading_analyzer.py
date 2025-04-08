@@ -4,170 +4,102 @@ import pandas as pd
 import numpy as np
 import json
 import os
-import logging
 from pathlib import Path
 from src.account import Account
 from src.ticker import Ticker
 from src.candle import Candle
+from src.utils.log_manager import LogManager, LogCategory
 
 class TradingAnalyzer:
     """암호화폐 매매 판단을 위한 데이터 수집 및 분석 클래스"""
     
-    def __init__(self, api_key: str, secret_key: str):
+    def __init__(
+        self,
+        api_key: str,
+        secret_key: str,
+        log_manager: Optional[LogManager] = None
+    ):
         """초기화
         
         Args:
             api_key: 빗썸 API 키
             secret_key: 빗썸 Secret 키
+            log_manager: 로그 매니저 (선택사항)
         """
-        self.account = Account(api_key, secret_key)
-        self.ticker = Ticker()
-        self.candle = Candle()
+        self.account = Account(api_key, secret_key, log_manager)
+        self.ticker = Ticker(log_manager)
+        self.candle = Candle(log_manager)
+        self.log_manager = log_manager
         
-        # 로거 설정
-        self.logger = logging.getLogger("trading_analyzer")
-        self.logger.setLevel(logging.INFO)
-        
-        # 로그 포맷 설정
-        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
-        
-        # 콘솔 핸들러
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
-        
-        # 파일 핸들러
-        self._setup_log_directory()
-        
-    def _setup_log_directory(self):
-        """로그 디렉토리 설정"""
-        # 기본 로그 디렉토리 생성
+        # 실행 시간 기반 디렉토리 생성
         base_dir = Path(".temp")
         base_dir.mkdir(exist_ok=True)
         
-        # 실행 시간 기반 디렉토리 생성
         now = datetime.now()
         run_id = now.strftime("%Y%m%d_%H%M%S")
         self.run_dir = base_dir / run_id
         self.run_dir.mkdir(exist_ok=True)
         
-        # 로그 디렉토리 생성
-        self.log_dir = self.run_dir / "logs"
-        self.log_dir.mkdir(exist_ok=True)
-        
-        # 파일 핸들러 추가
-        file_handler = logging.FileHandler(
-            self.log_dir / "trading_analysis.log",
-            encoding='utf-8'
-        )
-        file_handler.setFormatter(
-            logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
-        )
-        self.logger.addHandler(file_handler)
-        
-    def _save_analysis_result(self, symbol: str, data: Dict, category: str):
-        """분석 결과를 파일로 저장합니다."""
-        try:
-            timestamp = datetime.now().strftime("%H%M%S")
-            
-            # datetime 객체 변환
-            def convert_datetime(obj):
-                if isinstance(obj, datetime):
-                    return obj.isoformat()
-                elif isinstance(obj, dict):
-                    return {k: convert_datetime(v) for k, v in obj.items()}
-                elif isinstance(obj, list):
-                    return [convert_datetime(item) for item in obj]
-                return obj
-            
-            data = convert_datetime(data)
-            
-            # 데이터 포맷팅
-            formatted_data = {
-                "timestamp": datetime.now().isoformat(),
-                "symbol": symbol,
-                "data_type": category,
-                "content": data
-            }
-            
-            # 카테고리별 파일명 설정
-            categories = {
-                "market_overview": "03_01",
-                "trading_signals": "03_02",
-                "asset_info": "03_03",
-                "analysis": "03_04"
-            }
-            
-            prefix = categories.get(category, "03_00")
-            filename = f"{prefix}_{category}_{symbol}_{timestamp}.json"
-            filepath = self.log_dir / filename
-            
-            with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(formatted_data, f, ensure_ascii=False, indent=2)
-                
-            self.logger.info(f"{symbol} {category} 저장 완료: {filepath}")
-            
-        except Exception as e:
-            self.logger.error(f"파일 저장 실패: {str(e)}")
-        
     def get_market_overview(self, symbol: str) -> Dict:
-        """시장 전반적인 상황 조회
-        
+        """
+        분봉 기준 시장 개요 조회 (단기 트레이딩용)
+
         Args:
             symbol: 심볼 (예: BTC, ETH)
-            
+
         Returns:
             Dict: {
-                'current_price': float,      # 현재가
-                'daily_change': float,       # 일간 변동률(%)
-                'daily_volume': float,       # 일간 거래량
-                'ma5': float,                # 5일 이동평균
-                'ma20': float,               # 20일 이동평균
-                'rsi_14': float,             # 14일 RSI
-                'volatility': float,         # 변동성 (표준편차)
-                'price_trend': str,          # 가격 추세 (상승/하락/횡보)
-                'volume_trend': str,         # 거래량 추세 (증가/감소/횡보)
+                'current_price': float,       # 현재가
+                'minute_change': float,       # 직전 1시간 대비 등락률 (%)
+                'minute_volume': float,       # 1시간 누적 거래량
+                'ma5': float,                 # 5분 이동평균
+                'ma20': float,                # 20분 이동평균
+                'rsi_14': float,              # 14분 RSI
+                'volatility': float,          # 변동성 (20분 표준편차)
+                'price_trend': str,           # 가격 추세 (상승/하락/횡보)
+                'volume_trend': str,          # 거래량 추세 (증가/감소/횡보)
             }
         """
-        self.logger.info(f"{symbol} 시장 개요 조회 시작...")
-        
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.MARKET,
+                message=f"{symbol} 시장 개요 조회 시작",
+                data={"symbol": symbol}
+            )
+
         try:
-            # 현재가 정보 조회
             current_data = self.ticker.get_current_price(symbol)
             if not current_data:
                 raise Exception("현재가 조회 실패")
-            self.logger.info(f"{symbol} 현재가 조회 완료")
-                
-            # 일봉 데이터 조회 (최근 20일)
-            daily_candles = self.candle.get_daily_candles(symbol, count=20)
-            if not daily_candles:
-                raise Exception("일봉 데이터 조회 실패")
-            self.logger.info(f"{symbol} 일봉 데이터 조회 완료")
-                
-            # 데이터프레임 변환
-            df = pd.DataFrame(daily_candles)
+
+            # 1분봉 60개 = 최근 1시간 데이터
+            candles = self.candle.get_minute_candles(symbol=symbol, unit=1, count=60)
+            if not candles:
+                raise Exception("분봉 데이터 조회 실패")
+
+            df = pd.DataFrame(candles)
             df['close'] = pd.to_numeric(df['trade_price'])
             df['volume'] = pd.to_numeric(df['candle_acc_trade_volume'])
-            
-            # 이동평균 계산
+
+            # 이동 평균 (분 기준)
             ma5 = df['close'].rolling(window=5).mean().iloc[-1]
             ma20 = df['close'].rolling(window=20).mean().iloc[-1]
-            
-            # RSI 계산
+
+            # RSI 14분 기준
             delta = df['close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            gain = delta.where(delta > 0, 0).rolling(window=14).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
             rs = gain / loss
             rsi = 100 - (100 / (1 + rs)).iloc[-1]
-            
-            # 변동성 (20일 표준편차)
-            volatility = df['close'].pct_change().std() * 100
-            
-            # 추세 판단 (3일 이동평균 기울기)
+
+            # 20분간의 변동성 (수익률 기준 표준편차, % 단위)
+            volatility = df['close'].pct_change().rolling(window=20).std().iloc[-1] * 100
+
+            # 가격/거래량 추세: 최근 3분간의 기울기
             ma3 = df['close'].rolling(window=3).mean()
             price_slope = (ma3.iloc[-1] - ma3.iloc[-2]) / ma3.iloc[-2] * 100
             volume_slope = (df['volume'].iloc[-1] - df['volume'].iloc[-2]) / df['volume'].iloc[-2] * 100
-            
+
             def get_trend(slope: float) -> str:
                 if slope > 1.0:
                     return "상승"
@@ -175,29 +107,40 @@ class TradingAnalyzer:
                     return "하락"
                 else:
                     return "횡보"
-            
+
             result = {
                 'current_price': current_data['trade_price'],
-                'daily_change': current_data['signed_change_rate'],
-                'daily_volume': current_data['acc_trade_volume_24h'],
+                'minute_change': (df['close'].iloc[-1] - df['close'].iloc[0]) / df['close'].iloc[0] * 100,
+                'minute_volume': df['volume'].sum(),
                 'ma5': ma5,
                 'ma20': ma20,
                 'rsi_14': rsi,
                 'volatility': volatility,
                 'price_trend': get_trend(price_slope),
-                'volume_trend': get_trend(volume_slope)
+                'volume_trend': get_trend(volume_slope),
+                'volume_slope': volume_slope
             }
-            
-            # 결과 저장
-            self._save_analysis_result(symbol, result, "market_overview")
-            
+
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.MARKET,
+                    message=f"{symbol} 시장 개요 분석 완료",
+                    data=result
+                )
+
             return result
-            
+
         except Exception as e:
-            self.logger.error(f"{symbol} 시장 개요 조회 실패: {str(e)}")
-            return None
+            error_msg = f"{symbol} 시장 개요 조회 실패: {str(e)}"
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=error_msg,
+                    data={"error": str(e)}
+                )
+            raise
             
-    def get_trading_signals(self, symbol: str) -> Dict:
+    def get_trading_signals(self, market_data: dict) -> Dict:
         """매매 신호 분석
         
         Args:
@@ -213,14 +156,7 @@ class TradingAnalyzer:
                 'signal_strength': float,    # 신호 강도 (0.0 ~ 1.0)
             }
         """
-        self.logger.info(f"{symbol} 매매 신호 분석 시작...")
-        
         try:
-            # 시장 개요 데이터 활용
-            market_data = self.get_market_overview(symbol)
-            if not market_data:
-                raise Exception("시장 데이터 조회 실패")
-                
             # 이동평균 신호
             ma_signal = "중립"
             if market_data['ma5'] > market_data['ma20']:
@@ -237,9 +173,9 @@ class TradingAnalyzer:
                 
             # 거래량 신호 (전일 대비 30% 이상 변화)
             volume_signal = "중립"
-            if market_data['volume_trend'] == "상승" and abs(market_data['daily_volume']) > 30:
+            if market_data['volume_trend'] == "상승" and abs(market_data['volume_slope']) > 30:
                 volume_signal = "급증"
-            elif market_data['volume_trend'] == "하락" and abs(market_data['daily_volume']) > 30:
+            elif market_data['volume_trend'] == "하락" and abs(market_data['volume_slope']) > 30:
                 volume_signal = "급감"
                 
             # 추세 신호
@@ -297,14 +233,24 @@ class TradingAnalyzer:
                 'signal_strength': abs(signal_strength)
             }
             
-            # 결과 저장
-            self._save_analysis_result(symbol, result, "trading_signals")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.TRADING,
+                    message=f"매매 신호 분석 완료",
+                    data=result
+                )
             
             return result
             
         except Exception as e:
-            self.logger.error(f"{symbol} 매매 신호 분석 실패: {str(e)}")
-            return None
+            error_msg = f"{symbol} 매매 신호 분석 실패: {str(e)}"
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=error_msg,
+                    data={"error": str(e)}
+                )
+            raise
             
     def get_asset_info(self, symbol: str) -> Dict:
         """계정 자산 정보 조회
@@ -324,7 +270,12 @@ class TradingAnalyzer:
                 'krw_locked': float,        # 거래중인 현금(KRW)
             }
         """
-        self.logger.info(f"{symbol} 자산 정보 조회 시작...")
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.ASSET,
+                message=f"{symbol} 자산 정보 조회 시작",
+                data={"symbol": symbol}
+            )
         
         try:
             # 계정 잔고 조회
@@ -354,7 +305,7 @@ class TradingAnalyzer:
                     break
                     
             if not asset:
-                return {
+                result = {
                     'balance': 0.0,
                     'locked': 0.0,
                     'avg_buy_price': 0.0,
@@ -364,6 +315,15 @@ class TradingAnalyzer:
                     'krw_balance': krw_balance,
                     'krw_locked': krw_locked
                 }
+                
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ASSET,
+                        message=f"{symbol} 자산 정보 조회 완료 (보유 없음)",
+                        data=result
+                    )
+                
+                return result
                 
             # 평가금액 계산
             current_value = float(asset['balance']) * float(current_price['trade_price'])
@@ -384,14 +344,24 @@ class TradingAnalyzer:
                 'krw_locked': krw_locked
             }
             
-            # 결과 저장
-            self._save_analysis_result(symbol, result, "asset_info")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ASSET,
+                    message=f"{symbol} 자산 정보 조회 완료",
+                    data=result
+                )
             
             return result
             
         except Exception as e:
-            self.logger.error(f"{symbol} 자산 정보 조회 실패: {str(e)}")
-            return None
+            error_msg = f"{symbol} 자산 정보 조회 실패: {str(e)}"
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=error_msg,
+                    data={"error": str(e)}
+                )
+            raise
             
     def analyze(self, symbol: str) -> Dict:
         """심볼에 대한 전체 분석을 수행합니다.
@@ -409,15 +379,36 @@ class TradingAnalyzer:
                 'timestamp': datetime       # 분석 시간
             }
         """
-        self.logger.info(f"{symbol} 분석 시작...")
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.SYSTEM,
+                message=f"{symbol} 시장 분석 시작",
+                data={"symbol": symbol}
+            )
         
         try:
+            # 1. 시장 데이터 수집
             market_data = self.get_market_overview(symbol)
-            signals = self.get_trading_signals(symbol)
+
+            # 2. 매매 신호 분석
+            signals = self.get_trading_signals(market_data)
+
+            # 3. 자산 정보 조회
             asset_info = self.get_asset_info(symbol)
             
             if not all([market_data, signals, asset_info]):
-                raise Exception("데이터 조회 실패")
+                error_msg = "데이터 조회 실패"
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message=error_msg,
+                        data={
+                            "market_data_success": bool(market_data),
+                            "signals_success": bool(signals),
+                            "asset_info_success": bool(asset_info)
+                        }
+                    )
+                raise Exception(error_msg)
                 
             result = {
                 'success': True,
@@ -428,15 +419,18 @@ class TradingAnalyzer:
                 'timestamp': datetime.now()
             }
             
-            # 분석 결과 저장
-            self._save_analysis_result(symbol, result, "analysis")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.TRADING,
+                    message=f"{symbol} 시장 분석 완료",
+                    data=result
+                )
             
             return result
             
         except Exception as e:
             error_msg = f"{symbol} 분석 실패: {str(e)}"
-            self.logger.error(error_msg)
-            return {
+            error_result = {
                 'success': False,
                 'error': str(e),
                 'market_data': None,
@@ -444,6 +438,15 @@ class TradingAnalyzer:
                 'asset_info': None,
                 'timestamp': datetime.now()
             }
+            
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=error_msg,
+                    data=error_result
+                )
+            
+            raise
             
     def format_analysis(self, symbol: str) -> str:
         """분석 결과를 보기 좋게 포맷팅
@@ -454,7 +457,12 @@ class TradingAnalyzer:
         Returns:
             포맷팅된 분석 결과 문자열
         """
-        self.logger.info(f"{symbol} 분석 결과 포맷팅 시작...")
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.SYSTEM,
+                message=f"{symbol} 분석 결과 포맷팅 시작",
+                data={"symbol": symbol}
+            )
         
         # 분석 수행
         result = self.analyze(symbol)

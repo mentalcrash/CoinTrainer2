@@ -1,4 +1,3 @@
-import logging
 import time
 import os
 from datetime import datetime, timedelta
@@ -6,15 +5,13 @@ from typing import Dict, Optional
 
 from src.trading_executor import TradingExecutor
 from src.discord_notifier import DiscordNotifier
-from src.trading_logger import TradingLogger
-from src.utils.logger import setup_logger
-
-logger = setup_logger('trading_scheduler')
+from src.utils.log_manager import LogManager, LogCategory
 
 class TradingScheduler:
     def __init__(
         self,
         trading_executor: TradingExecutor,
+        log_manager: LogManager,
         discord_notifier: Optional[DiscordNotifier] = None,
         dev_mode: bool = True
     ):
@@ -22,6 +19,7 @@ class TradingScheduler:
 
         Args:
             trading_executor (TradingExecutor): 트레이딩 실행기
+            log_manager (LogManager): 로그 매니저
             discord_notifier (Optional[DiscordNotifier], optional): Discord 알림 전송기. Defaults to None.
             dev_mode (bool, optional): 개발 모드 여부. Defaults to True.
         """
@@ -30,13 +28,7 @@ class TradingScheduler:
         self.dev_mode = dev_mode
         self.is_running = False
         self.next_execution_time = None
-        
-        # 트레이딩 로거 초기화
-        credentials_path = os.getenv('GOOGLE_CREDENTIALS_PATH')
-        if not credentials_path:
-            raise ValueError("GOOGLE_CREDENTIALS_PATH 환경 변수가 설정되지 않았습니다.")
-        
-        self.trading_logger = TradingLogger(credentials_path)
+        self.log_manager = log_manager
 
     def _calculate_next_execution_time(self, interval_minutes: int) -> datetime:
         """다음 실행 시간을 계산합니다.
@@ -57,7 +49,11 @@ class TradingScheduler:
         while datetime.now() < self.next_execution_time:
             remaining_seconds = (self.next_execution_time - datetime.now()).total_seconds()
             if remaining_seconds > 0:
-                logger.info(f"다음 실행까지 {remaining_seconds:.0f}초 대기...")
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message="다음 실행 대기 중",
+                    data={"remaining_seconds": int(remaining_seconds)}
+                )
                 time.sleep(min(remaining_seconds, 60))  # 최대 1분씩 대기
 
     def _handle_trading_result(
@@ -75,39 +71,6 @@ class TradingScheduler:
             order_result (Dict): 주문 실행 결과
             asset_info (Dict): 자산 정보
         """
-        # try:
-        #     # 1. 매매 기록 저장
-        #     if order_result:
-        #         self.trading_logger.log_trade(order_result)
-            
-        #     # 2. 매매 판단 저장
-        #     decision_data = {
-        #         'symbol': symbol,
-        #         'decision': decision['decision'],
-        #         'target_price': decision.get('target_price'),
-        #         'stop_loss': decision.get('stop_loss'),
-        #         'confidence': decision.get('confidence'),
-        #         'reasons': decision.get('reasons', []),
-        #         'risk_factors': decision.get('risk_factors', [])
-        #     }
-        #     self.trading_logger.log_decision(decision_data)
-            
-        #     # 3. 자산 현황 저장
-        #     self.trading_logger.log_asset_status(asset_info)
-            
-        #     # 4. 성과 지표 저장 (성과 지표는 자산 정보를 기반으로 계산)
-        #     performance_data = {
-        #         'symbol': symbol,
-        #         'daily_roi': asset_info.get('daily_roi', 0),
-        #         'weekly_roi': asset_info.get('weekly_roi', 0),
-        #         'monthly_roi': asset_info.get('monthly_roi', 0),
-        #         'total_profit_loss': asset_info.get('total_profit_loss', 0),
-        #         'win_rate': asset_info.get('win_rate', 0)
-        #     }
-        #     self.trading_logger.log_performance(performance_data)
-            
-        # except Exception as e:
-        #     logger.error(f"트레이딩 결과 로깅 실패: {str(e)}", exc_info=True)
 
         # Discord 알림 전송
         if self.discord_notifier:
@@ -116,12 +79,25 @@ class TradingScheduler:
                     symbol, decision, asset_info, order_result
                 )
             except Exception as e:
-                logger.error(f"Discord 알림 전송 실패: {str(e)}")
+                error_msg = f"Discord 알림 전송 실패: {str(e)}"
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=error_msg,
+                    data={"error": str(e)}
+                )
 
         # 다음 실행 시간 설정
         interval_minutes = decision["next_decision"]["interval_minutes"]
         self.next_execution_time = self._calculate_next_execution_time(interval_minutes)
-        logger.info(f"다음 실행 시간: {self.next_execution_time}")
+        self.log_manager.log(
+            category=LogCategory.SYSTEM,
+            message="다음 실행 시간 설정",
+            data={
+                "symbol": symbol,
+                "next_execution_time": self.next_execution_time.strftime("%Y-%m-%d %H:%M:%S"),
+                "interval_minutes": interval_minutes
+            }
+        )
 
     def _handle_error(self, error: Exception):
         """에러를 처리합니다.
@@ -130,18 +106,35 @@ class TradingScheduler:
             error (Exception): 발생한 에러
         """
         error_message = f"트레이딩 실행 중 에러 발생: {str(error)}"
-        logger.error(error_message, exc_info=True)
+        self.log_manager.log(
+            category=LogCategory.ERROR,
+            message=error_message,
+            data={"traceback": str(error)}
+        )
 
         # Discord 에러 알림 전송
         if self.discord_notifier:
             try:
                 self.discord_notifier.send_error_notification(error_message)
+                self.log_manager.log(
+                    category=LogCategory.DISCORD,
+                    message="Discord 에러 알림 전송 완료"
+                )
             except Exception as e:
-                logger.error(f"Discord 에러 알림 전송 실패: {str(e)}", exc_info=True)
+                error_msg = f"Discord 에러 알림 전송 실패: {str(e)}"
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=error_msg,
+                    data={"error": str(e)}
+                )
 
         # 에러 발생 시 30분 후에 다시 시도
         self.next_execution_time = self._calculate_next_execution_time(30)
-        logger.info(f"에러로 인해 {self.next_execution_time}에 다시 시도합니다.")
+        self.log_manager.log(
+            category=LogCategory.SYSTEM,
+            message="에러로 인한 재시도 시간 설정",
+            data={"next_execution_time": self.next_execution_time.strftime("%Y-%m-%d %H:%M:%S")}
+        )
 
     def start(self, symbol: str):
         """트레이딩을 시작합니다.
@@ -149,7 +142,14 @@ class TradingScheduler:
         Args:
             symbol (str): 매매할 심볼 (예: BTC)
         """
-        logger.info(f"{symbol} 자동 매매 시작...")
+        # 새로운 트레이딩 세션 시작
+        self.log_manager.start_new_trading_session(symbol)
+        self.log_manager.log(
+            category=LogCategory.SYSTEM,
+            message=f"{symbol} 자동 매매 시작",
+            data={"dev_mode": self.dev_mode}
+        )
+        
         self.is_running = True
         max_age_hours = 0.25  # 첫 실행시 기본값
 
@@ -159,7 +159,12 @@ class TradingScheduler:
                 self._wait_until_next_execution()
 
                 # 트레이딩 실행
-                logger.info(f"{symbol} 매매 실행...")
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message=f"{symbol} 매매 실행 시작",
+                    data={"max_age_hours": max_age_hours}
+                )
+                
                 result = self.trading_executor.execute_trade(
                     symbol=symbol,
                     dev_mode=self.dev_mode,
@@ -170,7 +175,14 @@ class TradingScheduler:
                 # 다음 실행을 위한 max_age_hours 설정
                 interval_minutes = result['decision']["next_decision"]["interval_minutes"]
                 max_age_hours = interval_minutes / 60
-                logger.info(f"다음 실행의 뉴스 수집 기간: {max_age_hours:.2f}시간")
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message="뉴스 수집 기간 설정",
+                    data={
+                        "max_age_hours": max_age_hours,
+                        "interval_minutes": interval_minutes
+                    }
+                )
 
                 # 결과 처리
                 self._handle_trading_result(
@@ -185,11 +197,17 @@ class TradingScheduler:
                 max_age_hours = 1  # 에러 발생 시 기본값으로 리셋
 
             except KeyboardInterrupt:
-                logger.info("프로그램 종료 요청됨...")
-                self.stop()
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message="프로그램 종료 요청"
+                )
                 break
 
     def stop(self):
         """트레이딩을 중지합니다."""
-        logger.info("트레이딩 중지...")
-        self.is_running = False 
+        self.log_manager.log(
+            category=LogCategory.SYSTEM,
+            message="트레이딩 중지"
+        )
+        self.is_running = False
+        self.log_manager.stop() 

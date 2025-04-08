@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from src.trading_executor import TradingExecutor
 from src.discord_notifier import DiscordNotifier
 from src.trading_scheduler import TradingScheduler
+from src.utils.log_manager import LogManager
 
 # 로깅 설정
 logging.basicConfig(
@@ -28,11 +29,15 @@ def test_trading_scheduler():
         raise ValueError("필요한 환경 변수가 설정되지 않았습니다.")
 
     try:
+        # LogManager 생성
+        log_manager = LogManager(base_dir="logs/trading_test")  # 테스트용 로그 디렉토리 지정
+
         # TradingExecutor 생성
         trading_executor = TradingExecutor(
             bithumb_api_key=bithumb_api_key,
             bithumb_secret_key=bithumb_secret_key,
-            openai_api_key=openai_api_key
+            openai_api_key=openai_api_key,
+            log_manager=log_manager
         )
 
         # DiscordNotifier 생성
@@ -41,6 +46,7 @@ def test_trading_scheduler():
         # TradingScheduler 생성
         scheduler = TradingScheduler(
             trading_executor=trading_executor,
+            log_manager=log_manager,
             discord_notifier=discord_notifier,
             dev_mode=False  # 개발 모드로 실행
         )
@@ -54,8 +60,13 @@ def test_trading_scheduler():
 
     except KeyboardInterrupt:
         logger.info("사용자에 의해 프로그램이 종료되었습니다.")
+        if 'scheduler' in locals():
+            scheduler.stop()
+
     except Exception as e:
         logger.error(f"에러 발생: {str(e)}")
+        if 'scheduler' in locals():
+            scheduler.stop()
         raise
 
 if __name__ == "__main__":

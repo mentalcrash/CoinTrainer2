@@ -2,12 +2,10 @@ from typing import List, Dict, Optional
 import json
 import requests
 from datetime import datetime
-from src.utils.logger import setup_logger
+from pathlib import Path
 from src.news import News
 import os
-from pathlib import Path
-
-logger = setup_logger('news_summarizer')
+from src.utils.log_manager import LogManager, LogCategory
 
 class NewsSummarizer:
     """뉴스 요약 및 감성 분석기 (GPT-4o-mini-2024-07-18 모델 사용)"""
@@ -21,35 +19,32 @@ class NewsSummarizer:
         (0.6, 1.0): "매우 긍정적"
     }
     
-    def __init__(self, api_key: str, api_endpoint: str):
+    def __init__(
+        self, 
+        api_key: str, 
+        api_endpoint: str,
+        log_manager: Optional[LogManager] = None
+    ):
         """초기화
         
         Args:
             api_key: OpenAI API 키
             api_endpoint: OpenAI API 엔드포인트
+            log_manager: 로그 매니저 (선택사항)
         """
         self.api_key = api_key
         self.api_endpoint = api_endpoint
         self.news = News()
+        self.log_manager = log_manager
         
-        # 로그 디렉토리 설정
-        self._setup_log_directory()
-    
-    def _setup_log_directory(self):
-        """로그 디렉토리 설정"""
-        # 기본 로그 디렉토리 생성
+        # 실행 시간 기반 디렉토리 생성
         base_dir = Path(".temp")
         base_dir.mkdir(exist_ok=True)
         
-        # 실행 시간 기반 디렉토리 생성
         now = datetime.now()
         run_id = now.strftime("%Y%m%d_%H%M%S")
         self.run_dir = base_dir / run_id
         self.run_dir.mkdir(exist_ok=True)
-        
-        # 로그 디렉토리 생성
-        self.log_dir = self.run_dir / "logs"
-        self.log_dir.mkdir(exist_ok=True)
     
     def _create_prompt(self, news_items: List[Dict], symbol: str) -> str:
         """GPT-4에 전달할 프롬프트를 생성합니다.
@@ -61,6 +56,13 @@ class NewsSummarizer:
         Returns:
             프롬프트 문자열
         """
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.SYSTEM,
+                message=f"{symbol} 뉴스 분석 프롬프트 생성 시작",
+                data={"news_count": len(news_items)}
+            )
+            
         prompt = f"""아래는 {symbol} 관련 뉴스 {len(news_items)}개입니다. 
 각 뉴스에 대해 다음 정보를 제공해주세요:
 
@@ -99,6 +101,14 @@ class NewsSummarizer:
     "average_sentiment": 0.0,
     "average_relevance": 0.0
 }"""
+
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.SYSTEM,
+                message=f"{symbol} 뉴스 분석 프롬프트 생성 완료",
+                data={"prompt_length": len(prompt)}
+            )
+            
         return prompt
     
     def _call_gpt4(self, prompt: str) -> Dict:
@@ -133,6 +143,13 @@ class NewsSummarizer:
         }
         
         try:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.API,
+                    message="GPT-4 API 호출 시작",
+                    data={"endpoint": self.api_endpoint}
+                )
+                
             response = requests.post(
                 self.api_endpoint,
                 headers=headers,
@@ -142,11 +159,32 @@ class NewsSummarizer:
             
             # 응답 상태 코드 확인
             if response.status_code != 200:
-                logger.error(f"API 오류 응답: {response.status_code} - {response.text}")
-                return None
+                error_msg = f"API 오류 응답: {response.status_code} - {response.text}"
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.API,
+                        message="GPT-4 API 호출 실패",
+                        data={
+                            "status_code": response.status_code,
+                            "response": response.text
+                        }
+                    )
+                return {
+                    "success": False,
+                    "error": error_msg
+                }
                 
             response_data = response.json()
-            logger.debug(f"API 응답: {response_data}")
+            
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.API,
+                    message="GPT-4 API 호출 성공",
+                    data={
+                        "status_code": response.status_code,
+                        "response": response_data
+                    }
+                )
             
             return {
                 "success": True,
@@ -154,17 +192,29 @@ class NewsSummarizer:
             }
             
         except requests.exceptions.RequestException as e:
-            logger.error(f"API 요청 실패: {str(e)}")
+            error_msg = f"API 요청 실패: {str(e)}"
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="GPT-4 API 요청 실패",
+                    data={"error": str(e)}
+                )
             return {
                 "success": False,
-                "error": f"API 요청 실패: {str(e)}"
+                "error": error_msg
             }
             
         except Exception as e:
-            logger.error(f"GPT-4 API 호출 실패: {str(e)}")
+            error_msg = f"API 호출 실패: {str(e)}"
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="GPT-4 API 호출 중 예외 발생",
+                    data={"error": str(e)}
+                )
             return {
                 "success": False,
-                "error": f"API 호출 실패: {str(e)}"
+                "error": error_msg
             }
     
     def _get_sentiment_label(self, score: float) -> str:
@@ -200,97 +250,6 @@ class NewsSummarizer:
             return data.isoformat()
         return data
 
-    def _save_prompt(self, symbol: str, prompt: str) -> str:
-        """프롬프트를 파일로 저장합니다.
-        
-        Args:
-            symbol: 심볼 (예: BTC)
-            prompt: 저장할 프롬프트
-            
-        Returns:
-            str: 저장 시 사용된 타임스탬프
-        """
-        try:
-            timestamp = datetime.now().strftime("%H%M%S")
-            
-            prompt_data = {
-                "timestamp": datetime.now().isoformat(),
-                "symbol": symbol,
-                "data_type": "prompt",
-                "content": prompt
-            }
-            
-            prompt_file = self.log_dir / f"02_01_prompt_{symbol}_{timestamp}.json"
-            with open(prompt_file, "w", encoding="utf-8") as f:
-                json.dump(prompt_data, f, ensure_ascii=False, indent=2)
-                
-            logger.info(f"프롬프트가 저장되었습니다: {prompt_file}")
-            return timestamp
-            
-        except Exception as e:
-            logger.error(f"프롬프트 저장 실패: {str(e)}")
-            return None
-            
-    def _save_response(self, symbol: str, response: Dict, timestamp: str = None) -> None:
-        """응답을 파일로 저장합니다.
-        
-        Args:
-            symbol: 심볼 (예: BTC)
-            response: 저장할 응답 데이터
-            timestamp: 프롬프트 저장 시 사용된 타임스탬프 (없으면 새로 생성)
-        """
-        try:
-            if timestamp is None:
-                timestamp = datetime.now().strftime("%H%M%S")
-                
-            response = self._convert_datetime(response)
-            response_data = {
-                "timestamp": datetime.now().isoformat(),
-                "symbol": symbol,
-                "data_type": "response",
-                "content": response
-            }
-            
-            response_file = self.log_dir / f"02_02_response_{symbol}_{timestamp}.json"
-            with open(response_file, "w", encoding="utf-8") as f:
-                json.dump(response_data, f, ensure_ascii=False, indent=2)
-                
-            logger.info(f"응답이 저장되었습니다: {response_file}")
-            
-        except Exception as e:
-            logger.error(f"응답 저장 실패: {str(e)}")
-
-    def _save_news_data(self, symbol: str, data: Dict, category: str):
-        """뉴스 데이터를 파일로 저장합니다."""
-        categories = {
-            'news_raw': '03_news_raw',
-            'news_analysis': '04_news_analysis'
-        }
-        
-        if category not in categories:
-            logger.error(f"잘못된 카테고리입니다: {category}")
-            return
-            
-        timestamp = datetime.now().strftime("%H%M%S")
-        filename = f"{categories[category]}_{symbol}_{timestamp}.json"
-        filepath = self.log_dir / filename
-        
-        # datetime 객체 변환
-        data = self._convert_datetime(data)
-        
-        # 데이터 포맷팅
-        formatted_data = {
-            "timestamp": datetime.now().isoformat(),
-            "symbol": symbol,
-            "data_type": category,
-            "content": data
-        }
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(formatted_data, f, ensure_ascii=False, indent=2)
-            
-        logger.info(f"{symbol} {category} 저장 완료: {filepath}")
-
     def analyze_news(
         self,
         symbol: str,
@@ -309,24 +268,39 @@ class NewsSummarizer:
         """
         try:
             # 뉴스 수집
-            news = News()
+            news = News(self.log_manager)
             news_items = news.get_news(symbol, max_age_hours, limit)
             
             if not news_items:
-                return {
+                result={
                     "success": False,
-                    "error": "수집된 뉴스가 없습니다."
+                    "overall_summary": "수집된 뉴스가 없습니다."
                 }
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.SYSTEM,
+                        message="수집된 뉴스가 없습니다.",
+                        data=result
+                    )
+                return result
             
             # 프롬프트 생성
             prompt = self._create_prompt(news_items, symbol)
             
             # 프롬프트 토큰 분석
             token_count = self._count_tokens(prompt)
-            logger.info(f"프롬프트 토큰 수 (추정치): {token_count}")
             
-            # 프롬프트 저장
-            timestamp = self._save_prompt(symbol, prompt)
+            if self.log_manager:
+                # 프롬프트 내용 로깅
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message=f"{symbol} 프롬프트 생성 완료",
+                    data={
+                        "prompt": prompt,
+                        "token_count": token_count,
+                        "news_count": len(news_items)
+                    }
+                )
             
             # GPT API 호출
             response = self._call_gpt4(prompt)
@@ -336,7 +310,12 @@ class NewsSummarizer:
                     "success": False,
                     "error": response.get("error", "API 호출 실패")
                 }
-                self._save_response(symbol, error_result, timestamp)
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message=f"{symbol} GPT API 호출 실패",
+                        data=error_result
+                    )
                 return error_result
             
             # 응답 파싱
@@ -346,23 +325,39 @@ class NewsSummarizer:
                 analysis_result = json.loads(json_str)
                 analysis_result["success"] = True
                 
-                # 응답 저장
-                self._save_response(symbol, analysis_result, timestamp)
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.SYSTEM,
+                        message=f"{symbol} GPT 응답 파싱 완료",
+                        data=analysis_result
+                    )
                 
                 return analysis_result
                 
             except json.JSONDecodeError as e:
-                logger.error(f"응답 파싱 실패: {str(e)}")
+                error_msg = f"응답 파싱 실패: {str(e)}"
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message=error_msg,
+                        data={"error": str(e)}
+                    )
                 return {
                     "success": False,
-                    "error": f"응답 파싱 실패: {str(e)}"
+                    "error": error_msg
                 }
             
         except Exception as e:
-            logger.error(f"뉴스 분석 실패: {str(e)}")
+            error_msg = f"뉴스 분석 실패: {str(e)}"
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=error_msg,
+                    data={"error": str(e)}
+                )
             return {
                 "success": False,
-                "error": f"분석 중 오류 발생: {str(e)}"
+                "error": error_msg
             }
     
     def format_analysis(self, result: Dict) -> str:

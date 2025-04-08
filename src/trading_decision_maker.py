@@ -6,9 +6,7 @@ import requests
 from pathlib import Path
 from src.trading_analyzer import TradingAnalyzer
 from src.news_summarizer import NewsSummarizer
-from src.utils.logger import setup_logger
-
-logger = setup_logger('trading_decision')
+from src.utils.log_manager import LogManager, LogCategory
 
 class TradingDecisionMaker:
     """뉴스와 시장 분석을 종합하여 매매 판단을 내리는 클래스"""
@@ -21,6 +19,7 @@ class TradingDecisionMaker:
         bithumb_api_key: str,
         bithumb_secret_key: str,
         openai_api_key: str,
+        log_manager: LogManager
     ):
         """초기화
         
@@ -28,28 +27,20 @@ class TradingDecisionMaker:
             bithumb_api_key: 빗썸 API 키
             bithumb_secret_key: 빗썸 Secret 키
             openai_api_key: OpenAI API 키
+            log_manager: 로그 매니저
         """
-        self.trading_analyzer = TradingAnalyzer(bithumb_api_key, bithumb_secret_key)
-        self.news_summarizer = NewsSummarizer(openai_api_key, self._OPENAI_API_ENDPOINT)
+        self.trading_analyzer = TradingAnalyzer(bithumb_api_key, bithumb_secret_key, log_manager=log_manager)
+        self.news_summarizer = NewsSummarizer(openai_api_key, self._OPENAI_API_ENDPOINT, log_manager=log_manager)
+        self.log_manager = log_manager
         
-        # 로그 디렉토리 설정
-        self._setup_log_directory()
-        
-    def _setup_log_directory(self):
-        """로그 디렉토리 설정"""
-        # 기본 로그 디렉토리 생성
-        base_dir = Path(".temp")
-        base_dir.mkdir(exist_ok=True)
-        
-        # 실행 시간 기반 디렉토리 생성
-        now = datetime.now()
-        run_id = now.strftime("%Y%m%d_%H%M%S")
-        self.run_dir = base_dir / run_id
-        self.run_dir.mkdir(exist_ok=True)
-        
-        # 로그 디렉토리 생성
-        self.log_dir = self.run_dir / "logs"
-        self.log_dir.mkdir(exist_ok=True)
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.SYSTEM,
+                message="매매 판단기 초기화 완료",
+                data={
+                    "openai_endpoint": self._OPENAI_API_ENDPOINT
+                }
+            )
         
     def _convert_datetime(self, data: Dict) -> Dict:
         """datetime 객체를 ISO 형식 문자열로 변환합니다."""
@@ -83,7 +74,7 @@ class TradingDecisionMaker:
 아래 제공된 {symbol}에 대한 시장 분석과 뉴스 분석을 바탕으로 매매 판단을 내려주세요.
 
 === 시장 분석 데이터 ===
-• 현재가: {market_data['current_price']:,.0f} KRW ({market_data['daily_change']:+.2f}%)
+• 현재가: {market_data['current_price']:,.0f} KRW ({market_data['minute_change']:+.2f}%)
 • 이동평균: MA5 {market_data['ma5']:,.0f} / MA20 {market_data['ma20']:,.0f}
 • RSI(14): {market_data['rsi_14']:.1f}
 • 변동성: {market_data['volatility']:.1f}%
@@ -145,6 +136,16 @@ class TradingDecisionMaker:
 5. 잠재적인 위험 요소들
 6. 다음 매매 판단까지의 적절한 시간 간격 (시장 상황에 따라 1-30분 사이에서 결정)"""
 
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.SYSTEM,
+                message="매매 판단 프롬프트 생성 완료",
+                data={
+                    "symbol": symbol,
+                    "prompt": prompt
+                }
+            )
+
         return prompt
         
     def _call_gpt4(self, prompt: str) -> Dict:
@@ -171,6 +172,13 @@ class TradingDecisionMaker:
         }
         
         try:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.API,
+                    message="GPT-4 API 호출 시작",
+                    data={"endpoint": self.news_summarizer.api_endpoint}
+                )
+            
             response = requests.post(
                 self.news_summarizer.api_endpoint,
                 headers=headers,
@@ -179,17 +187,30 @@ class TradingDecisionMaker:
             )
             
             if response.status_code != 200:
-                logger.error(f"API 오류 응답: {response.status_code} - {response.text}")
+                error_msg = f"API 오류 응답: {response.status_code} - {response.text}"
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message="GPT-4 API 호출 실패",
+                        data={
+                            "status_code": response.status_code,
+                            "response": response.text
+                        }
+                    )
                 return None
                 
             response_data = response.json()
             if not response_data or "choices" not in response_data:
-                logger.error("API 응답에 choices가 없습니다.")
+                error_msg = "API 응답에 choices가 없습니다."
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message=error_msg,
+                        data={"response": response_data}
+                    )
                 return None
                 
             content = response_data["choices"][0]["message"]["content"]
-            logger.info("API 응답 내용:")
-            logger.info(content)
             
             # 마크다운 포맷팅 제거
             content = content.replace("```json", "").replace("```", "").strip()
@@ -198,56 +219,35 @@ class TradingDecisionMaker:
             content = self._remove_commas_in_numbers(content)
             
             try:
-                return json.loads(content)
+                decision = json.loads(content)
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.SYSTEM,
+                        message="매매 판단 결과 파싱 완료",
+                        data=decision
+                    )
+                return decision
             except json.JSONDecodeError as e:
-                logger.error(f"JSON 파싱 오류: {str(e)}")
-                logger.error(f"파싱 실패한 내용: {content}")
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message="매매 판단 결과 파싱 실패",
+                        data={
+                            "error": str(e),
+                            "content": content
+                        }
+                    )
                 return None
-            
+                
         except Exception as e:
-            logger.error(f"GPT-4 API 호출 실패: {str(e)}")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="GPT-4 API 호출 중 예외 발생",
+                    data={"error": str(e)}
+                )
             return None
-            
-    def _save_decision_data(self, symbol: str, data: Dict, category: str):
-        """매매 판단 데이터를 파일로 저장
-        
-        Args:
-            symbol: 심볼 (예: BTC)
-            data: 저장할 데이터
-            category: 저장 카테고리 (market_data/news_data/decision/prompts/responses)
-        """
-        categories = {
-            'market_data': '04_01_market_data',
-            'news_data': '04_02_news_data',
-            'prompts': '04_03_prompt',
-            'responses': '04_04_response',
-            'decision': '04_05_decision'
-        }
-        
-        if category not in categories:
-            logger.error(f"잘못된 카테고리입니다: {category}")
-            return
-            
-        timestamp = datetime.now().strftime("%H%M%S")
-        filename = f"{categories[category]}_{symbol}_{timestamp}.json"
-        filepath = self.log_dir / filename
-        
-        # datetime 객체 변환
-        data = self._convert_datetime(data)
-        
-        # 데이터 포맷팅
-        formatted_data = {
-            "timestamp": datetime.now().isoformat(),
-            "symbol": symbol,
-            "data_type": category,
-            "content": data
-        }
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(formatted_data, f, ensure_ascii=False, indent=2)
-            
-        logger.info(f"{symbol} {category} 저장 완료: {filepath}")
-        
+
     def _remove_commas_in_numbers(self, json_str: str) -> str:
         """JSON 문자열 내의 숫자에 포함된 콤마를 제거합니다.
 
@@ -276,24 +276,20 @@ class TradingDecisionMaker:
         limit: int = 5,
         dev_mode: bool = False
     ) -> Dict:
-        """매매 판단을 수행합니다.
+        """뉴스와 시장 분석을 종합하여 매매 판단
         
         Args:
-            symbol: 심볼 (예: BTC)
+            symbol: 심볼 (예: 'BTC')
             max_age_hours: 뉴스 수집 시 최대 기사 나이 (시간)
             limit: 수집할 뉴스 기사 수
             dev_mode: 개발 모드 여부
             
         Returns:
-            매매 판단 결과
+            Dict: 매매 판단 결과
         """
-        try:
-            logger.info(f"{symbol} 매매 판단 시작...")
-            
+        try:            
             # 1. 시장 분석 데이터 수집
             analysis_result = self.trading_analyzer.analyze(symbol)
-            if not analysis_result['success']:
-                raise Exception(f"시장 데이터 수집 실패: {analysis_result['error']}")
                 
             market_data = {
                 **analysis_result['market_data'],
@@ -307,8 +303,6 @@ class TradingDecisionMaker:
                 max_age_hours=max_age_hours,
                 limit=limit
             )
-            if not news_data["success"]:
-                raise Exception("뉴스 분석 실패")
             
             # 3. 매매 판단 프롬프트 생성
             prompt = self._create_decision_prompt(
@@ -317,47 +311,13 @@ class TradingDecisionMaker:
                 news_data,
                 asset_info
             )
-            self._save_decision_data(symbol, {"prompt": prompt}, "prompts")
             
-            # 4. GPT-4 API 호출
-            if dev_mode:
-                # 개발 모드일 경우 더미 데이터 반환
-                decision = {
-                    "decision": "매수",
-                    "quantity_percent": 20,
-                    "target_price": int(market_data['current_price'] * 1.1),
-                    "stop_loss": int(market_data['current_price'] * 0.95),
-                    "confidence": 0.75,
-                    "reasons": [
-                        "RSI가 과매도 구간에서 반등 시도",
-                        "뉴스 감성이 긍정적",
-                        "거래량 증가 추세"
-                    ],
-                    "risk_factors": [
-                        "단기 이동평균선이 하락 추세",
-                        "시장 변동성 증가"
-                    ],
-                    "additional_info": {
-                        "short_term_outlook": "변동성 높으나 반등 가능성",
-                        "long_term_outlook": "상승 추세 유지 전망",
-                        "key_events": [
-                            "다가오는 반감기",
-                            "기관 투자자 유입 증가"
-                        ]
-                    },
-                    "next_decision": {
-                        "interval_minutes": 240,
-                        "reason": "현재 시장의 변동성과 추세를 고려한 적정 모니터링 주기"
-                    }
-                }
-            else:
-                response = self._call_gpt4(prompt)
-                if not response:
-                    raise Exception("GPT-4 API 호출 실패")
-                self._save_decision_data(symbol, response, "responses")
-                decision = response
+            response = self._call_gpt4(prompt)
+            if not response:
+                raise Exception("GPT-4 API 호출 실패")
+            decision = response
             
-            # 5. 결과 저장
+            # 5. 결과 반환
             result = {
                 "success": True,
                 "timestamp": datetime.now().isoformat(),
@@ -368,7 +328,12 @@ class TradingDecisionMaker:
                 "decision": decision
             }
             
-            self._save_decision_data(symbol, result, "decision")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.DECISION,
+                    message=f"{symbol} 매매 판단 완료",
+                    data=result
+                )
             
             return result
             
@@ -377,5 +342,10 @@ class TradingDecisionMaker:
                 "success": False,
                 "error": str(e)
             }
-            logger.error(f"{symbol} 매매 판단 실패: {str(e)}")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=f"{symbol} 매매 판단 실패",
+                    data=error_result
+                )
             return error_result

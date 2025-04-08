@@ -4,18 +4,21 @@ import time
 import jwt
 import uuid
 from typing import Dict, List, Optional, Union
+from src.utils.log_manager import LogManager, LogCategory
 
 class Account:
-    def __init__(self, api_key: str, secret_key: str):
+    def __init__(self, api_key: str, secret_key: str, log_manager: Optional[LogManager] = None):
         """빗썸 계정 API 클래스 초기화
         
         Args:
             api_key (str): 빗썸 API 키
             secret_key (str): 빗썸 Secret 키
+            log_manager (Optional[LogManager]): 로그 매니저 (선택사항)
         """
         self.api_key = api_key
         self.secret_key = secret_key
         self.base_url = "https://api.bithumb.com"
+        self.log_manager = log_manager
     
     def _create_jwt_token(self) -> str:
         """JWT 토큰 생성"""
@@ -42,6 +45,12 @@ class Account:
                 }, ...]
                 - 오류 발생시: None
         """
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.API,
+                message="빗썸 API: 계정 잔고 조회 요청"
+            )
+        
         headers = {
             'Authorization': self._create_jwt_token()
         }
@@ -55,17 +64,75 @@ class Account:
             if response.status_code == 200:
                 result = response.json()
                 if isinstance(result, list):  # 응답이 리스트인 경우
-                    return [self._format_balance_item(item) for item in result]
+                    formatted_result = [self._format_balance_item(item) for item in result]
+                    
+                    if self.log_manager:
+                        total_balance = sum(item['balance'] * item['avg_buy_price'] 
+                                         for item in formatted_result 
+                                         if item['unit_currency'] == 'KRW')
+                        
+                        self.log_manager.log(
+                            category=LogCategory.API,
+                            message="빗썸 API: 계정 잔고 조회 성공",
+                            data={
+                                "request_url": f"{self.base_url}/v1/accounts",
+                                "response_status": response.status_code
+                            }
+                        )
+                        
+                        self.log_manager.log(
+                            category=LogCategory.ASSET,
+                            message="계정 자산 정보 업데이트",
+                            data={
+                                "total_balance_krw": total_balance,
+                                "assets_count": len(formatted_result),
+                                "balances": formatted_result
+                            }
+                        )
+                    
+                    return formatted_result
                 else:
-                    print(f"예상치 못한 응답 형식: {result}")
+                    error_msg = f"예상치 못한 응답 형식: {result}"
+                    if self.log_manager:
+                        self.log_manager.log(
+                            category=LogCategory.API,
+                            message="빗썸 API: 잔고 조회 실패 - 잘못된 응답 형식",
+                            data={
+                                "request_url": f"{self.base_url}/v1/accounts",
+                                "response_status": response.status_code,
+                                "response": result
+                            }
+                        )
+                    print(error_msg)
                     return None
             else:
-                print(f"HTTP 오류: {response.status_code}")
+                error_msg = f"HTTP 오류: {response.status_code}"
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.API,
+                        message="빗썸 API: 잔고 조회 실패 - HTTP 오류",
+                        data={
+                            "request_url": f"{self.base_url}/v1/accounts",
+                            "response_status": response.status_code,
+                            "response": response.text
+                        }
+                    )
+                print(error_msg)
                 print(f"응답 내용: {response.text}")
                 return None
                 
         except Exception as e:
-            print(f"잔고 조회 중 오류 발생: {e}")
+            error_msg = f"잔고 조회 중 오류 발생: {e}"
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.API,
+                    message="빗썸 API: 잔고 조회 실패 - 예외 발생",
+                    data={
+                        "request_url": f"{self.base_url}/v1/accounts",
+                        "error": str(e)
+                    }
+                )
+            print(error_msg)
             return None
             
     def _format_balance_item(self, data: Dict) -> Dict:

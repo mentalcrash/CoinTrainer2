@@ -7,10 +7,9 @@ import time
 import re
 import requests
 from bs4 import BeautifulSoup
-from src.utils.logger import setup_logger
 from pathlib import Path
-
-logger = setup_logger('news')
+import pytz
+from src.utils.log_manager import LogManager, LogCategory
 
 class News:
     """코인 관련 뉴스 수집기"""
@@ -39,7 +38,12 @@ class News:
         "cryptocurrency", "crypto", "blockchain"
     ]
     
-    def __init__(self):
+    def __init__(self, log_manager: Optional[LogManager] = None):
+        """초기화
+        
+        Args:
+            log_manager: 로그 매니저 (선택사항)
+        """
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -47,25 +51,23 @@ class News:
         self.last_update = None
         self.cached_news = {}  # symbol별 캐시
         self.cache_duration = 300  # 5분 캐시
+        self.log_manager = log_manager
         
-        # 로그 디렉토리 설정
-        self._setup_log_directory()
-    
-    def _setup_log_directory(self):
-        """로그 디렉토리 설정"""
-        # 기본 로그 디렉토리 생성
+        # 실행 시간 기반 디렉토리 생성
         base_dir = Path(".temp")
         base_dir.mkdir(exist_ok=True)
         
-        # 실행 시간 기반 디렉토리 생성
         now = datetime.now()
         run_id = now.strftime("%Y%m%d_%H%M%S")
         self.run_dir = base_dir / run_id
         self.run_dir.mkdir(exist_ok=True)
         
-        # 로그 디렉토리 생성
-        self.log_dir = self.run_dir / "logs"
-        self.log_dir.mkdir(exist_ok=True)
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.SYSTEM,
+                message="뉴스 수집기 초기화 완료",
+                data={"run_dir": str(self.run_dir)}
+            )
     
     def _convert_datetime(self, data: Dict) -> Dict:
         """datetime 객체를 ISO 형식 문자열로 변환합니다."""
@@ -76,43 +78,6 @@ class News:
         elif isinstance(data, datetime):
             return data.isoformat()
         return data
-    
-    def _save_news_collection(self, symbol: str, data: Dict, category: str):
-        """뉴스 수집 데이터를 파일로 저장합니다.
-        
-        Args:
-            symbol: 심볼 (예: BTC)
-            data: 저장할 데이터
-            category: 저장 카테고리 (news_collection/news_cache)
-        """
-        categories = {
-            'news_collection': '01_news_collection',
-            'news_cache': '02_news_cache'
-        }
-        
-        if category not in categories:
-            logger.error(f"잘못된 카테고리입니다: {category}")
-            return
-            
-        timestamp = datetime.now().strftime("%H%M%S")
-        filename = f"{categories[category]}_{symbol}_{timestamp}.json"
-        filepath = self.log_dir / filename
-        
-        # datetime 객체 변환
-        data = self._convert_datetime(data)
-        
-        # 데이터 포맷팅
-        formatted_data = {
-            "timestamp": datetime.now().isoformat(),
-            "symbol": symbol,
-            "data_type": category,
-            "content": data
-        }
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(formatted_data, f, ensure_ascii=False, indent=2)
-            
-        logger.info(f"{symbol} {category} 저장 완료: {filepath}")
     
     def _parse_datetime(self, date_str: str) -> datetime:
         """뉴스 발행일자를 파싱합니다."""
@@ -137,11 +102,26 @@ class News:
                 elif re.match(r'\d{4}\-\d{2}\-\d{2}', date_str):
                     # YYYY-MM-DD 형식
                     return datetime.strptime(date_str.split()[0], "%Y-%m-%d")
+                elif re.match(r'[A-Za-z]{3}, \d{2} [A-Za-z]{3} \d{4} \d{2}:\d{2}:\d{2} \+\d{4}', date_str):
+                    # 시간대가 포함된 RSS 형식을 KST로 변환
+                    utc_time = datetime.strptime(date_str, "%a, %d %b %Y %H:%M:%S %z")
+                    kst = pytz.timezone('Asia/Seoul')
+                    return utc_time.astimezone(kst).replace(tzinfo=None)
                 else:
-                    logger.debug(f"지원하지 않는 날짜 형식: {date_str}")
+                    if self.log_manager:
+                        self.log_manager.log(
+                            category=LogCategory.ERROR,
+                            message="지원하지 않는 날짜 형식",
+                            data={"date_str": date_str}
+                        )
                     return datetime.now()
             except Exception as e:
-                logger.debug(f"날짜 파싱 실패: {date_str} (에러: {str(e)})")
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message="날짜 파싱 실패",
+                        data={"date_str": date_str, "error": str(e)}
+                    )
                 return datetime.now()
     
     def _clean_text(self, text: str) -> str:
@@ -174,6 +154,13 @@ class News:
         now = datetime.now()
         
         try:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message="CoinDesk 뉴스 수집 시작",
+                    data={"keyword": keyword, "max_age_hours": max_age_hours}
+                )
+            
             # RSS 피드에서 최신 뉴스 가져오기
             feed = feedparser.parse(self.COINDESK_RSS)
             
@@ -237,10 +224,20 @@ class News:
                     "source": "CoinDesk"
                 })
             
-            logger.debug(f"CoinDesk 뉴스 {len(news_items)}개 수집 완료")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message="CoinDesk 뉴스 수집 완료",
+                    data={"keyword": keyword, "news_count": len(news_items)}
+                )
             
         except Exception as e:
-            logger.error(f"CoinDesk 뉴스 수집 실패: {str(e)}")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="CoinDesk 뉴스 수집 실패",
+                    data={"keyword": keyword, "error": str(e)}
+                )
         
         return news_items
 
@@ -250,6 +247,13 @@ class News:
         now = datetime.now()
         
         try:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message="Cointelegraph 뉴스 수집 시작",
+                    data={"keyword": keyword, "max_age_hours": max_age_hours}
+                )
+            
             # RSS 피드에서 최신 뉴스 가져오기
             feed = feedparser.parse(self.COINTELEGRAPH_RSS)
             
@@ -313,10 +317,20 @@ class News:
                     "source": "Cointelegraph"
                 })
             
-            logger.debug(f"Cointelegraph 뉴스 {len(news_items)}개 수집 완료")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message="Cointelegraph 뉴스 수집 완료",
+                    data={"keyword": keyword, "news_count": len(news_items)}
+                )
             
         except Exception as e:
-            logger.error(f"Cointelegraph 뉴스 수집 실패: {str(e)}")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="Cointelegraph 뉴스 수집 실패",
+                    data={"keyword": keyword, "error": str(e)}
+                )
         
         return news_items
 
@@ -339,22 +353,6 @@ class News:
             List[Dict]: 수집된 뉴스 목록
         """
         symbol = symbol.upper()
-        now = datetime.now()
-        
-        # 캐시 체크
-        if (
-            use_cache
-            and symbol in self.cached_news
-            and self.last_update is not None
-            and (now - self.last_update).total_seconds() < self.cache_duration
-        ):
-            logger.debug(f"{symbol} 캐시된 뉴스 반환")
-            cached_data = {
-                "source": "cache",
-                "news_items": self.cached_news[symbol]
-            }
-            self._save_news_collection(symbol, cached_data, "news_cache")
-            return self.cached_news[symbol]
         
         all_news = []
         keywords = self._get_symbol_keywords(symbol)
@@ -381,7 +379,12 @@ class News:
                 time.sleep(1)  # API 호출 간격 조절
                 
             except Exception as e:
-                logger.error(f"{symbol} {keyword} 뉴스 수집 실패: {str(e)}")
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message=f"{symbol} {keyword} 뉴스 수집 실패",
+                        data={"error": str(e)}
+                    )
                 continue
                 
         # 중복 제거 (제목 기준)
@@ -391,20 +394,16 @@ class News:
         unique_news.sort(key=lambda x: x["published_at"], reverse=True)
         news_list = unique_news[:limit]
         
-        # 수집 결과 저장
-        self._save_news_collection(symbol, news_list, "news_collection")
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.SYSTEM,
+                message=f"{symbol} 뉴스 수집 완료",
+                data={
+                    "news_count": len(news_list),
+                    "sources": list(set(news["source"] for news in news_list))
+                }
+            )
         
-        # 캐시 업데이트
-        if use_cache:
-            self.cached_news[symbol] = news_list
-            self.last_update = now
-            cache_data = {
-                "source": "cache",
-                "news_items": news_list
-            }
-            self._save_news_collection(symbol, cache_data, "news_cache")
-        
-        logger.info(f"{symbol} 뉴스 {len(news_list)}개 수집 완료")
         return news_list
     
     def format_news(
@@ -454,6 +453,13 @@ class News:
         now = datetime.now()
         
         try:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message="구글 뉴스 수집 시작",
+                    data={"keyword": keyword, "max_age_hours": max_age_hours}
+                )
+            
             url = self.GOOGLE_NEWS_RSS.format(query=quote_plus(keyword))
             feed = feedparser.parse(url)
             
@@ -481,8 +487,20 @@ class News:
                     "source": source
                 })
             
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message="구글 뉴스 수집 완료",
+                    data={"keyword": keyword, "news_count": len(news_items)}
+                )
+            
         except Exception as e:
-            logger.error(f"구글 뉴스 수집 실패: {str(e)}")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="구글 뉴스 수집 실패",
+                    data={"keyword": keyword, "error": str(e)}
+                )
         
         return news_items
     
@@ -492,6 +510,13 @@ class News:
         now = datetime.now()
         
         try:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message="네이버 뉴스 수집 시작",
+                    data={"keyword": keyword, "max_age_hours": max_age_hours}
+                )
+            
             url = self.NAVER_NEWS_SEARCH.format(query=quote_plus(keyword))
             response = self.session.get(url)
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -523,8 +548,20 @@ class News:
                     "published_at": published_at,
                     "source": source
                 })
+            
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message="네이버 뉴스 수집 완료",
+                    data={"keyword": keyword, "news_count": len(news_items)}
+                )
                 
         except Exception as e:
-            logger.error(f"네이버 뉴스 수집 실패: {str(e)}")
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="네이버 뉴스 수집 실패",
+                    data={"keyword": keyword, "error": str(e)}
+                )
         
         return news_items 
