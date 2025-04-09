@@ -246,28 +246,35 @@ class TradingLogger:
             is_bid = order_result['side'] == "bid"
             
             # 가격 처리: 매수일 때는 price 필드 사용, 매도일 때는 locked/executed_volume으로 계산
-            price = order_result.get('price', 0.0)
-            if not price and not is_bid:
-                # 매도 주문이고 price가 없는 경우, locked/executed_volume으로 계산
-                try:
+            try:
+                price = float(order_result.get('price', 0.0))
+                if not price and not is_bid:
+                    # 매도 주문이고 price가 없는 경우, locked/executed_volume으로 계산
                     executed_volume = float(order_result['executed_volume'])
+                    locked = float(order_result['locked'])
                     if executed_volume > 0:
-                        price = float(order_result['locked']) / executed_volume
-                except (ValueError, ZeroDivisionError):
-                    price = 0.0
+                        price = locked / executed_volume
+            except (ValueError, TypeError, ZeroDivisionError):
+                price = 0.0
             
             # 총 거래 금액 계산
-            executed_volume = float(order_result['executed_volume'])
-            total_amount = price * executed_volume
+            try:
+                executed_volume = float(order_result['executed_volume'])
+                total_amount = price * executed_volume
+            except (ValueError, TypeError):
+                executed_volume = 0.0
+                total_amount = 0.0
             
             # 남은 수량 처리
-            remaining_volume = order_result.get('remaining_volume', 0.0)
-            if remaining_volume is None:
+            try:
+                remaining_volume = float(order_result.get('remaining_volume', 0.0))
+            except (ValueError, TypeError):
                 remaining_volume = 0.0
             
             # 예약 수수료 처리
-            reserved_fee = order_result.get('reserved_fee', 0.0)
-            if reserved_fee is None:
+            try:
+                reserved_fee = float(order_result.get('reserved_fee', 0.0))
+            except (ValueError, TypeError):
                 reserved_fee = 0.0
             
             values = [[
