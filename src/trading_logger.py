@@ -444,10 +444,26 @@ class TradingLogger:
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
             # 다음 판단 시각 계산
-            next_decision_time = (
-                datetime.now().replace(second=0, microsecond=0) +
-                timedelta(minutes=decision_data['next_decision']['interval_minutes'])
-            ).strftime("%Y-%m-%d %H:%M:%S")
+            try:
+                interval_minutes = int(decision_data['next_decision']['interval_minutes'])
+                next_decision_time = (
+                    datetime.now().replace(second=0, microsecond=0) +
+                    timedelta(minutes=interval_minutes)
+                ).strftime("%Y-%m-%d %H:%M:%S")
+            except (ValueError, TypeError) as e:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="다음 판단 시각 계산 실패",
+                    data={
+                        "error": str(e),
+                        "interval_minutes": decision_data['next_decision'].get('interval_minutes')
+                    }
+                )
+                # 기본값으로 5분 설정
+                next_decision_time = (
+                    datetime.now().replace(second=0, microsecond=0) +
+                    timedelta(minutes=5)
+                ).strftime("%Y-%m-%d %H:%M:%S")
             
             values = [[
                 id,                                     # ID
