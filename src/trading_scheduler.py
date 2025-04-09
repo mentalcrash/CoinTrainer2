@@ -237,7 +237,7 @@ class TradingScheduler:
                     decision=result['decision'],
                     order_result=result.get("order_result"),
                     asset_info=result["asset_info"],
-                    market_data=result["decision_result"]["market_data"]
+                    market_data=result["market_data"]
                 )
 
             except Exception as e:

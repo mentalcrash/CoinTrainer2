@@ -149,7 +149,9 @@ class TradingExecutor:
                     'success': True,
                     'decision': decision,
                     'asset_info': asset_info,
-                    'order_result': None
+                    'order_result': None,
+                    'market_data': decision_result['market_data'],
+                    'next_decision_time': decision['next_decision']['interval_minutes'],
                 }
                 
             # 3. 주문 수량과 가격 계산
@@ -182,7 +184,7 @@ class TradingExecutor:
                 'success': True,
                 'decision': decision,
                 'order_result': order_result,
-                'decision_result': decision_result,
+                'market_data': decision_result['market_data'],
                 'next_decision_time': decision['next_decision']['interval_minutes'],
                 'asset_info': asset_info,
             }
