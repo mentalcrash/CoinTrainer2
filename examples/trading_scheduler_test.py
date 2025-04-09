@@ -6,7 +6,7 @@ from src.trading_executor import TradingExecutor
 from src.discord_notifier import DiscordNotifier
 from src.trading_scheduler import TradingScheduler
 from src.utils.log_manager import LogManager
-
+from src.trading_logger import TradingLogger
 # 로깅 설정
 logging.basicConfig(
     level=logging.INFO,
@@ -43,11 +43,19 @@ def test_trading_scheduler():
         # DiscordNotifier 생성
         discord_notifier = DiscordNotifier(discord_webhook_url)
 
+        # TradingLogger 생성
+        trading_logger = TradingLogger(
+            log_manager=log_manager,
+            trading_executor=trading_executor,
+            discord_notifier=discord_notifier
+        )   
+
         # TradingScheduler 생성
         scheduler = TradingScheduler(
             trading_executor=trading_executor,
             log_manager=log_manager,
             discord_notifier=discord_notifier,
+            trading_logger=trading_logger,
             dev_mode=False  # 개발 모드로 실행
         )
 
