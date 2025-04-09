@@ -74,12 +74,12 @@ class DiscordNotifier:
             "color": 0x00ff00 if decision["decision"] == "매수" else 0xff0000,
             "fields": [
                 {"name": "결정", "value": decision["decision"], "inline": True},
-                {"name": "수량 비율", "value": f"{decision['quantity_percent']}%", "inline": True},
-                {"name": "신뢰도", "value": f"{decision['confidence']:.2f}", "inline": True},
+                {"name": "수량 비율", "value": f"{self._format_number(decision['quantity_percent'])}%", "inline": True},
+                {"name": "신뢰도", "value": f"{self._format_number(decision['confidence'])}", "inline": True},
                 {"name": "목표가", "value": f"{self._format_number(decision['target_price'])} KRW", "inline": True},
                 {"name": "손절가", "value": f"{self._format_number(decision['stop_loss'])} KRW", "inline": True},
-                {"name": "판단 이유", "value": "\\n".join(decision["reasons"])},
-                {"name": "리스크 요인", "value": "\\n".join(decision["risk_factors"])}
+                {"name": "판단 이유", "value": "\n".join(decision["reasons"])},
+                {"name": "리스크 요인", "value": "\n".join(decision["risk_factors"])}
             ]
         }
 
