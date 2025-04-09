@@ -12,6 +12,7 @@ class Ticker:
             log_manager (Optional[LogManager]): 로그 매니저 (선택사항)
         """
         self.base_url = "https://api.bithumb.com"
+        self.binance_url = "https://fapi.binance.com"
         self.log_manager = log_manager
     
     def get_current_price(self, symbol: str) -> Optional[Dict]:
@@ -136,3 +137,86 @@ class Ticker:
             'lowest_52_week_date': data['lowest_52_week_date'],
             'timestamp': int(data['timestamp'])
         } 
+
+    def analyze_premium_index(self, symbol: str) -> Dict:
+        """프리미엄 인덱스 데이터를 분석합니다.
+
+        Args:
+            symbol (str): 분석할 심볼 (예: XRP)
+
+        Returns:
+            Dict: 분석 결과
+            {
+                'premium_rate': float,      # 프리미엄/디스카운트 비율 (%)
+                'funding_rate': float,      # 펀딩비율
+                'market_bias': str,         # 시장 편향 ('롱 편향', '숏 편향', '중립')
+                'price_stability': float,   # 가격 안정성 점수 (0~1)
+                'signal_strength': float    # 신호 강도 (-1 ~ 1)
+            }
+        """
+        try:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.API,
+                    message="바이낸스 API: 프리미엄 인덱스 조회 요청",
+                    data={"symbol": symbol}
+                )
+
+            # Binance API 호출
+            response = requests.get(f"{self.binance_url}/fapi/v1/premiumIndex?symbol={symbol}USDT")
+            response.raise_for_status()
+            data = response.json()
+
+            # 프리미엄/디스카운트 계산
+            mark_price = float(data['markPrice'])
+            index_price = float(data['indexPrice'])
+            premium_rate = ((mark_price - index_price) / index_price) * 100
+
+            # 펀딩비율
+            funding_rate = float(data['lastFundingRate']) * 100
+
+            # 시장 편향 판단
+            if funding_rate > 0.01:  # 0.01% 이상
+                market_bias = "롱 편향"
+            elif funding_rate < -0.01:  # -0.01% 이하
+                market_bias = "숏 편향"
+            else:
+                market_bias = "중립"
+
+            # 가격 안정성 점수 계산 (마크가격과 인덱스가격의 유사도)
+            price_stability = 1 - min(abs(premium_rate) / 1, 1)  # 1% 차이를 기준으로
+
+            # 신호 강도 계산 (-1: 강한 매도, 1: 강한 매수)
+            signal_strength = -funding_rate  # 펀딩비율의 반대 방향이 유리
+
+            result = {
+                'premium_rate': premium_rate,
+                'funding_rate': funding_rate,
+                'market_bias': market_bias,
+                'price_stability': price_stability,
+                'signal_strength': signal_strength
+            }
+
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.MARKET,
+                    message=f"{symbol} 프리미엄 인덱스 분석 완료",
+                    data=result
+                )
+
+            return result
+
+        except Exception as e:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="프리미엄 인덱스 분석 실패",
+                    data={"symbol": symbol, "error": str(e)}
+                )
+            return {
+                'premium_rate': 0.0,
+                'funding_rate': 0.0,
+                'market_bias': "중립",
+                'price_stability': 1.0,
+                'signal_strength': 0.0
+            } 

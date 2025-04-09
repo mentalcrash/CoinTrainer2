@@ -58,6 +58,11 @@ class TradingAnalyzer:
                 'volatility': float,          # 변동성 (20분 표준편차)
                 'price_trend': str,           # 가격 추세 (상승/하락/횡보)
                 'volume_trend': str,          # 거래량 추세 (증가/감소/횡보)
+                'premium_rate': float,        # 선물 프리미엄/디스카운트 비율 (%)
+                'funding_rate': float,        # 선물 펀딩비율 (%)
+                'market_bias': str,           # 선물 시장 편향 (롱 편향/숏 편향/중립)
+                'price_stability': float,     # 선물 가격 안정성 점수 (0~1)
+                'signal_strength': float      # 선물 신호 강도 (-1 ~ 1)
             }
         """
         if self.log_manager:
@@ -71,6 +76,16 @@ class TradingAnalyzer:
             current_data = self.ticker.get_current_price(symbol)
             if not current_data:
                 raise Exception("현재가 조회 실패")
+
+            # 선물 지표 조회
+            futures_data = self.ticker.analyze_premium_index(symbol)
+            if not futures_data:
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message=f"{symbol} 선물 지표 조회 실패",
+                        data={"symbol": symbol}
+                    )
 
             # 1분봉 60개 = 최근 1시간 데이터
             candles = self.candle.get_minute_candles(symbol=symbol, unit=1, count=60)
@@ -118,7 +133,13 @@ class TradingAnalyzer:
                 'volatility': volatility,
                 'price_trend': get_trend(price_slope),
                 'volume_trend': get_trend(volume_slope),
-                'volume_slope': volume_slope
+                'volume_slope': volume_slope,
+                # 선물 지표 추가
+                'premium_rate': futures_data['premium_rate'],
+                'funding_rate': futures_data['funding_rate'],
+                'market_bias': futures_data['market_bias'],
+                'price_stability': futures_data['price_stability'],
+                'signal_strength': futures_data['signal_strength']
             }
 
             if self.log_manager:
@@ -152,6 +173,9 @@ class TradingAnalyzer:
                 'rsi_signal': str,          # RSI 신호 (과매수/과매도/중립)
                 'volume_signal': str,        # 거래량 신호 (급증/급감/중립)
                 'trend_signal': str,         # 추세 신호 (상승추세/하락추세/횡보)
+                'futures_signal': str,       # 선물 신호 (매수/매도/중립)
+                'futures_bias': str,         # 선물 시장 편향 (롱 편향/숏 편향/중립)
+                'futures_stability': str,    # 선물 안정성 (안정/불안정)
                 'overall_signal': str,       # 종합 신호 (매수/매도/관망)
                 'signal_strength': float,    # 신호 강도 (0.0 ~ 1.0)
             }
@@ -180,6 +204,23 @@ class TradingAnalyzer:
                 
             # 추세 신호
             trend_signal = market_data['price_trend']
+
+            # 선물 신호 분석
+            futures_signal = "중립"
+            # 프리미엄이 높고 펀딩비율이 양수면 매도 신호
+            if market_data['premium_rate'] > 0.5 and market_data['funding_rate'] > 0.01:
+                futures_signal = "매도"
+            # 디스카운트이고 펀딩비율이 음수면 매수 신호
+            elif market_data['premium_rate'] < -0.5 and market_data['funding_rate'] < -0.01:
+                futures_signal = "매수"
+
+            # 선물 시장 편향
+            futures_bias = market_data['market_bias']
+
+            # 선물 안정성
+            futures_stability = "안정"
+            if market_data['price_stability'] < 0.7:  # 70% 미만이면 불안정
+                futures_stability = "불안정"
             
             # 종합 신호 계산
             signal_points = 0
@@ -212,12 +253,28 @@ class TradingAnalyzer:
             elif trend_signal == "하락":
                 signal_points -= 1.5
             total_points += 1.5
+
+            # 선물 신호 점수 (가중치 2.0)
+            if futures_signal == "매수":
+                signal_points += 2.0
+            elif futures_signal == "매도":
+                signal_points -= 2.0
+            total_points += 2.0
+
+            # 선물 시장 편향 점수 (가중치 1.0)
+            if futures_bias == "롱 편향":
+                signal_points -= 1.0  # 역방향 트레이딩
+            elif futures_bias == "숏 편향":
+                signal_points += 1.0  # 역방향 트레이딩
+            total_points += 1.0
             
             # 신호 강도 계산 (-1.0 ~ 1.0)
             signal_strength = signal_points / total_points
             
-            # 종합 신호 결정
-            if signal_strength > 0.3:
+            # 종합 신호 결정 (선물 안정성 고려)
+            if futures_stability == "불안정":
+                overall_signal = "관망"  # 불안정할 때는 관망
+            elif signal_strength > 0.3:
                 overall_signal = "매수"
             elif signal_strength < -0.3:
                 overall_signal = "매도"
@@ -229,6 +286,9 @@ class TradingAnalyzer:
                 'rsi_signal': rsi_signal,
                 'volume_signal': volume_signal,
                 'trend_signal': trend_signal,
+                'futures_signal': futures_signal,
+                'futures_bias': futures_bias,
+                'futures_stability': futures_stability,
                 'overall_signal': overall_signal,
                 'signal_strength': abs(signal_strength)
             }

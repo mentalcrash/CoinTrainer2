@@ -153,7 +153,8 @@ class TradingLogger:
                 'Price Trend', 'Volume Trend', 'Volume Slope',
                 # 매매 시그널
                 'MA Signal', 'RSI Signal', 'Volume Signal', 'Trend Signal',
-                'Overall Signal', 'Signal Strength'
+                'Overall Signal', 'Signal Strength',
+                'Futures Signal', 'Futures Market Bias', 'Futures Market Stability'
             ]
         }
         
@@ -557,7 +558,10 @@ class TradingLogger:
                 'volume_signal': int,     # 거래량 시그널
                 'trend_signal': int,      # 추세 시그널
                 'overall_signal': int,    # 종합 시그널
-                'signal_strength': float  # 시그널 강도
+                'signal_strength': float, # 시그널 강도
+                'futures_signal': str,    # 선물 신호 (매수/매도/중립)
+                'futures_bias': str,      # 선물 시장 편향 (롱 편향/숏 편향/중립)
+                'futures_stability': str  # 선물 안정성 (안정/불안정)
             }
         """
         try:
@@ -582,7 +586,10 @@ class TradingLogger:
                 str(market_data['volume_signal']),    # Volume Signal
                 str(market_data['trend_signal']),     # Trend Signal
                 str(market_data['overall_signal']),   # Overall Signal
-                str(market_data['signal_strength'])   # Signal Strength
+                str(market_data['signal_strength']),  # Signal Strength
+                market_data['futures_signal'],        # Futures Signal
+                market_data['futures_bias'],          # Futures Market Bias
+                market_data['futures_stability']      # Futures Market Stability
             ]]
             
             self._append_values(self.SHEETS['market'], values)
@@ -602,7 +609,12 @@ class TradingLogger:
                     "rsi_14": market_data['rsi_14'],
                     "overall_signal": market_data['overall_signal'],
                     "signal_strength": market_data['signal_strength'],
-                    "signal_description": signal_description
+                    "signal_description": signal_description,
+                    "futures": {
+                        "signal": market_data['futures_signal'],
+                        "bias": market_data['futures_bias'],
+                        "stability": market_data['futures_stability']
+                    }
                 }
             )
             
