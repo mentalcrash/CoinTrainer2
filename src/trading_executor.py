@@ -178,25 +178,6 @@ class TradingExecutor:
                 volume=volume
             )
             
-            if not order_result:
-                error_msg = "주문 생성 실패"
-                self.log_manager.log(
-                    category=LogCategory.ERROR,
-                    message=error_msg
-                )
-                raise Exception(error_msg)
-                
-            # 5. 결과 반환
-            self.log_manager.log(
-                category=LogCategory.TRADING,
-                message=f"{symbol} 매매 실행 완료",
-                data={
-                    "decision": decision,
-                    "order_result": order_result,
-                    "asset_info": asset_info
-                }
-            )
-            
             return {
                 'success': True,
                 'decision': decision,

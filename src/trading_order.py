@@ -14,12 +14,12 @@ from src.utils.log_manager import LogManager, LogCategory
 class TradingOrder:
     """주문 처리를 담당하는 클래스"""
     
-    def __init__(self, api_key: str = None, secret_key: str = None, log_manager: LogManager = None):
+    def __init__(self, api_key: str = None, secret_key: str = None, log_manager: Optional[LogManager] = None):
         """
         Args:
             api_key (str, optional): Bithumb API 키
             secret_key (str, optional): Bithumb Secret 키
-            log_manager (LogManager, optional): 로그 매니저
+            log_manager (Optional[LogManager]): 로그 매니저 (선택사항)
         """
         self.api_key = api_key or os.getenv('BITHUMB_API_KEY')
         self.secret_key = secret_key or os.getenv('BITHUMB_SECRET_KEY')
@@ -118,20 +118,14 @@ class TradingOrder:
         try:
             response = requests.post(endpoint, data=json.dumps(params), headers=headers)
             response.raise_for_status()
-            data = response.json()
-            
-            if data:
-                order_data = data
-                self._save_order_data(symbol, order_data)
-                return order_data
-            else:
-                if self.log_manager:
-                    self.log_manager.log(
-                        category=LogCategory.ERROR,
-                        message="주문 생성 실패",
-                        data={"message": data.get('message'), "symbol": symbol}
-                    )
-                return {}
+            order_data = response.json()
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.TRADING,
+                    message=f"{symbol} 주문 생성 완료",
+                    data=order_data
+                )
+            return order_data
                 
         except Exception as e:
             if self.log_manager:
@@ -233,33 +227,4 @@ class TradingOrder:
                     message="주문 취소 중 오류 발생",
                     data={"error": str(e), "symbol": symbol, "order_id": order_id}
                 )
-            return {}
-            
-    def _save_order_data(self, symbol: str, order_data: Dict) -> None:
-        """주문 데이터 저장
-        
-        Args:
-            symbol (str): 심볼
-            order_data (Dict): 저장할 주문 데이터
-        """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f".temp/{timestamp}/logs/05_order_{symbol}_{timestamp}.json"
-        
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
-        
-        try:
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(order_data, f, ensure_ascii=False, indent=2)
-            if self.log_manager:
-                self.log_manager.log(
-                    category=LogCategory.SYSTEM,
-                    message=f"{symbol} order_data 저장 완료",
-                    data={"filename": filename}
-                )
-        except Exception as e:
-            if self.log_manager:
-                self.log_manager.log(
-                    category=LogCategory.ERROR,
-                    message="주문 데이터 저장 실패",
-                    data={"error": str(e), "symbol": symbol}
-                ) 
+            return {} 

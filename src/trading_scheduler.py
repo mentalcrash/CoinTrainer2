@@ -1,17 +1,20 @@
 import time
 import os
+import uuid
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
 from src.trading_executor import TradingExecutor
 from src.discord_notifier import DiscordNotifier
 from src.utils.log_manager import LogManager, LogCategory
+from src.trading_logger import TradingLogger
 
 class TradingScheduler:
     def __init__(
         self,
         trading_executor: TradingExecutor,
         log_manager: LogManager,
+        trading_logger: TradingLogger,
         discord_notifier: Optional[DiscordNotifier] = None,
         dev_mode: bool = True
     ):
@@ -20,6 +23,7 @@ class TradingScheduler:
         Args:
             trading_executor (TradingExecutor): 트레이딩 실행기
             log_manager (LogManager): 로그 매니저
+            trading_logger (TradingLogger): 구글 시트 로거
             discord_notifier (Optional[DiscordNotifier], optional): Discord 알림 전송기. Defaults to None.
             dev_mode (bool, optional): 개발 모드 여부. Defaults to True.
         """
@@ -29,6 +33,7 @@ class TradingScheduler:
         self.is_running = False
         self.next_execution_time = None
         self.log_manager = log_manager
+        self.trading_logger = trading_logger
 
     def _calculate_next_execution_time(self, interval_minutes: int) -> datetime:
         """다음 실행 시간을 계산합니다.
@@ -71,33 +76,77 @@ class TradingScheduler:
             order_result (Dict): 주문 실행 결과
             asset_info (Dict): 자산 정보
         """
-
-        # Discord 알림 전송
-        if self.discord_notifier and decision["decision"] != "관망":
-            try:
-                self.discord_notifier.send_trade_notification(
-                    symbol, decision, asset_info, order_result
+        try:
+            # 고유 ID 생성 (타임스탬프 + UUID)
+            execution_id = f"exec_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+            
+            # 매매 판단 기록
+            self.trading_logger.log_decision(
+                id=execution_id,
+                symbol=symbol,
+                decision_data=decision
+            )
+            
+            # 자산 현황 기록
+            self.trading_logger.log_asset_status(
+                id=execution_id,
+                symbol=symbol,
+                asset_data={
+                    'balance': float(asset_info['balance']),
+                    'locked': float(asset_info['locked']),
+                    'avg_buy_price': float(asset_info['avg_buy_price']),
+                    'current_value': float(asset_info['current_value']),
+                    'profit_loss': float(asset_info['profit_loss']),
+                    'profit_loss_rate': float(asset_info['profit_loss_rate']),
+                    'krw_balance': float(asset_info['krw_balance']),
+                    'krw_locked': float(asset_info['krw_locked'])
+                }
+            )
+            
+            # 주문 실행 결과가 있는 경우 기록
+            if order_result:
+                self.trading_logger.log_trade(
+                    id=execution_id,
+                    order_result=order_result
                 )
-            except Exception as e:
-                error_msg = f"Discord 알림 전송 실패: {str(e)}"
-                self.log_manager.log(
-                    category=LogCategory.ERROR,
-                    message=error_msg,
-                    data={"error": str(e)}
-                )
 
-        # 다음 실행 시간 설정
-        interval_minutes = int(decision["next_decision"]["interval_minutes"])
-        self.next_execution_time = self._calculate_next_execution_time(interval_minutes)
-        self.log_manager.log(
-            category=LogCategory.SYSTEM,
-            message="다음 실행 시간 설정",
-            data={
-                "symbol": symbol,
-                "next_execution_time": self.next_execution_time.strftime("%Y-%m-%d %H:%M:%S"),
-                "interval_minutes": interval_minutes
-            }
-        )
+            # Discord 알림 전송
+            if self.discord_notifier and decision["decision"] != "관망":
+                try:
+                    self.discord_notifier.send_trade_notification(
+                        symbol, decision, asset_info, order_result
+                    )
+                except Exception as e:
+                    error_msg = f"Discord 알림 전송 실패: {str(e)}"
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message=error_msg,
+                        data={"error": str(e)}
+                    )
+
+            # 다음 실행 시간 설정
+            interval_minutes = int(decision["next_decision"]["interval_minutes"])
+            self.next_execution_time = self._calculate_next_execution_time(interval_minutes)
+            self.log_manager.log(
+                category=LogCategory.SYSTEM,
+                message="다음 실행 시간 설정",
+                data={
+                    "symbol": symbol,
+                    "next_execution_time": self.next_execution_time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "interval_minutes": interval_minutes
+                }
+            )
+            
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ERROR,
+                message="트레이딩 결과 처리 실패",
+                data={
+                    "symbol": symbol,
+                    "error": str(e)
+                }
+            )
+            raise
 
     def _handle_error(self, error: Exception):
         """에러를 처리합니다.
