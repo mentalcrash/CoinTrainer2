@@ -11,7 +11,8 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             },
-            "envFile": "${workspaceFolder}/.env"
+            "envFile": "${workspaceFolder}/.env",
+            "preLaunchTask": "install-dependencies"
         },
         {
             "name": "Python: News Test",
@@ -23,7 +24,8 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             },
-            "envFile": "${workspaceFolder}/.env"
+            "envFile": "${workspaceFolder}/.env",
+            "preLaunchTask": "install-dependencies"
         },
         {
             "name": "Python: Ticker Test",
@@ -137,7 +139,8 @@
                 "PYTHONPATH": "${workspaceFolder}",
                 "DEV_MODE": "false"
             },
-            "envFile": "${workspaceFolder}/.env"
+            "envFile": "${workspaceFolder}/.env",
+            "preLaunchTask": "install-dependencies"
         }
     ]
 } 
