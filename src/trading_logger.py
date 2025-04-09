@@ -9,11 +9,14 @@ from src.utils.log_manager import LogManager, LogCategory
 class TradingLogger:
     """Google Sheets를 이용한 트레이딩 로거"""
     
-    def __init__(self, credentials_path: str, log_manager: LogManager):
+    def __init__(self, log_manager: LogManager):
         """
         Args:
-            credentials_path (str): Google 서비스 계정 키 파일 경로
             log_manager (LogManager): 로깅을 담당할 LogManager 인스턴스
+            
+        Environment Variables:
+            GOOGLE_SHEETS_ID: 구글 스프레드시트 ID
+            GOOGLE_CREDENTIALS_PATH: 구글 서비스 계정 키 파일 경로
         """
         self.SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
         self.SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_ID')  # 스프레드시트 ID
@@ -21,6 +24,10 @@ class TradingLogger:
         
         if not self.SPREADSHEET_ID:
             raise ValueError("GOOGLE_SHEETS_ID 환경 변수가 설정되지 않았습니다.")
+        
+        credentials_path = os.getenv('GOOGLE_CREDENTIALS_PATH')
+        if not credentials_path:
+            raise ValueError("GOOGLE_CREDENTIALS_PATH 환경 변수가 설정되지 않았습니다.")
         
         self.service = self._get_sheets_service(credentials_path)
         
@@ -30,7 +37,7 @@ class TradingLogger:
             'assets': 'Asset History',      # 자산 현황
             'performance': 'Performance',    # 성과 지표
             'decisions': 'Trading Decisions', # 매매 판단
-            'market': 'Market Data'         # 시장 데이터 (추가)
+            'market': 'Market Data'         # 시장 데이터
         }
         
         # 시트 초기화

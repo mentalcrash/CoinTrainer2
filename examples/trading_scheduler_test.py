@@ -45,9 +45,7 @@ def test_trading_scheduler():
 
         # TradingLogger 생성
         trading_logger = TradingLogger(
-            log_manager=log_manager,
-            trading_executor=trading_executor,
-            discord_notifier=discord_notifier
+            log_manager=log_manager
         )   
 
         # TradingScheduler 생성
