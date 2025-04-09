@@ -139,7 +139,11 @@ class DiscordNotifier:
         content = f"📊 {symbol} 매매 알림 ({now})"
         
         # order_result가 None이면 order_embed를 제외
-        embeds = [decision_embed, asset_embed] if order_result is None else [decision_embed, order_embed, asset_embed]
+        embeds = [decision_embed]
+        if order_result:
+            embeds.append(order_embed)
+        embeds.append(asset_embed)
+        
         self._send_message(content, embeds)
 
     def send_error_notification(self, error_message: str) -> None:

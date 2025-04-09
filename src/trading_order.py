@@ -128,11 +128,22 @@ class TradingOrder:
             return order_data
                 
         except Exception as e:
+            error_details = {
+                "error": str(e),
+                "symbol": symbol,
+                "request_url": endpoint,
+                "request_params": params,
+                "response_status": response.status_code if 'response' in locals() else None,
+                "response_headers": dict(response.headers) if 'response' in locals() else None,
+                "response_body": response.text if 'response' in locals() else None,
+                "response_json": response.json() if 'response' in locals() and response.headers.get('content-type', '').startswith('application/json') else None
+            }
+            
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.ERROR,
                     message="주문 생성 중 오류 발생",
-                    data={"error": str(e), "symbol": symbol, "response": str(response)}
+                    data=error_details
                 )
             return {}
             
