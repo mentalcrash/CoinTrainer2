@@ -615,25 +615,42 @@ class TradingLogger:
         """시장 데이터로부터 시그널 설명을 생성합니다."""
         signals = []
         
-        # RSI 과매수/과매도 체크
-        if market_data['rsi_14'] >= 70:
-            signals.append("RSI 과매수 구간")
-        elif market_data['rsi_14'] <= 30:
-            signals.append("RSI 과매도 구간")
-        
-        # 이동평균선 골든/데드 크로스 체크
-        if market_data['ma_signal'] > 0:
-            signals.append("골든 크로스 발생")
-        elif market_data['ma_signal'] < 0:
-            signals.append("데드 크로스 발생")
-        
-        # 거래량 급증 체크
-        if market_data['volume_signal'] > 1:
-            signals.append("거래량 급증")
-        
-        # 강한 추세 체크
-        if abs(market_data['signal_strength']) >= 0.7:
-            trend = "상승" if market_data['overall_signal'] > 0 else "하락"
-            signals.append(f"강한 {trend} 추세")
-        
-        return ", ".join(signals) if signals else "특이사항 없음" 
+        try:
+            # RSI 과매수/과매도 체크
+            rsi_14 = float(market_data['rsi_14'])
+            if rsi_14 >= 70:
+                signals.append("RSI 과매수 구간")
+            elif rsi_14 <= 30:
+                signals.append("RSI 과매도 구간")
+            
+            # 이동평균선 골든/데드 크로스 체크
+            ma_signal = float(market_data['ma_signal'])
+            if ma_signal > 0:
+                signals.append("골든 크로스 발생")
+            elif ma_signal < 0:
+                signals.append("데드 크로스 발생")
+            
+            # 거래량 급증 체크
+            volume_signal = float(market_data['volume_signal'])
+            if volume_signal > 1:
+                signals.append("거래량 급증")
+            
+            # 강한 추세 체크
+            signal_strength = float(market_data['signal_strength'])
+            overall_signal = float(market_data['overall_signal'])
+            if abs(signal_strength) >= 0.7:
+                trend = "상승" if overall_signal > 0 else "하락"
+                signals.append(f"강한 {trend} 추세")
+            
+            return ", ".join(signals) if signals else "특이사항 없음"
+            
+        except (ValueError, TypeError, KeyError) as e:
+            self.log_manager.log(
+                category=LogCategory.ERROR,
+                message="시그널 설명 생성 실패",
+                data={
+                    "error": str(e),
+                    "market_data": str(market_data)
+                }
+            )
+            return "데이터 처리 오류" 
