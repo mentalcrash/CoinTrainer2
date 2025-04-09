@@ -70,8 +70,8 @@ class TradingDecisionMaker:
         Returns:
             프롬프트 문자열
         """
-        prompt = f"""당신은 매우 짧은 거래 주기를 가지고 단기 손익을 노리고 투자를 해서 고수익을 내는 암호화폐 투자 전문가입니다. 
-아래 제공된 {symbol}에 대한 시장 분석과 뉴스 분석을 바탕으로 매매 판단을 내려주세요.
+        prompt = f"""당신은 1시간 이내의 단기 수익 실현을 목표로 하는 초단기 암호화폐 트레이딩 전문가입니다.
+제공된 {symbol}의 기술적 분석, 시장 흐름, 자산 정보를 바탕으로 지금 당장 취할 **단기 매매 전략**을 판단해 주세요.
 
 === 시장 분석 데이터 ===
 • 현재가: {market_data['current_price']:,.0f} KRW ({market_data['minute_change']:+.2f}%)
@@ -101,18 +101,16 @@ class TradingDecisionMaker:
 
 {{
     "decision": "매수 또는 매도 또는 관망",
-    "quantity_percent": "매수/매도 수량 (매수시 현재 보유 KRW 대비 비율 0~100 사이 값, 매도시 타겟 코인 수량 대비 비율 0~100 사이 값)",
+    "quantity_percent": "매매 수량 비율 (0~100)",
     "target_price": "목표가 (KRW)",
     "stop_loss": "손절가 (KRW)",
     "confidence": "신뢰도 (0.0 ~ 1.0)",
     "reasons": [
         "판단 이유 1",
-        "판단 이유 2",
-        "판단 이유 3"
+        "판단 이유 2"
     ],
     "risk_factors": [
-        "위험 요소 1",
-        "위험 요소 2"
+        "위험 요소 1"
     ],
     "additional_info": {{
         "short_term_outlook": "단기 전망",
@@ -123,18 +121,11 @@ class TradingDecisionMaker:
         ]
     }},
     "next_decision": {{
-        "interval_minutes": "다음 매매 판단까지의 시간 (1-120 사이의 정수, 분 단위)",
+        "interval_minutes": "다음 판단까지 대기 시간 (1~15분)",
         "reason": "해당 시간 간격을 선택한 이유"
     }}
 }}
-
-판단 시 다음 사항을 고려해주세요:
-1. 기술적 지표와 뉴스 감성 분석의 일치성
-2. 현재 보유 포지션과 손익 상황
-3. 시장의 전반적인 추세와 모멘텀
-4. 거래량과 변동성 패턴
-5. 잠재적인 위험 요소들
-6. 다음 매매 판단까지의 적절한 시간 간격 (시장 상황에 따라 1-120분 사이에서 결정)"""
+"""
 
         if self.log_manager:
             self.log_manager.log(
