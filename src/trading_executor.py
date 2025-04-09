@@ -56,11 +56,11 @@ class TradingExecutor:
         
         if decision['decision'] == '매수':
             # 매수 가능한 KRW 잔고 확인
-            available_krw = float(asset_info.get('krw_balance', 0))
-            order_amount = available_krw * quantity_percent
+            available_krw = float(asset_info.get('krw_balance', 0)) 
+            order_amount = available_krw * quantity_percent * float(decision['confidence'])
             # 목표가로 매수 수량 계산
             volume = None
-            price = order_amount
+            price = int(order_amount)
             
             self.log_manager.log(
                 category=LogCategory.TRADING,

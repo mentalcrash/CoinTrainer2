@@ -368,13 +368,13 @@ class News:
                 naver_news = self._collect_naver_news(keyword, max_age_hours)
                 all_news.extend(naver_news)
                 
-                # CoinDesk 뉴스 수집
-                coindesk_news = self._get_coindesk_news(keyword, max_age_hours)
-                all_news.extend(coindesk_news)
+                # # CoinDesk 뉴스 수집
+                # coindesk_news = self._get_coindesk_news(keyword, max_age_hours)
+                # all_news.extend(coindesk_news)
                 
-                # Cointelegraph 뉴스 수집
-                cointelegraph_news = self._collect_cointelegraph_news(keyword, max_age_hours)
-                all_news.extend(cointelegraph_news)
+                # # Cointelegraph 뉴스 수집
+                # cointelegraph_news = self._collect_cointelegraph_news(keyword, max_age_hours)
+                # all_news.extend(cointelegraph_news)
                 
                 time.sleep(1)  # API 호출 간격 조절
                 

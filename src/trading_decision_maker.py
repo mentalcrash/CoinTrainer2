@@ -319,7 +319,14 @@ class TradingDecisionMaker:
             Dict: 매매 판단 결과
         """
         try:            
-            # 1. 시장 분석 데이터 수집
+            # 1. 뉴스 분석
+            news_data = self.news_summarizer.analyze_news(
+                symbol=symbol,
+                max_age_hours=max_age_hours,
+                limit=limit
+            )
+
+            # 2. 시장 분석 데이터 수집
             analysis_result = self.trading_analyzer.analyze(symbol)
                 
             market_data = {
@@ -327,13 +334,6 @@ class TradingDecisionMaker:
                 **analysis_result['signals']
             }
             asset_info = analysis_result['asset_info']
-            
-            # 2. 뉴스 분석
-            news_data = self.news_summarizer.analyze_news(
-                symbol=symbol,
-                max_age_hours=max_age_hours,
-                limit=limit
-            )
             
             # 3. 매매 판단 프롬프트 생성
             prompt = self._create_decision_prompt(
