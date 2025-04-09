@@ -184,7 +184,8 @@ class TradingExecutor:
                 'order_result': order_result,
                 'decision_result': decision_result,
                 'next_decision_time': decision['next_decision']['interval_minutes'],
-                'asset_info': asset_info
+                'asset_info': asset_info,
+                'market_data': decision_result['market_data']
             }
             
         except Exception as e:

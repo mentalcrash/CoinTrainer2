@@ -66,6 +66,7 @@ class TradingScheduler:
         symbol: str,
         decision: Dict,
         asset_info: Dict,
+        market_data: Dict,
         order_result: Optional[Dict] = None,
     ):
         """트레이딩 결과를 처리합니다.
@@ -91,16 +92,13 @@ class TradingScheduler:
             self.trading_logger.log_asset_status(
                 id=execution_id,
                 symbol=symbol,
-                asset_data={
-                    'balance': float(asset_info['balance']),
-                    'locked': float(asset_info['locked']),
-                    'avg_buy_price': float(asset_info['avg_buy_price']),
-                    'current_value': float(asset_info['current_value']),
-                    'profit_loss': float(asset_info['profit_loss']),
-                    'profit_loss_rate': float(asset_info['profit_loss_rate']),
-                    'krw_balance': float(asset_info['krw_balance']),
-                    'krw_locked': float(asset_info['krw_locked'])
-                }
+                asset_data=asset_info
+            )
+
+            self.trading_logger.log_market_data(
+                id=execution_id,
+                symbol=symbol,
+                market_data=market_data
             )
             
             # 주문 실행 결과가 있는 경우 기록
@@ -238,7 +236,8 @@ class TradingScheduler:
                     symbol=symbol,
                     decision=result['decision'],
                     order_result=result.get("order_result"),
-                    asset_info=result["asset_info"]
+                    asset_info=result["asset_info"],
+                    market_data=result["market_data"]
                 )
 
             except Exception as e:
