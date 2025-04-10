@@ -68,9 +68,8 @@ class TradingDecisionMaker:
         Returns:
             str: GPT 프롬프트
         """
-        prompt = f"""
-당신은 암호화폐 스캘핑 트레이딩 전문가입니다. {symbol}에 대한 매매 판단이 필요합니다.
-
+        # 기본 시장 데이터 포맷
+        market_info = f"""
 [시장 기술 지표]
 1. 가격 동향:
 - 현재가: {market_data['current_price']:,.0f} KRW
@@ -111,8 +110,10 @@ class TradingDecisionMaker:
 - 보유수량: {asset_data['balance']:.8f} {symbol}
 - 평균단가: {asset_data['avg_buy_price']:,.0f} KRW
 - 평가손익: {asset_data['profit_loss_rate']:+.2f}%
-- 거래가능 KRW: {asset_data['krw_balance']:,.0f}
+- 거래가능 KRW: {asset_data['krw_balance']:,.0f}"""
 
+        # 매매 규칙 및 판단 기준
+        trading_rules = """
 [매매 판단 규칙]
 1. 스캘핑 트레이딩 특성상 신속한 판단이 중요합니다.
 2. 시장이 불안정할 경우 진입을 자제하고, 보유 중인 경우 손절을 고려합니다.
@@ -125,8 +126,10 @@ class TradingDecisionMaker:
 2. 신호 강도가 0.2~0.4 사이일 때는 2분 간격으로 재확인합니다.
 3. 보유 포지션이 있을 때는 최대 3분을 넘기지 않습니다.
 4. 변동성이 낮고 거래량이 적을 때는 5분까지 간격을 늘릴 수 있습니다.
-5. 목표가/손절가 근처에서는 1분 이하의 즉각적인 모니터링이 필요합니다.
+5. 목표가/손절가 근처에서는 1분 이하의 즉각적인 모니터링이 필요합니다."""
 
+        # JSON 응답 형식 (포맷 지정자와 충돌하지 않도록 따옴표 처리)
+        json_format = '''
 위 정보를 바탕으로 다음 형식의 JSON으로 매매 판단을 해주세요:
 {
     "action": "매수" | "매도" | "관망",
@@ -140,8 +143,17 @@ class TradingDecisionMaker:
         "interval_minutes": 1 | 2 | 3 | 5,
         "reason": "다음 판단 시점까지의 대기 시간 선택 이유 (최대 50자)"
     }
-}
-"""
+}'''
+
+        # 최종 프롬프트 조합
+        prompt = f"""당신은 암호화폐 스캘핑 트레이딩 전문가입니다. {symbol}에 대한 매매 판단이 필요합니다.
+
+{market_info}
+
+{trading_rules}
+
+{json_format}"""
+
         return prompt
         
     def _call_gpt4(self, prompt: str) -> Dict:
