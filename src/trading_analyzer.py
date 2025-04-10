@@ -42,27 +42,27 @@ class TradingAnalyzer:
         
     def get_market_overview(self, symbol: str) -> Dict:
         """
-        분봉 기준 시장 개요 조회 (단기 트레이딩용)
-
-        Args:
-            symbol: 심볼 (예: BTC, ETH)
+        분봉 기준 시장 개요 조회 (스캘핑 트레이딩용)
 
         Returns:
             Dict: {
                 'current_price': float,       # 현재가
-                'minute_change': float,       # 직전 1시간 대비 등락률 (%)
-                'minute_volume': float,       # 1시간 누적 거래량
+                'ma1': float,                 # 1분 이동평균
+                'ma3': float,                 # 3분 이동평균
                 'ma5': float,                 # 5분 이동평균
-                'ma20': float,                # 20분 이동평균
-                'rsi_14': float,              # 14분 RSI
-                'volatility': float,          # 변동성 (20분 표준편차)
-                'price_trend': str,           # 가격 추세 (상승/하락/횡보)
-                'volume_trend': str,          # 거래량 추세 (증가/감소/횡보)
-                'premium_rate': float,        # 선물 프리미엄/디스카운트 비율 (%)
-                'funding_rate': float,        # 선물 펀딩비율 (%)
-                'market_bias': str,           # 선물 시장 편향 (롱 편향/숏 편향/중립)
-                'price_stability': float,     # 선물 가격 안정성 점수 (0~1)
-                'signal_strength': float      # 선물 신호 강도 (-1 ~ 1)
+                'rsi_1': float,               # 1분 RSI
+                'rsi_3': float,               # 3분 RSI
+                'volatility_3m': float,       # 3분 변동성
+                'volatility_5m': float,       # 5분 변동성
+                'price_trend_1m': str,        # 1분 가격 추세
+                'volume_trend_1m': str,       # 1분 거래량 추세
+                'vwap_3m': float,            # 3분 VWAP
+                'bb_width': float,           # 볼린저 밴드 폭
+                'order_book_ratio': float,   # 매수/매도 호가 비율
+                'spread': float,             # 호가 스프레드
+                'premium_rate': float,       # 선물 프리미엄/디스카운트
+                'funding_rate': float,       # 선물 펀딩비율
+                'price_stability': float,    # 가격 안정성 점수
             }
         """
         if self.log_manager:
@@ -73,84 +73,100 @@ class TradingAnalyzer:
             )
 
         try:
+            # 현재가 및 호가 데이터 조회
             current_data = self.ticker.get_current_price(symbol)
-            if not current_data:
-                raise Exception("현재가 조회 실패")
-
-            # 선물 지표 조회
-            futures_data = self.ticker.analyze_premium_index(symbol)
-            if not futures_data:
-                if self.log_manager:
-                    self.log_manager.log(
-                        category=LogCategory.ERROR,
-                        message=f"{symbol} 선물 지표 조회 실패",
-                        data={"symbol": symbol}
-                    )
-
-            # 1분봉 60개 = 최근 1시간 데이터
-            candles = self.candle.get_minute_candles(symbol=symbol, unit=1, count=60)
-            if not candles:
-                raise Exception("분봉 데이터 조회 실패")
-
+            orderbook = self.ticker.get_orderbook(symbol)
+            
+            # 1분봉 데이터 조회 (최근 5분)
+            candles = self.candle.get_minute_candles(symbol=symbol, unit=1, count=5)
             df = pd.DataFrame(candles)
             df['close'] = pd.to_numeric(df['trade_price'])
             df['volume'] = pd.to_numeric(df['candle_acc_trade_volume'])
-
-            # 이동 평균 (분 기준)
+            
+            # 이동평균 계산
+            ma1 = df['close'].rolling(window=1).mean().iloc[-1]
+            ma3 = df['close'].rolling(window=3).mean().iloc[-1]
             ma5 = df['close'].rolling(window=5).mean().iloc[-1]
-            ma20 = df['close'].rolling(window=20).mean().iloc[-1]
-
-            # RSI 14분 기준
-            delta = df['close'].diff()
-            gain = delta.where(delta > 0, 0).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rs = gain / loss
-            rsi = 100 - (100 / (1 + rs)).iloc[-1]
-
-            # 20분간의 변동성 (수익률 기준 표준편차, % 단위)
-            volatility = df['close'].pct_change().rolling(window=20).std().iloc[-1] * 100
-
-            # 가격/거래량 추세: 최근 3분간의 기울기
-            ma3 = df['close'].rolling(window=3).mean()
-            price_slope = (ma3.iloc[-1] - ma3.iloc[-2]) / ma3.iloc[-2] * 100
-            volume_slope = (df['volume'].iloc[-1] - df['volume'].iloc[-2]) / df['volume'].iloc[-2] * 100
-
-            def get_trend(slope: float) -> str:
-                if slope > 1.0:
+            
+            # RSI 계산 (1분, 3분)
+            def calculate_rsi(prices: pd.Series, period: int) -> float:
+                delta = prices.diff()
+                gain = delta.where(delta > 0, 0).rolling(window=period).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+                rs = gain / loss
+                return 100 - (100 / (1 + rs)).iloc[-1]
+                
+            rsi_1 = calculate_rsi(df['close'], 1)
+            rsi_3 = calculate_rsi(df['close'], 3)
+            
+            # 변동성 계산
+            volatility_3m = df['close'].pct_change().rolling(window=3).std().iloc[-1] * 100
+            volatility_5m = df['close'].pct_change().rolling(window=5).std().iloc[-1] * 100
+            
+            # VWAP 계산
+            df['vwap'] = (df['close'] * df['volume']).rolling(window=3).sum() / df['volume'].rolling(window=3).sum()
+            vwap_3m = df['vwap'].iloc[-1]
+            
+            # 볼린저 밴드 폭
+            bb_std = df['close'].rolling(window=3).std()
+            bb_upper = df['close'].rolling(window=3).mean() + (bb_std * 2)
+            bb_lower = df['close'].rolling(window=3).mean() - (bb_std * 2)
+            bb_width = ((bb_upper - bb_lower) / df['close'].rolling(window=3).mean() * 100).iloc[-1]
+            
+            # 호가 데이터 분석
+            bid_total = sum([float(bid['price']) * float(bid['quantity']) for bid in orderbook['bids']])
+            ask_total = sum([float(ask['price']) * float(ask['quantity']) for ask in orderbook['asks']])
+            order_book_ratio = bid_total / ask_total if ask_total > 0 else 1.0
+            
+            # 호가 스프레드
+            best_bid = float(orderbook['bids'][0]['price'])
+            best_ask = float(orderbook['asks'][0]['price'])
+            spread = (best_ask - best_bid) / best_bid * 100
+            
+            # 추세 계산 (1분)
+            def get_trend(current: float, previous: float) -> str:
+                change = (current - previous) / previous * 100
+                if change > 0.1:  # 0.1% 이상
                     return "상승"
-                elif slope < -1.0:
+                elif change < -0.1:  # -0.1% 이하
                     return "하락"
-                else:
-                    return "횡보"
-
+                return "횡보"
+                
+            price_trend_1m = get_trend(df['close'].iloc[-1], df['close'].iloc[-2])
+            volume_trend_1m = get_trend(df['volume'].iloc[-1], df['volume'].iloc[-2])
+            
+            # 선물 데이터
+            futures_data = self.ticker.analyze_premium_index(symbol)
+            
             result = {
                 'current_price': current_data['trade_price'],
-                'minute_change': (df['close'].iloc[-1] - df['close'].iloc[0]) / df['close'].iloc[0] * 100,
-                'minute_volume': df['volume'].sum(),
+                'ma1': ma1,
+                'ma3': ma3,
                 'ma5': ma5,
-                'ma20': ma20,
-                'rsi_14': rsi,
-                'volatility': volatility,
-                'price_trend': get_trend(price_slope),
-                'volume_trend': get_trend(volume_slope),
-                'volume_slope': volume_slope,
-                # 선물 지표 추가
+                'rsi_1': rsi_1,
+                'rsi_3': rsi_3,
+                'volatility_3m': volatility_3m,
+                'volatility_5m': volatility_5m,
+                'price_trend_1m': price_trend_1m,
+                'volume_trend_1m': volume_trend_1m,
+                'vwap_3m': vwap_3m,
+                'bb_width': bb_width,
+                'order_book_ratio': order_book_ratio,
+                'spread': spread,
                 'premium_rate': futures_data['premium_rate'],
                 'funding_rate': futures_data['funding_rate'],
-                'market_bias': futures_data['market_bias'],
-                'price_stability': futures_data['price_stability'],
-                'signal_strength': futures_data['signal_strength']
+                'price_stability': futures_data['price_stability']
             }
-
+            
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.MARKET,
-                    message=f"{symbol} 시장 개요 분석 완료",
+                    message=f"{symbol} 스캘핑 시장 분석 완료",
                     data=result
                 )
-
+            
             return result
-
+            
         except Exception as e:
             error_msg = f"{symbol} 시장 개요 조회 실패: {str(e)}"
             if self.log_manager:
@@ -162,141 +178,155 @@ class TradingAnalyzer:
             raise
             
     def get_trading_signals(self, market_data: dict) -> Dict:
-        """매매 신호 분석
+        """스캘핑 매매를 위한 신호 분석
         
         Args:
-            symbol: 심볼 (예: BTC, ETH)
+            market_data: 시장 데이터
             
         Returns:
             Dict: {
-                'ma_signal': str,           # 이동평균 신호 (골든크로스/데드크로스/중립)
-                'rsi_signal': str,          # RSI 신호 (과매수/과매도/중립)
-                'volume_signal': str,        # 거래량 신호 (급증/급감/중립)
-                'trend_signal': str,         # 추세 신호 (상승추세/하락추세/횡보)
-                'futures_signal': str,       # 선물 신호 (매수/매도/중립)
-                'futures_bias': str,         # 선물 시장 편향 (롱 편향/숏 편향/중립)
-                'futures_stability': str,    # 선물 안정성 (안정/불안정)
-                'overall_signal': str,       # 종합 신호 (매수/매도/관망)
-                'signal_strength': float,    # 신호 강도 (0.0 ~ 1.0)
+                'price_signal': str,        # 가격 신호 (매수/매도/중립)
+                'momentum_signal': str,     # 모멘텀 신호 (강세/약세/중립)
+                'volume_signal': str,       # 거래량 신호 (활발/침체/중립)
+                'orderbook_signal': str,    # 호가창 신호 (매수세/매도세/중립)
+                'futures_signal': str,      # 선물 신호 (매수/매도/중립)
+                'market_state': str,        # 시장 상태 (안정/불안정)
+                'overall_signal': str,      # 종합 신호 (매수/매도/관망)
+                'signal_strength': float,   # 신호 강도 (0.0 ~ 1.0)
+                'entry_timing': str,        # 진입 타이밍 (즉시/대기)
             }
         """
         try:
-            # 이동평균 신호
-            ma_signal = "중립"
-            if market_data['ma5'] > market_data['ma20']:
-                ma_signal = "골든크로스"
-            elif market_data['ma5'] < market_data['ma20']:
-                ma_signal = "데드크로스"
-                
-            # RSI 신호
-            rsi_signal = "중립"
-            if market_data['rsi_14'] > 70:
-                rsi_signal = "과매수"
-            elif market_data['rsi_14'] < 30:
-                rsi_signal = "과매도"
-                
-            # 거래량 신호 (전일 대비 30% 이상 변화)
-            volume_signal = "중립"
-            if market_data['volume_trend'] == "상승" and abs(market_data['volume_slope']) > 30:
-                volume_signal = "급증"
-            elif market_data['volume_trend'] == "하락" and abs(market_data['volume_slope']) > 30:
-                volume_signal = "급감"
-                
-            # 추세 신호
-            trend_signal = market_data['price_trend']
-
-            # 선물 신호 분석
-            futures_signal = "중립"
-            # 프리미엄이 높고 펀딩비율이 양수면 매도 신호
-            if market_data['premium_rate'] > 0.5 and market_data['funding_rate'] > 0.01:
-                futures_signal = "매도"
-            # 디스카운트이고 펀딩비율이 음수면 매수 신호
-            elif market_data['premium_rate'] < -0.5 and market_data['funding_rate'] < -0.01:
-                futures_signal = "매수"
-
-            # 선물 시장 편향
-            futures_bias = market_data['market_bias']
-
-            # 선물 안정성
-            futures_stability = "안정"
-            if market_data['price_stability'] < 0.7:  # 70% 미만이면 불안정
-                futures_stability = "불안정"
+            # 1. 가격 신호 분석 (이동평균, VWAP 기반)
+            price_signal = "중립"
+            current_price = market_data['current_price']
             
-            # 종합 신호 계산
+            # 단기 이동평균 정배열/역배열 확인
+            if current_price > market_data['ma1'] > market_data['ma3']:
+                price_signal = "매수"
+            elif current_price < market_data['ma1'] < market_data['ma3']:
+                price_signal = "매도"
+                
+            # VWAP과의 관계 확인
+            vwap_diff = (current_price - market_data['vwap_3m']) / market_data['vwap_3m'] * 100
+            if abs(vwap_diff) > 0.1:  # 0.1% 이상 차이
+                price_signal = "매수" if vwap_diff < 0 else "매도"  # VWAP 회귀 전략
+            
+            # 2. 모멘텀 신호 분석 (RSI, 볼린저밴드 기반)
+            momentum_signal = "중립"
+            
+            # RSI 1분봉 기준
+            if market_data['rsi_1'] < 30:
+                momentum_signal = "강세"
+            elif market_data['rsi_1'] > 70:
+                momentum_signal = "약세"
+            
+            # RSI 방향성 확인
+            if market_data['rsi_1'] > market_data['rsi_3']:
+                momentum_signal = "강세" if momentum_signal != "약세" else "중립"
+            elif market_data['rsi_1'] < market_data['rsi_3']:
+                momentum_signal = "약세" if momentum_signal != "강세" else "중립"
+            
+            # 3. 거래량 신호 분석
+            volume_signal = "중립"
+            if market_data['volume_trend_1m'] == "상승":
+                volume_signal = "활발"
+            elif market_data['volume_trend_1m'] == "하락":
+                volume_signal = "침체"
+            
+            # 4. 호가창 신호 분석
+            orderbook_signal = "중립"
+            if market_data['order_book_ratio'] > 1.1:  # 매수세 10% 이상 우위
+                orderbook_signal = "매수세"
+            elif market_data['order_book_ratio'] < 0.9:  # 매도세 10% 이상 우위
+                orderbook_signal = "매도세"
+            
+            # 5. 선물 신호 분석 (프리미엄/펀딩비율 기반)
+            futures_signal = "중립"
+            if market_data['premium_rate'] < -0.2 and market_data['funding_rate'] < -0.008:
+                futures_signal = "매수"
+            elif market_data['premium_rate'] > 0.2 and market_data['funding_rate'] > 0.008:
+                futures_signal = "매도"
+            
+            # 6. 시장 상태 판단
+            market_state = "안정"
+            if (market_data['volatility_3m'] > 0.5 or  # 변동성 0.5% 초과
+                market_data['bb_width'] > 0.8 or       # 볼린저밴드 폭 0.8% 초과
+                market_data['spread'] > 0.1):          # 스프레드 0.1% 초과
+                market_state = "불안정"
+            
+            # 7. 종합 신호 계산
             signal_points = 0
             total_points = 0
             
-            # 이동평균 점수
-            if ma_signal == "골든크로스":
-                signal_points += 2
-            elif ma_signal == "데드크로스":
-                signal_points -= 2
-            total_points += 2
-            
-            # RSI 점수
-            if rsi_signal == "과매도":
-                signal_points += 1.5
-            elif rsi_signal == "과매수":
-                signal_points -= 1.5
-            total_points += 1.5
-            
-            # 거래량 점수
-            if volume_signal == "급증":
-                signal_points += 1
-            elif volume_signal == "급감":
-                signal_points -= 1
-            total_points += 1
-            
-            # 추세 점수
-            if trend_signal == "상승":
-                signal_points += 1.5
-            elif trend_signal == "하락":
-                signal_points -= 1.5
-            total_points += 1.5
-
-            # 선물 신호 점수 (가중치 2.0)
-            if futures_signal == "매수":
+            # 가격 신호 (2.0)
+            if price_signal == "매수":
                 signal_points += 2.0
-            elif futures_signal == "매도":
+            elif price_signal == "매도":
                 signal_points -= 2.0
             total_points += 2.0
-
-            # 선물 시장 편향 점수 (가중치 1.0)
-            if futures_bias == "롱 편향":
-                signal_points -= 1.0  # 역방향 트레이딩
-            elif futures_bias == "숏 편향":
-                signal_points += 1.0  # 역방향 트레이딩
+            
+            # 모멘텀 신호 (1.5)
+            if momentum_signal == "강세":
+                signal_points += 1.5
+            elif momentum_signal == "약세":
+                signal_points -= 1.5
+            total_points += 1.5
+            
+            # 거래량 신호 (1.0)
+            if volume_signal == "활발":
+                signal_points += 1.0
+            elif volume_signal == "침체":
+                signal_points -= 1.0
             total_points += 1.0
+            
+            # 호가창 신호 (2.0)
+            if orderbook_signal == "매수세":
+                signal_points += 2.0
+            elif orderbook_signal == "매도세":
+                signal_points -= 2.0
+            total_points += 2.0
+            
+            # 선물 신호 (1.5)
+            if futures_signal == "매수":
+                signal_points += 1.5
+            elif futures_signal == "매도":
+                signal_points -= 1.5
+            total_points += 1.5
             
             # 신호 강도 계산 (-1.0 ~ 1.0)
             signal_strength = signal_points / total_points
             
-            # 종합 신호 결정 (선물 안정성 고려)
-            if futures_stability == "불안정":
-                overall_signal = "관망"  # 불안정할 때는 관망
-            elif signal_strength > 0.3:
+            # 8. 종합 신호 및 진입 타이밍 결정
+            if market_state == "불안정" and abs(signal_strength) < 0.5:
+                overall_signal = "관망"
+                entry_timing = "대기"
+            elif signal_strength > 0.2:  # 매수 임계값 0.2
                 overall_signal = "매수"
-            elif signal_strength < -0.3:
+                entry_timing = "즉시" if signal_strength > 0.4 else "대기"
+            elif signal_strength < -0.2:  # 매도 임계값 -0.2
                 overall_signal = "매도"
+                entry_timing = "즉시" if signal_strength < -0.4 else "대기"
             else:
                 overall_signal = "관망"
+                entry_timing = "대기"
             
             result = {
-                'ma_signal': ma_signal,
-                'rsi_signal': rsi_signal,
+                'price_signal': price_signal,
+                'momentum_signal': momentum_signal,
                 'volume_signal': volume_signal,
-                'trend_signal': trend_signal,
+                'orderbook_signal': orderbook_signal,
                 'futures_signal': futures_signal,
-                'futures_bias': futures_bias,
-                'futures_stability': futures_stability,
+                'market_state': market_state,
                 'overall_signal': overall_signal,
-                'signal_strength': abs(signal_strength)
+                'signal_strength': abs(signal_strength),
+                'entry_timing': entry_timing
             }
             
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.TRADING,
-                    message=f"매매 신호 분석 완료",
+                    message="스캘핑 매매 신호 분석 완료",
                     data=result
                 )
             
@@ -548,10 +578,10 @@ class TradingAnalyzer:
         
         # 매매 신호
         output.append("\n🎯 매매 신호")
-        output.append(f"• 이동평균: {signals['ma_signal']}")
-        output.append(f"• RSI: {signals['rsi_signal']}")
-        output.append(f"• 거래량: {signals['volume_signal']}")
-        output.append(f"• 추세: {signals['trend_signal']}")
+        output.append(f"• 가격 신호: {signals['price_signal']}")
+        output.append(f"• 모멘텀 신호: {signals['momentum_signal']}")
+        output.append(f"• 거래량 신호: {signals['volume_signal']}")
+        output.append(f"• 호가창 신호: {signals['orderbook_signal']}")
         output.append(f"• 종합 신호: {signals['overall_signal']} (강도: {signals['signal_strength']:.1%})")
         
         # 자산 정보

@@ -176,18 +176,18 @@ class Ticker:
             funding_rate = float(data['lastFundingRate']) * 100
 
             # 시장 편향 판단
-            if funding_rate > 0.01:  # 0.01% 이상
+            if funding_rate > 0.008:  # 0.008% 이상 (기존 0.01%)
                 market_bias = "롱 편향"
-            elif funding_rate < -0.01:  # -0.01% 이하
+            elif funding_rate < -0.008:  # -0.008% 이하 (기존 -0.01%)
                 market_bias = "숏 편향"
             else:
                 market_bias = "중립"
 
             # 가격 안정성 점수 계산 (마크가격과 인덱스가격의 유사도)
-            price_stability = 1 - min(abs(premium_rate) / 1, 1)  # 1% 차이를 기준으로
+            price_stability = 1 - min(abs(premium_rate) / 0.8, 1)  # 0.8% 차이를 기준으로 (기존 1%)
 
             # 신호 강도 계산 (-1: 강한 매도, 1: 강한 매수)
-            signal_strength = -funding_rate  # 펀딩비율의 반대 방향이 유리
+            signal_strength = -funding_rate * 1.2  # 신호 강도 20% 증가
 
             result = {
                 'premium_rate': premium_rate,

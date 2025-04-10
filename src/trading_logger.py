@@ -135,26 +135,48 @@ class TradingLogger:
                 'Monthly ROI', 'Total Profit Loss', 'Win Rate'
             ],
             'Trading Decisions': [
-                'ID', 'Timestamp', 'Symbol', 'Decision', 'Quantity (%)',
-                'Target Price', 'Stop Loss', 'Confidence', 'Entry Timing', 'Urgency Level',
-                'Short-term Outlook', 'Long-term Outlook',
-                'Decision Reasons', 'Risk Factors', 'Key Events',
-                'Next Decision Time', 'Next Decision Reason'
+                'ID', 'Timestamp', 'Symbol', 
+                'Action',                # 매수/매도/관망
+                'Entry Price',           # 진입 희망가
+                'Take Profit',           # 목표가
+                'Stop Loss',             # 손절가
+                'Confidence',            # 확신도
+                'Risk Level',            # 리스크 레벨
+                'Entry Timing',          # 진입 타이밍
+                'Urgency Level',         # 긴급도
+                'Decision Reason',       # 판단 이유
+                'Next Decision Time',    # 다음 판단 시각
+                'Next Decision Reason'   # 다음 판단 시각 선택 이유
             ],
             'Market Data': [
-                'ID', 'Timestamp', 'Symbol', 
-                # 가격 및 거래량 정보
-                'Current Price', 'Minute Change (%)', 'Minute Volume',
-                # 이동평균선
-                'MA5', 'MA20', 
+                'ID', 'Timestamp', 'Symbol',
+                # 가격 정보
+                'Current Price',         # 현재가
+                'MA1', 'MA3', 'MA5',     # 이동평균선
+                'VWAP (3m)',            # 3분 VWAP
                 # 기술적 지표
-                'RSI-14', 'Volatility',
-                # 추세 정보
-                'Price Trend', 'Volume Trend', 'Volume Slope',
-                # 매매 시그널
-                'MA Signal', 'RSI Signal', 'Volume Signal', 'Trend Signal',
-                'Overall Signal', 'Signal Strength',
-                'Futures Signal', 'Futures Market Bias', 'Futures Market Stability'
+                'RSI (1m)', 'RSI (3m)', # RSI
+                'BB Width',             # 볼린저밴드 폭
+                'Volatility (3m)',      # 3분 변동성
+                'Volatility (5m)',      # 5분 변동성
+                # 호가/선물 지표
+                'Order Book Ratio',      # 매수/매도 호가 비율
+                'Spread',               # 호가 스프레드
+                'Premium Rate',         # 선물 프리미엄/디스카운트
+                'Funding Rate',         # 선물 펀딩비율
+                'Price Stability',      # 가격 안정성
+                # 추세/신호
+                'Price Trend (1m)',     # 1분 가격 추세
+                'Volume Trend (1m)',    # 1분 거래량 추세
+                'Price Signal',         # 가격 신호
+                'Momentum Signal',      # 모멘텀 신호
+                'Volume Signal',        # 거래량 신호
+                'Orderbook Signal',     # 호가창 신호
+                'Futures Signal',       # 선물 신호
+                'Market State',         # 시장 상태
+                'Overall Signal',       # 종합 신호
+                'Signal Strength',      # 신호 강도
+                'Entry Timing'          # 진입 타이밍
             ]
         }
         
@@ -425,27 +447,20 @@ class TradingLogger:
         
         Args:
             id (str): 매매 판단 기록의 고유 식별자
-            symbol (str): 자산 심볼 (예: BTC)
+            symbol (str): 자산 심볼 (예: XRP)
             decision_data (Dict): 매매 판단 데이터
             {
-                "decision": str,           # "매수" / "매도" / "관망"
-                "quantity_percent": float,  # 매매 수량 비율 (0~100)
-                "target_price": float,     # 목표가 (KRW)
-                "stop_loss": float,        # 손절가 (KRW)
-                "confidence": float,       # 신뢰도 (0.0 ~ 1.0)
-                "reasons": List[str],      # 판단 이유 목록
-                "risk_factors": List[str], # 위험 요소 목록
-                "additional_info": {
-                    "short_term_outlook": str,  # 단기 전망
-                    "long_term_outlook": str,   # 장기 전망
-                    "key_events": List[str]     # 주목할 이벤트 목록
-                },
+                "action": "매수" | "매도" | "관망",
+                "reason": "판단 이유 (최대 100자)",
+                "entry_price": float,  # 매수/매도 희망가격
+                "stop_loss": float,    # 손절가격
+                "take_profit": float,  # 목표가격
+                "confidence": float,   # 확신도 (0.0 ~ 1.0)
+                "risk_level": "상" | "중" | "하",
                 "next_decision": {
-                    "interval_minutes": int,  # 다음 판단까지 대기 시간
-                    "reason": str            # 시간 간격 선택 이유
-                },
-                "entry_timing": str,      # "즉시" / "1분 후" / "조건 충족 시"
-                "urgency_level": str      # "높음" / "중간" / "낮음"
+                    "interval_minutes": 1 | 2 | 3 | 5,
+                    "reason": str  # 다음 판단 시점 선택 이유
+                }
             }
         """
         try:
@@ -473,22 +488,32 @@ class TradingLogger:
                     timedelta(minutes=5)
                 ).strftime("%Y-%m-%d %H:%M:%S")
             
+            # 진입 타이밍 결정
+            entry_timing = "즉시" if decision_data['action'] != "관망" else "대기"
+            
+            # 긴급도 결정
+            urgency_level = {
+                "상": "높음",
+                "중": "중간",
+                "하": "낮음"
+            }.get(decision_data['risk_level'], "중간")
+            
             values = [[
                 id,                                     # ID
                 now,                                    # Timestamp
                 symbol,                                 # Symbol
-                decision_data['decision'],              # Decision
-                str(decision_data['quantity_percent']), # Quantity (%)
-                str(decision_data['target_price']),     # Target Price
+                decision_data['action'],                # Decision (매수/매도/관망)
+                "100" if decision_data['action'] != "관망" else "0",  # Quantity (%)
+                str(decision_data['take_profit']),      # Target Price
                 str(decision_data['stop_loss']),        # Stop Loss
                 str(decision_data['confidence']),       # Confidence
-                decision_data['entry_timing'],          # Entry Timing
-                decision_data['urgency_level'],         # Urgency Level
-                decision_data['additional_info']['short_term_outlook'],  # Short-term Outlook
-                decision_data['additional_info']['long_term_outlook'],   # Long-term Outlook
-                '\n'.join(decision_data['reasons']),    # Decision Reasons
-                '\n'.join(decision_data['risk_factors']), # Risk Factors
-                '\n'.join(decision_data['additional_info']['key_events']), # Key Events
+                entry_timing,                           # Entry Timing
+                urgency_level,                          # Urgency Level
+                "단기 매매",                            # Short-term Outlook
+                "-",                                    # Long-term Outlook
+                decision_data['reason'],                # Decision Reason
+                f"리스크 레벨: {decision_data['risk_level']}", # Risk Factors
+                "-",                                    # Key Events
                 next_decision_time,                     # Next Decision Time
                 decision_data['next_decision']['reason'] # Next Decision Reason
             ]]
@@ -498,7 +523,7 @@ class TradingLogger:
             # 매매 판단의 중요도에 따라 로그 카테고리 결정
             log_category = (
                 LogCategory.TRADING 
-                if decision_data['decision'] in ['매수', '매도'] and decision_data['urgency_level'] == '높음'
+                if decision_data['action'] in ['매수', '매도'] and decision_data['risk_level'] == '하'
                 else LogCategory.SYSTEM
             )
             
@@ -508,18 +533,16 @@ class TradingLogger:
                 data={
                     "id": id,
                     "symbol": symbol,
-                    "decision": decision_data['decision'],
+                    "action": decision_data['action'],
                     "confidence": decision_data['confidence'],
-                    "entry_timing": decision_data['entry_timing'],
-                    "urgency_level": decision_data['urgency_level'],
-                    "target_price": decision_data['target_price'],
+                    "entry_timing": entry_timing,
+                    "urgency_level": urgency_level,
+                    "entry_price": decision_data['entry_price'],
+                    "take_profit": decision_data['take_profit'],
                     "stop_loss": decision_data['stop_loss'],
-                    "quantity_percent": decision_data['quantity_percent'],
-                    "short_term_outlook": decision_data['additional_info']['short_term_outlook'],
+                    "risk_level": decision_data['risk_level'],
                     "next_decision_time": next_decision_time,
-                    "reasons_count": len(decision_data['reasons']),
-                    "risk_factors_count": len(decision_data['risk_factors']),
-                    "key_events_count": len(decision_data['additional_info']['key_events'])
+                    "next_decision_reason": decision_data['next_decision']['reason']
                 }
             )
             
@@ -540,62 +563,76 @@ class TradingLogger:
         
         Args:
             id (str): 시장 데이터 기록의 고유 식별자
-            symbol (str): 자산 심볼 (예: BTC)
+            symbol (str): 자산 심볼 (예: XRP)
             market_data (Dict): 시장 데이터
             {
-                'current_price': float,    # 현재가
-                'minute_change': float,    # 분당 변화율(%)
-                'minute_volume': float,    # 분당 거래량
-                'ma5': float,             # 5분 이동평균
-                'ma20': float,            # 20분 이동평균
-                'rsi_14': float,          # RSI(14) 지표
-                'volatility': float,      # 변동성
-                'price_trend': str,       # 가격 추세
-                'volume_trend': str,      # 거래량 추세
-                'volume_slope': float,    # 거래량 기울기
-                'ma_signal': int,         # 이동평균 시그널
-                'rsi_signal': int,        # RSI 시그널
-                'volume_signal': int,     # 거래량 시그널
-                'trend_signal': int,      # 추세 시그널
-                'overall_signal': int,    # 종합 시그널
-                'signal_strength': float, # 시그널 강도
-                'futures_signal': str,    # 선물 신호 (매수/매도/중립)
-                'futures_bias': str,      # 선물 시장 편향 (롱 편향/숏 편향/중립)
-                'futures_stability': str  # 선물 안정성 (안정/불안정)
+                'current_price': float,       # 현재가
+                'ma1': float,                 # 1분 이동평균
+                'ma3': float,                 # 3분 이동평균
+                'ma5': float,                 # 5분 이동평균
+                'rsi_1': float,               # 1분 RSI
+                'rsi_3': float,               # 3분 RSI
+                'volatility_3m': float,       # 3분 변동성
+                'volatility_5m': float,       # 5분 변동성
+                'price_trend_1m': str,        # 1분 가격 추세
+                'volume_trend_1m': str,       # 1분 거래량 추세
+                'vwap_3m': float,            # 3분 VWAP
+                'bb_width': float,           # 볼린저 밴드 폭
+                'order_book_ratio': float,   # 매수/매도 호가 비율
+                'spread': float,             # 호가 스프레드
+                'premium_rate': float,       # 선물 프리미엄/디스카운트
+                'funding_rate': float,       # 선물 펀딩비율
+                'price_stability': float,    # 가격 안정성 점수
+                'price_signal': str,         # 가격 신호
+                'momentum_signal': str,      # 모멘텀 신호
+                'volume_signal': str,        # 거래량 신호
+                'orderbook_signal': str,     # 호가창 신호
+                'futures_signal': str,       # 선물 신호
+                'market_state': str,         # 시장 상태
+                'overall_signal': str,       # 종합 신호
+                'signal_strength': float,    # 신호 강도
+                'entry_timing': str          # 진입 타이밍
             }
         """
         try:
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
             values = [[
-                id,                                    # ID
-                now,                                   # Timestamp
-                symbol,                                # Symbol
-                str(market_data['current_price']),     # Current Price
-                str(market_data['minute_change']),     # Minute Change (%)
-                str(market_data['minute_volume']),     # Minute Volume
-                str(market_data['ma5']),              # MA5
-                str(market_data['ma20']),             # MA20
-                str(market_data['rsi_14']),           # RSI-14
-                str(market_data['volatility']),       # Volatility
-                market_data['price_trend'],           # Price Trend
-                market_data['volume_trend'],          # Volume Trend
-                str(market_data['volume_slope']),     # Volume Slope
-                str(market_data['ma_signal']),        # MA Signal
-                str(market_data['rsi_signal']),       # RSI Signal
-                str(market_data['volume_signal']),    # Volume Signal
-                str(market_data['trend_signal']),     # Trend Signal
-                str(market_data['overall_signal']),   # Overall Signal
-                str(market_data['signal_strength']),  # Signal Strength
-                market_data['futures_signal'],        # Futures Signal
-                market_data['futures_bias'],          # Futures Market Bias
-                market_data['futures_stability']      # Futures Market Stability
+                id,                                     # ID
+                now,                                    # Timestamp
+                symbol,                                 # Symbol
+                str(market_data['current_price']),      # Current Price
+                str(market_data['ma1']),                # MA1
+                str(market_data['ma3']),                # MA3
+                str(market_data['ma5']),                # MA5
+                str(market_data['vwap_3m']),           # VWAP (3m)
+                str(market_data['rsi_1']),             # RSI (1m)
+                str(market_data['rsi_3']),             # RSI (3m)
+                str(market_data['bb_width']),          # BB Width
+                str(market_data['volatility_3m']),     # Volatility (3m)
+                str(market_data['volatility_5m']),     # Volatility (5m)
+                str(market_data['order_book_ratio']),  # Order Book Ratio
+                str(market_data['spread']),            # Spread
+                str(market_data['premium_rate']),      # Premium Rate
+                str(market_data['funding_rate']),      # Funding Rate
+                str(market_data['price_stability']),   # Price Stability
+                market_data['price_trend_1m'],         # Price Trend (1m)
+                market_data['volume_trend_1m'],        # Volume Trend (1m)
+                market_data['price_signal'],           # Price Signal
+                market_data['momentum_signal'],        # Momentum Signal
+                market_data['volume_signal'],          # Volume Signal
+                market_data['orderbook_signal'],       # Orderbook Signal
+                market_data['futures_signal'],         # Futures Signal
+                market_data['market_state'],           # Market State
+                market_data['overall_signal'],         # Overall Signal
+                str(market_data['signal_strength']),   # Signal Strength
+                market_data['entry_timing']            # Entry Timing
             ]]
             
             self._append_values(self.SHEETS['market'], values)
             
-            # 중요한 시장 상태 변화나 강한 시그널이 감지될 때 더 자세한 로그 기록
-            signal_description = self._get_signal_description(market_data)
+            # 시장 상태 설명 생성
+            market_status = self._get_market_status_description(market_data)
             
             self.log_manager.log(
                 category=LogCategory.MARKET,
@@ -604,17 +641,25 @@ class TradingLogger:
                     "id": id,
                     "symbol": symbol,
                     "current_price": market_data['current_price'],
-                    "minute_change": market_data['minute_change'],
-                    "price_trend": market_data['price_trend'],
-                    "rsi_14": market_data['rsi_14'],
-                    "overall_signal": market_data['overall_signal'],
+                    "market_status": market_status,
+                    "signals": {
+                        "price": market_data['price_signal'],
+                        "momentum": market_data['momentum_signal'],
+                        "volume": market_data['volume_signal'],
+                        "orderbook": market_data['orderbook_signal'],
+                        "futures": market_data['futures_signal'],
+                        "overall": market_data['overall_signal']
+                    },
+                    "indicators": {
+                        "rsi_1": market_data['rsi_1'],
+                        "rsi_3": market_data['rsi_3'],
+                        "volatility_3m": market_data['volatility_3m'],
+                        "order_book_ratio": market_data['order_book_ratio'],
+                        "premium_rate": market_data['premium_rate']
+                    },
+                    "market_state": market_data['market_state'],
                     "signal_strength": market_data['signal_strength'],
-                    "signal_description": signal_description,
-                    "futures": {
-                        "signal": market_data['futures_signal'],
-                        "bias": market_data['futures_bias'],
-                        "stability": market_data['futures_stability']
-                    }
+                    "entry_timing": market_data['entry_timing']
                 }
             )
             
@@ -630,48 +675,48 @@ class TradingLogger:
             )
             raise
     
-    def _get_signal_description(self, market_data: Dict) -> str:
-        """시장 데이터로부터 시그널 설명을 생성합니다."""
-        signals = []
-        
+    def _get_market_status_description(self, market_data: Dict) -> str:
+        """시장 상태에 대한 설명을 생성합니다."""
         try:
-            # RSI 과매수/과매도 체크
-            rsi_14 = float(market_data['rsi_14'])
-            if rsi_14 >= 70:
-                signals.append("RSI 과매수 구간")
-            elif rsi_14 <= 30:
-                signals.append("RSI 과매도 구간")
+            descriptions = []
             
-            # 이동평균선 골든/데드 크로스 체크
-            ma_signal = str(market_data['ma_signal'])
-            if ma_signal == "골든크로스":
-                signals.append("골든 크로스 발생")
-            elif ma_signal == "데드크로스":
-                signals.append("데드 크로스 발생")
+            # RSI 상태 확인
+            rsi_1 = float(market_data['rsi_1'])
+            if rsi_1 >= 70:
+                descriptions.append("단기 과매수")
+            elif rsi_1 <= 30:
+                descriptions.append("단기 과매도")
             
-            # 거래량 체크
-            volume_signal = str(market_data['volume_signal'])
-            if volume_signal == "급증":
-                signals.append("거래량 급증")
-            elif volume_signal == "급감":
-                signals.append("거래량 급감")
+            # 변동성 상태 확인
+            volatility_3m = float(market_data['volatility_3m'])
+            if volatility_3m > 1.0:
+                descriptions.append("높은 변동성")
+            elif volatility_3m < 0.2:
+                descriptions.append("낮은 변동성")
             
-            # 강한 추세 체크
-            signal_strength = float(market_data['signal_strength'])
-            overall_signal = str(market_data['overall_signal'])
-            if abs(signal_strength) >= 0.7:
-                trend = "상승" if overall_signal == "매수" else "하락"
-                signals.append(f"강한 {trend} 추세")
+            # 호가창 상태 확인
+            order_book_ratio = float(market_data['order_book_ratio'])
+            if order_book_ratio > 1.2:
+                descriptions.append("강한 매수세")
+            elif order_book_ratio < 0.8:
+                descriptions.append("강한 매도세")
             
-            return ", ".join(signals) if signals else "특이사항 없음"
+            # 선물 시장 상태 확인
+            premium_rate = float(market_data['premium_rate'])
+            if abs(premium_rate) > 0.5:
+                state = "프리미엄" if premium_rate > 0 else "디스카운트"
+                descriptions.append(f"높은 선물 {state}")
             
-        except (ValueError, TypeError, KeyError) as e:
+            # 시장 안정성 확인
+            if market_data['market_state'] == "불안정":
+                descriptions.append("시장 불안정")
+            
+            return ", ".join(descriptions) if descriptions else "안정적인 시장"
+            
+        except (ValueError, KeyError) as e:
             self.log_manager.log(
                 category=LogCategory.ERROR,
-                message="시그널 설명 생성 실패",
-                data={
-                    "error": str(e),
-                    "market_data": str(market_data)
-                }
+                message="시장 상태 설명 생성 실패",
+                data={"error": str(e)}
             )
-            return "데이터 처리 오류" 
+            return "상태 분석 불가" 
