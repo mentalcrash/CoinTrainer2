@@ -1,6 +1,6 @@
 import requests
 import traceback
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from datetime import datetime
 from src.utils.log_manager import LogManager, LogCategory
 
@@ -94,6 +94,109 @@ class Ticker:
                     message="빗썸 API: 현재가 조회 실패 - 예외 발생",
                     data={
                         "request_url": f"{self.base_url}/v1/ticker",
+                        "symbol": symbol,
+                        "error": str(e),
+                        "error_traceback": traceback.format_exc().split('\n')
+                    }
+                )
+            return None
+    
+    def get_orderbook(self, symbol: str) -> Optional[Dict]:
+        """호가창 데이터 조회
+        
+        Args:
+            symbol (str): 심볼 (예: XRP)
+            
+        Returns:
+            Optional[Dict]: 
+                - 성공시: {
+                    'timestamp': int,     # 타임스탬프
+                    'total_asks': float,  # 매도 총량
+                    'total_bids': float,  # 매수 총량
+                    'asks': List[Dict],   # 매도 호가 목록 [{price: str, quantity: str}]
+                    'bids': List[Dict]    # 매수 호가 목록 [{price: str, quantity: str}]
+                }
+                - 오류 발생시: None
+        """
+        market = f'KRW-{symbol}'
+
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.API,
+                message="빗썸 API: 호가창 조회 요청",
+                data={"symbol": symbol}
+            )
+        
+        try:
+            response = requests.get(
+                f"{self.base_url}/v1/orderbook",
+                params={"markets": market}
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if 'error' in result:
+                    if self.log_manager:
+                        self.log_manager.log(
+                            category=LogCategory.ERROR,
+                            message="빗썸 API: 호가창 조회 실패 - 오류 응답",
+                            data=result['error']
+                        )
+                    return None
+                else:
+                    data = result[0]
+                    
+                    # 매수/매도 총량 계산
+                    total_asks = sum(float(ask['price']) * float(ask['quantity']) for ask in data['orderbook_units'])
+                    total_bids = sum(float(bid['price']) * float(bid['quantity']) for bid in data['orderbook_units'])
+                    
+                    # 호가 데이터 정리
+                    orderbook = {
+                        'timestamp': int(data['timestamp']),
+                        'total_asks': total_asks,
+                        'total_bids': total_bids,
+                        'asks': [{'price': str(unit['ask_price']), 'quantity': str(unit['ask_size'])} 
+                                for unit in data['orderbook_units']],
+                        'bids': [{'price': str(unit['bid_price']), 'quantity': str(unit['bid_size'])} 
+                                for unit in data['orderbook_units']]
+                    }
+                    
+                    if self.log_manager:
+                        self.log_manager.log(
+                            category=LogCategory.API,
+                            message="빗썸 API: 호가창 조회 성공",
+                            data={
+                                "request_url": f"{self.base_url}/v1/orderbook",
+                                "response_status": response.status_code,
+                                "symbol": symbol,
+                                "total_asks": total_asks,
+                                "total_bids": total_bids
+                            }
+                        )
+                    
+                    return orderbook
+            else:
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message="빗썸 API: 호가창 조회 실패 - HTTP 오류",
+                        data={
+                            "request_url": f"{self.base_url}/v1/orderbook",
+                            "response_status": response.status_code,
+                            "symbol": symbol,
+                            "response": response.text,
+                            "error_traceback": traceback.format_stack()
+                        }
+                    )
+                return None
+                
+        except Exception as e:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="빗썸 API: 호가창 조회 실패 - 예외 발생",
+                    data={
+                        "request_url": f"{self.base_url}/v1/orderbook",
                         "symbol": symbol,
                         "error": str(e),
                         "error_traceback": traceback.format_exc().split('\n')

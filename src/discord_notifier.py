@@ -61,32 +61,51 @@ class DiscordNotifier:
         """매매 실행 결과를 Discord로 전송합니다.
 
         Args:
-            symbol (str): 매매 심볼 (예: BTC)
+            symbol (str): 매매 심볼 (예: XRP)
             decision (Dict): 매매 판단 정보
-            order_result (Dict): 주문 실행 결과
+            {
+                "action": "매수" | "매도" | "관망",
+                "reason": str,              # 판단 이유
+                "entry_price": float,       # 매수/매도 희망가격
+                "stop_loss": float,         # 손절가격
+                "take_profit": float,       # 목표가격
+                "confidence": float,        # 확신도 (0.0 ~ 1.0)
+                "risk_level": str,          # "상" | "중" | "하"
+                "next_decision": {
+                    "interval_minutes": int, # 1 | 2 | 3 | 5
+                    "reason": str           # 다음 판단 시점 이유
+                }
+            }
             asset_info (Dict): 자산 정보
+            {
+                'balance': float,           # 보유 수량
+                'locked': float,            # 거래중인 수량
+                'avg_buy_price': float,     # 평균 매수가
+                'current_value': float,     # 현재 평가액
+                'profit_loss': float,       # 평가 손익
+                'profit_loss_rate': float,  # 수익률
+                'krw_balance': float,       # KRW 잔고
+                'krw_locked': float         # 거래중인 KRW
+            }
+            order_result (Optional[Dict]): 주문 실행 결과
         """
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         # 매매 판단 임베드
         decision_embed = {
             "title": f"🤖 {symbol} 매매 판단",
-            "color": 0x00ff00 if decision["decision"] == "매수" else 0xff0000,
+            "color": 0x00ff00 if decision["action"] == "매수" else 0xff0000,
             "fields": [
-                {"name": "결정", "value": decision["decision"], "inline": True},
-                {"name": "수량 비율", "value": f"{decision['quantity_percent']}%", "inline": True},
-                {"name": "신뢰도", "value": f"{float(decision['confidence']):.2f}", "inline": True},
-                {"name": "목표가", "value": f"{self._format_number(decision['target_price'])} KRW", "inline": True},
+                {"name": "결정", "value": decision["action"], "inline": True},
+                {"name": "확신도", "value": f"{decision['confidence']:.2f}", "inline": True},
+                {"name": "리스크", "value": decision["risk_level"], "inline": True},
+                {"name": "진입가", "value": f"{self._format_number(decision['entry_price'])} KRW", "inline": True},
+                {"name": "목표가", "value": f"{self._format_number(decision['take_profit'])} KRW", "inline": True},
                 {"name": "손절가", "value": f"{self._format_number(decision['stop_loss'])} KRW", "inline": True},
-                {"name": "판단 이유", "value": "\\n".join(decision["reasons"])},
-                {"name": "리스크 요인", "value": "\\n".join(decision["risk_factors"])}
+                {"name": "판단 이유", "value": decision["reason"]},
+                {"name": "다음 판단", "value": f"{decision['next_decision']['interval_minutes']}분 후\n사유: {decision['next_decision']['reason']}"}
             ]
         }
-
-        # next_decision 정보가 있는 경우에만 footer 추가
-        next_decision = decision.get("next_decision", {})
-        if next_decision and isinstance(next_decision, dict) and "interval_minutes" in next_decision:
-            decision_embed["footer"] = {"text": f"다음 판단: {next_decision['interval_minutes']}분 후"}
 
         # 주문 실행 임베드
         if order_result:
@@ -104,7 +123,7 @@ class DiscordNotifier:
             }
 
             # 매수/매도에 따라 다른 필드 추가
-            if decision["decision"] == "매수":
+            if order_result["side"] == "bid":
                 order_embed["fields"].extend([
                     {"name": "주문 가격", "value": f"{self._format_number(order_result['price'])} KRW", "inline": True},
                     {"name": "체결 수량", "value": order_result["executed_volume"], "inline": True},
@@ -128,11 +147,14 @@ class DiscordNotifier:
             "title": "💼 자산 정보",
             "color": 0x0000ff,
             "fields": [
-                {"name": "보유 수량", "value": f"{asset_info['balance']}", "inline": True},
+                {"name": "보유 수량", "value": f"{asset_info['balance']:.8f} {symbol}", "inline": True},
+                {"name": "거래중 수량", "value": f"{asset_info['locked']:.8f} {symbol}", "inline": True},
                 {"name": "평균 매수가", "value": f"{self._format_number(asset_info['avg_buy_price'])} KRW", "inline": True},
                 {"name": "현재 평가액", "value": f"{self._format_number(asset_info['current_value'])} KRW", "inline": True},
+                {"name": "평가 손익", "value": f"{self._format_number(asset_info['profit_loss'])} KRW", "inline": True},
                 {"name": "수익률", "value": f"{asset_info['profit_loss_rate']:.2f}%", "inline": True},
-                {"name": "KRW 잔고", "value": f"{self._format_number(asset_info['krw_balance'])} KRW", "inline": True}
+                {"name": "KRW 잔고", "value": f"{self._format_number(asset_info['krw_balance'])} KRW", "inline": True},
+                {"name": "거래중 KRW", "value": f"{self._format_number(asset_info['krw_locked'])} KRW", "inline": True}
             ]
         }
 
