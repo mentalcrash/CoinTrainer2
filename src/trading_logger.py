@@ -36,7 +36,25 @@ class TradingLogger:
             'trades': 'Trading History',    # 매매 기록
             'assets': 'Asset History',      # 자산 현황
             'performance': 'Performance',    # 성과 지표
-            'decisions': 'Trading Decisions', # 매매 판단
+            'decisions': {
+                'name': 'Trading Decisions',
+                'headers': [
+                    '기록 ID',           # 매매 판단 기록의 고유 식별자
+                    '기록 시각',         # 매매 판단이 기록된 시각
+                    '심볼',             # 거래 대상 코인 심볼
+                    '매매 행동',         # 매수/매도/관망
+                    '진입 가격',         # 매수/매도 희망가격
+                    '목표가',           # 목표 수익 가격
+                    '손절가',           # 손실 제한 가격
+                    '확신도',           # 매매 판단에 대한 확신도
+                    '리스크 레벨',       # 위험도 수준 (상/중/하)
+                    '진입 타이밍',       # 매매 실행 시점
+                    '긴급도',           # 매매 실행 긴급도
+                    '판단 근거',         # 매매 판단의 주요 이유
+                    '다음 판단 시각',     # 다음 매매 판단 시각
+                    '다음 판단 이유'      # 다음 매매 판단 시점 선택 이유
+                ]
+            },
             'market': 'Market Data'         # 시장 데이터
         }
         
@@ -499,23 +517,20 @@ class TradingLogger:
             }.get(decision_data['risk_level'], "중간")
             
             values = [[
-                id,                                     # ID
-                now,                                    # Timestamp
-                symbol,                                 # Symbol
-                decision_data['action'],                # Decision (매수/매도/관망)
-                "100" if decision_data['action'] != "관망" else "0",  # Quantity (%)
-                str(decision_data['take_profit']),      # Target Price
-                str(decision_data['stop_loss']),        # Stop Loss
-                str(decision_data['confidence']),       # Confidence
-                entry_timing,                           # Entry Timing
-                urgency_level,                          # Urgency Level
-                "단기 매매",                            # Short-term Outlook
-                "-",                                    # Long-term Outlook
-                decision_data['reason'],                # Decision Reason
-                f"리스크 레벨: {decision_data['risk_level']}", # Risk Factors
-                "-",                                    # Key Events
-                next_decision_time,                     # Next Decision Time
-                decision_data['next_decision']['reason'] # Next Decision Reason
+                id,                                     # 기록 ID
+                now,                                    # 기록 시각
+                symbol,                                 # 심볼
+                decision_data['action'],                # 매매 행동
+                str(decision_data['entry_price']),      # 진입 가격
+                str(decision_data['take_profit']),      # 목표가
+                str(decision_data['stop_loss']),        # 손절가
+                str(decision_data['confidence']),       # 확신도
+                decision_data['risk_level'],            # 리스크 레벨
+                entry_timing,                           # 진입 타이밍
+                urgency_level,                          # 긴급도
+                decision_data['reason'],                # 판단 근거
+                next_decision_time,                     # 다음 판단 시각
+                decision_data['next_decision']['reason'] # 다음 판단 이유
             ]]
             
             self._append_values(self.SHEETS['decisions'], values)
