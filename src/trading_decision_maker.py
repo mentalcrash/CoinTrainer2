@@ -238,7 +238,7 @@ class TradingDecisionMaker:
                 self.news_summarizer.api_endpoint,
                 headers=headers,
                 json=data,
-                timeout=10
+                timeout=30
             )
             
             if response.status_code != 200:
