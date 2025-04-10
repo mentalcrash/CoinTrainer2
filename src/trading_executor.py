@@ -100,7 +100,7 @@ class TradingExecutor:
                 
                 if self.log_manager:
                     self.log_manager.log(
-                        category=LogCategory.TRADE,
+                        category=LogCategory.TRADING,
                         message=f"{symbol} 매수 주문 계산",
                         data={
                             "available_krw": available_krw,
@@ -140,7 +140,7 @@ class TradingExecutor:
                 
                 if self.log_manager:
                     self.log_manager.log(
-                        category=LogCategory.TRADE,
+                        category=LogCategory.TRADING,
                         message=f"{symbol} 매도 주문 계산",
                         data={
                             "available_volume": available_volume,
