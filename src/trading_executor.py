@@ -117,7 +117,7 @@ class TradingExecutor:
                 side = "ask"
                 # 매도 가능 수량 계산 (거래 중인 수량 제외)
                 available_volume = asset_info['balance'] - asset_info.get('locked', 0)
-                current_price = asset_info['current_price']
+                current_price = decision['entry_price']  # 진입가격을 현재가로 사용
 
                 if available_volume <= 0:
                     if self.log_manager:
