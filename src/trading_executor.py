@@ -87,9 +87,11 @@ class TradingExecutor:
             
             if decision.action == "매수":
                 # 매수 가능 금액 계산
-                available_krw = asset_info.krw_balance
+                available_krw = asset_info.krw_balance                
+                # 실제 주문 가능한 금액으로 조정
+                order_amount = available_krw * 0.93
                 
-                if available_krw < MIN_ORDER_AMOUNT:
+                if order_amount < MIN_ORDER_AMOUNT:
                     return OrderInfo(
                         side="none",
                         order_type="none",
@@ -101,9 +103,9 @@ class TradingExecutor:
                 order_info = OrderInfo(
                     side="bid",
                     order_type="price",
-                    price=available_krw,
+                    price=order_amount,
                     volume=None,
-                    krw_amount=available_krw
+                    krw_amount=order_amount
                 )
                 
             elif decision.action == "매도":
