@@ -124,7 +124,7 @@ class Ticker:
             self.log_manager.log(
                 category=LogCategory.API,
                 message="빗썸 API: 호가창 조회 요청",
-                data={"symbol": symbol}
+                data={"markets": symbol}
             )
         
         try:
