@@ -283,16 +283,7 @@ class TradingDecisionMaker:
                 )
                 
                 # TradingDecision 객체 생성
-                decision = TradingDecision(
-                    action=decision_dict["action"],
-                    reason=decision_dict["reason"],
-                    entry_price=float(decision_dict["entry_price"]),
-                    stop_loss=float(decision_dict["stop_loss"]),
-                    take_profit=float(decision_dict["take_profit"]),
-                    confidence=float(decision_dict["confidence"]),
-                    risk_level=decision_dict["risk_level"],
-                    next_decision=next_decision
-                )
+                decision = TradingDecision.from_dict(decision_dict)
                 
                 if self.log_manager:
                     self.log_manager.log(

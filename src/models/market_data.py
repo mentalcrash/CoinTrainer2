@@ -142,12 +142,83 @@ class TradingDecision:
     """GPT-4 매매 판단 결과"""
     action: ActionType           # 매수/매도/관망
     reason: str                  # 판단 이유 (최대 100자)
-    entry_price: float          # 매수/매도 희망가격
-    stop_loss: float           # 손절가격
-    take_profit: float         # 목표가격
+    entry_price: Optional[float] = None  # 매수/매도 희망가격
+    stop_loss: Optional[float] = None   # 손절가격
+    take_profit: Optional[float] = None # 목표가격
     confidence: float          # 확신도 (0.0 ~ 1.0)
     risk_level: RiskLevelType   # 위험도
     next_decision: NextDecision # 다음 판단 시점
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'TradingDecision':
+        """딕셔너리로부터 TradingDecision 객체를 생성합니다.
+        
+        Args:
+            data (Dict): 매매 판단 데이터 딕셔너리
+            
+        Returns:
+            TradingDecision: 생성된 TradingDecision 객체
+        """
+        # 가격 필드 처리
+        entry_price = data.get('entry_price')
+        stop_loss = data.get('stop_loss')
+        take_profit = data.get('take_profit')
+        
+        # 숫자 변환 시도
+        try:
+            entry_price = float(entry_price) if entry_price is not None else None
+        except (ValueError, TypeError):
+            entry_price = None
+            
+        try:
+            stop_loss = float(stop_loss) if stop_loss is not None else None
+        except (ValueError, TypeError):
+            stop_loss = None
+            
+        try:
+            take_profit = float(take_profit) if take_profit is not None else None
+        except (ValueError, TypeError):
+            take_profit = None
+            
+        # confidence 처리 (필수 필드)
+        try:
+            confidence = float(data.get('confidence', 0.0))
+        except (ValueError, TypeError):
+            confidence = 0.0
+            
+        # next_decision 처리
+        next_decision_data = data.get('next_decision', {
+            'interval_minutes': 5,
+            'reason': '기본 대기 시간'
+        })
+        next_decision = NextDecision(
+            interval_minutes=float(next_decision_data.get('interval_minutes', 5)),
+            reason=str(next_decision_data.get('reason', '기본 대기 시간'))
+        )
+        
+        return cls(
+            action=data.get('action', '관망'),
+            reason=data.get('reason', ''),
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            confidence=confidence,
+            risk_level=data.get('risk_level', '중'),
+            next_decision=next_decision
+        )
+
+    def to_dict(self) -> Dict:
+        """TradingDecision 객체를 딕셔너리로 변환합니다."""
+        return {
+            'action': self.action,
+            'reason': self.reason,
+            'entry_price': self.entry_price,
+            'stop_loss': self.stop_loss,
+            'take_profit': self.take_profit,
+            'confidence': self.confidence,
+            'risk_level': self.risk_level,
+            'next_decision': asdict(self.next_decision)
+        }
 
 @dataclass
 class TradingDecisionResult:
