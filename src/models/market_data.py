@@ -41,23 +41,61 @@ class CurrentPrice:
 @dataclass
 class MarketOverview:
     """분봉 기준 시장 개요 데이터"""
-    current_price: float       # 현재가
-    ma1: float                # 1분 이동평균
-    ma3: float                # 3분 이동평균
-    ma5: float                # 5분 이동평균
-    rsi_1: float              # 1분 RSI
-    rsi_3: float              # 3분 RSI
-    volatility_3m: float      # 3분 변동성
-    volatility_5m: float      # 5분 변동성
-    price_trend_1m: PriceTrendType    # 1분 가격 추세
-    volume_trend_1m: VolumeTrendType  # 1분 거래량 추세
-    vwap_3m: float           # 3분 VWAP
-    bb_width: float          # 볼린저 밴드 폭
-    order_book_ratio: float  # 매수/매도 호가 비율
-    spread: float            # 호가 스프레드
-    premium_rate: float      # 선물 프리미엄/디스카운트
-    funding_rate: float      # 선물 펀딩비율
-    price_stability: float   # 가격 안정성 점수
+    current_price: float = 0.0       # 현재가
+    ma1: Optional[float] = 0.0       # 1분 이동평균
+    ma3: Optional[float] = 0.0       # 3분 이동평균
+    ma5: Optional[float] = 0.0       # 5분 이동평균
+    rsi_1: Optional[float] = 50.0    # 1분 RSI
+    rsi_3: Optional[float] = 50.0    # 3분 RSI
+    volatility_3m: Optional[float] = 0.0  # 3분 변동성
+    volatility_5m: Optional[float] = 0.0  # 5분 변동성
+    price_trend_1m: PriceTrendType = "횡보"    # 1분 가격 추세
+    volume_trend_1m: VolumeTrendType = "횡보"  # 1분 거래량 추세
+    vwap_3m: Optional[float] = 0.0   # 3분 VWAP
+    bb_width: Optional[float] = 0.0  # 볼린저 밴드 폭
+    order_book_ratio: Optional[float] = 1.0  # 매수/매도 호가 비율
+    spread: Optional[float] = 0.0    # 호가 스프레드
+    premium_rate: Optional[float] = 0.0  # 선물 프리미엄/디스카운트
+    funding_rate: Optional[float] = 0.0  # 선물 펀딩비율
+    price_stability: Optional[float] = 1.0  # 가격 안정성 점수
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'MarketOverview':
+        """딕셔너리로부터 MarketOverview 객체를 생성합니다."""
+        processed_data = {}
+        for key, value in data.items():
+            if key in ['price_trend_1m', 'volume_trend_1m']:
+                processed_data[key] = str(value) if value is not None else "횡보"
+            elif isinstance(value, (int, float, str)):
+                try:
+                    processed_data[key] = float(value) if value is not None else 0.0
+                except (ValueError, TypeError):
+                    processed_data[key] = 0.0
+            else:
+                processed_data[key] = value
+        return cls(**processed_data)
+
+    def to_dict(self) -> Dict:
+        """MarketOverview 객체를 딕셔너리로 변환합니다."""
+        return {
+            'current_price': self.current_price,
+            'ma1': self.ma1 if self.ma1 is not None else 0.0,
+            'ma3': self.ma3 if self.ma3 is not None else 0.0,
+            'ma5': self.ma5 if self.ma5 is not None else 0.0,
+            'rsi_1': self.rsi_1 if self.rsi_1 is not None else 50.0,
+            'rsi_3': self.rsi_3 if self.rsi_3 is not None else 50.0,
+            'volatility_3m': self.volatility_3m if self.volatility_3m is not None else 0.0,
+            'volatility_5m': self.volatility_5m if self.volatility_5m is not None else 0.0,
+            'price_trend_1m': self.price_trend_1m,
+            'volume_trend_1m': self.volume_trend_1m,
+            'vwap_3m': self.vwap_3m if self.vwap_3m is not None else 0.0,
+            'bb_width': self.bb_width if self.bb_width is not None else 0.0,
+            'order_book_ratio': self.order_book_ratio if self.order_book_ratio is not None else 1.0,
+            'spread': self.spread if self.spread is not None else 0.0,
+            'premium_rate': self.premium_rate if self.premium_rate is not None else 0.0,
+            'funding_rate': self.funding_rate if self.funding_rate is not None else 0.0,
+            'price_stability': self.price_stability if self.price_stability is not None else 1.0
+        }
 
 @dataclass
 class TradingSignals:

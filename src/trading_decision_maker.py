@@ -251,6 +251,15 @@ class TradingDecisionMaker:
                 return None
                 
             response_data = response.json()
+
+            # response_data 출력
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message="GPT-4 API 응답 데이터",
+                    data={"response": response_data}
+                )
+
             if not response_data or "choices" not in response_data:
                 if self.log_manager:
                     self.log_manager.log(
