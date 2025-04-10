@@ -129,13 +129,12 @@ class TradingLogger:
                 # 주문 정보
                 'Order Type', 'Order Side', 'Order Volume', 'Order Price', 'Order Amount',
                 # 체결 정보
-                'Order Status', 'Executed Price', 'Executed Volume', 'Total Amount', 'Fee',
+                'Order Status', 'Executed Price', 'Executed Volume', 'Fee',
                 # 자산 정보
                 'Balance', 'Locked', 'Average Buy Price', 'Current Value',
                 'Profit Loss', 'Profit Loss Rate', 'KRW Balance',
                 # 시장 정보
-                'Current Market Price', 'MA5', 'RSI', 'Volatility',
-                'Market State', 'Signal Strength', 'Overall Signal'
+                'Current Market Price', 'MA5', 'RSI'
             ],
             'Asset History': [
                 'ID', 'Timestamp', 'Symbol', 'Balance', 'Locked', 'Average Buy Price',
@@ -728,7 +727,6 @@ class TradingLogger:
                 order_result.state if order_result else "미체결",  # Order Status
                 str(order_result.price if order_result else 0),    # Executed Price
                 str(order_result.executed_volume if order_result else 0),  # Executed Volume
-                str(order_result.total_amount if order_result else 0),    # Total Amount
                 str(order_result.paid_fee if order_result else 0),        # Fee
                 
                 # 자산 정보
@@ -743,11 +741,7 @@ class TradingLogger:
                 # 시장 정보
                 str(analysis.market_data.current_price), # Current Market Price
                 str(analysis.market_data.ma5),          # MA5
-                str(analysis.market_data.rsi_1),        # RSI
-                str(analysis.market_data.volatility_3m), # Volatility
-                analysis.market_data.market_state,      # Market State
-                str(analysis.market_data.signal_strength), # Signal Strength
-                analysis.market_data.overall_signal     # Overall Signal
+                str(analysis.market_data.rsi_1)         # RSI
             ]]
             
             self._append_values(self.SHEETS['trades'], values)

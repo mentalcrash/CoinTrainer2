@@ -78,6 +78,9 @@ class TradingScheduler:
             # 실행 실패 또는 관망인 경우 처리하지 않음
             if not result.success or result.decision_result.decision.action == "관망":
                 return
+            
+            if not result.order_result:
+                return
                 
             # 통합된 매매 기록
             self.trading_logger.log_trade_record(
