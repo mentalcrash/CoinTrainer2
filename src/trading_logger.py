@@ -36,25 +36,7 @@ class TradingLogger:
             'trades': 'Trading History',    # 매매 기록
             'assets': 'Asset History',      # 자산 현황
             'performance': 'Performance',    # 성과 지표
-            'decisions': {
-                'name': 'Trading Decisions',
-                'headers': [
-                    '기록 ID',           # 매매 판단 기록의 고유 식별자
-                    '기록 시각',         # 매매 판단이 기록된 시각
-                    '심볼',             # 거래 대상 코인 심볼
-                    '매매 행동',         # 매수/매도/관망
-                    '진입 가격',         # 매수/매도 희망가격
-                    '목표가',           # 목표 수익 가격
-                    '손절가',           # 손실 제한 가격
-                    '확신도',           # 매매 판단에 대한 확신도
-                    '리스크 레벨',       # 위험도 수준 (상/중/하)
-                    '진입 타이밍',       # 매매 실행 시점
-                    '긴급도',           # 매매 실행 긴급도
-                    '판단 근거',         # 매매 판단의 주요 이유
-                    '다음 판단 시각',     # 다음 매매 판단 시각
-                    '다음 판단 이유'      # 다음 매매 판단 시점 선택 이유
-                ]
-            },
+            'decisions': 'Trading Decisions', # 매매 판단
             'market': 'Market Data'         # 시장 데이터
         }
         
@@ -153,18 +135,20 @@ class TradingLogger:
                 'Monthly ROI', 'Total Profit Loss', 'Win Rate'
             ],
             'Trading Decisions': [
-                'ID', 'Timestamp', 'Symbol', 
-                'Action',                # 매수/매도/관망
-                'Entry Price',           # 진입 희망가
-                'Take Profit',           # 목표가
-                'Stop Loss',             # 손절가
-                'Confidence',            # 확신도
-                'Risk Level',            # 리스크 레벨
-                'Entry Timing',          # 진입 타이밍
-                'Urgency Level',         # 긴급도
-                'Decision Reason',       # 판단 이유
-                'Next Decision Time',    # 다음 판단 시각
-                'Next Decision Reason'   # 다음 판단 시각 선택 이유
+                '기록 ID',           # 매매 판단 기록의 고유 식별자
+                '기록 시각',         # 매매 판단이 기록된 시각
+                '심볼',             # 거래 대상 코인 심볼
+                '매매 행동',         # 매수/매도/관망
+                '진입 가격',         # 매수/매도 희망가격
+                '목표가',           # 목표 수익 가격
+                '손절가',           # 손실 제한 가격
+                '확신도',           # 매매 판단에 대한 확신도
+                '리스크 레벨',       # 위험도 수준 (상/중/하)
+                '진입 타이밍',       # 매매 실행 시점
+                '긴급도',           # 매매 실행 긴급도
+                '판단 근거',         # 매매 판단의 주요 이유
+                '다음 판단 시각',     # 다음 매매 판단 시각
+                '다음 판단 이유'      # 다음 매매 판단 시점 선택 이유
             ],
             'Market Data': [
                 'ID', 'Timestamp', 'Symbol',
