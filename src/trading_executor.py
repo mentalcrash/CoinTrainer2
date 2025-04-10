@@ -117,7 +117,8 @@ class TradingExecutor:
                 side = "ask"
                 # 매도 가능 수량 계산 (거래 중인 수량 제외)
                 available_volume = asset_info['balance'] - asset_info.get('locked', 0)
-                
+                current_price = asset_info['current_price']
+
                 if available_volume <= 0:
                     if self.log_manager:
                         self.log_manager.log(
@@ -139,13 +140,12 @@ class TradingExecutor:
                 # 전량 매도
                 volume = available_volume
                 
-                # 매도는 지정가 주문 사용
-                order_type = "limit"
-                price = decision['entry_price']
-                
                 # 예상 주문 금액 계산
-                krw_amount = volume * price
-                
+                krw_amount = volume * current_price
+
+                price = None
+                order_type = "market"
+
                 # 최소 주문 금액 확인
                 if krw_amount < MIN_ORDER_AMOUNT:
                     if self.log_manager:
@@ -162,7 +162,6 @@ class TradingExecutor:
                         "order_type": "none",
                         "price": 0,
                         "volume": 0,
-                        "krw_amount": 0
                     }
                 
                 if self.log_manager:
@@ -183,8 +182,7 @@ class TradingExecutor:
                     "side": "none",
                     "order_type": "none",
                     "price": 0,
-                    "volume": 0,
-                    "krw_amount": 0
+                    "volume": 0
                 }
             
             return {
