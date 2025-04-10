@@ -142,12 +142,12 @@ class TradingDecision:
     """GPT-4 매매 판단 결과"""
     action: ActionType           # 매수/매도/관망
     reason: str                  # 판단 이유 (최대 100자)
+    confidence: float           # 확신도 (0.0 ~ 1.0)
+    risk_level: RiskLevelType   # 위험도
+    next_decision: NextDecision # 다음 판단 시점
     entry_price: Optional[float] = None  # 매수/매도 희망가격
     stop_loss: Optional[float] = None   # 손절가격
     take_profit: Optional[float] = None # 목표가격
-    confidence: float          # 확신도 (0.0 ~ 1.0)
-    risk_level: RiskLevelType   # 위험도
-    next_decision: NextDecision # 다음 판단 시점
 
     @classmethod
     def from_dict(cls, data: Dict) -> 'TradingDecision':
