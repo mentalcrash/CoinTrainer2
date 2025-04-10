@@ -148,8 +148,8 @@ class Ticker:
                     data = result[0]
                     
                     # 매수/매도 총량 계산
-                    total_asks = sum(float(ask['price']) * float(ask['quantity']) for ask in data['orderbook_units'])
-                    total_bids = sum(float(bid['price']) * float(bid['quantity']) for bid in data['orderbook_units'])
+                    total_asks = sum(float(unit['ask_price']) * float(unit['ask_size']) for unit in data['orderbook_units'])
+                    total_bids = sum(float(unit['bid_price']) * float(unit['bid_size']) for unit in data['orderbook_units'])
                     
                     # 호가 데이터 정리
                     orderbook = {
