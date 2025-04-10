@@ -159,6 +159,7 @@ class OrderResult:
     # 매수 주문일 때 추가되는 필드
     price: Optional[float] = None        # 주문 가격
     reserved_fee: Optional[float] = None # 예약된 수수료
+    remaining_fee: Optional[float] = None # 남은 수수료
     locked: Optional[Union[float, str]] = None  # 잠긴 금액(매수 시 KRW) 또는 수량(매도 시 코인)
 
     # 매도 주문일 때 추가되는 필드
