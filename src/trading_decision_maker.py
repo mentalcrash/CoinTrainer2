@@ -145,7 +145,7 @@ class TradingDecisionMaker:
     "confidence": 확신도 (0.0 ~ 1.0),
     "risk_level": "상" | "중" | "하",
     "next_decision": {
-        "interval_minutes": 1 | 2 | 3 | 5,
+        "interval_minutes": 0.5 | 1 | 2 | 3 | 5,
         "reason": "다음 판단 시점까지의 대기 시간 선택 이유 (최대 50자)"
     }
 }'''
