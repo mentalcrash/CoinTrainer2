@@ -54,7 +54,6 @@ class TradingExecutor:
                 "order_type": "limit" | "price" | "market",  # 주문 타입
                 "price": float | None,        # 주문 가격 (지정가, 시장가 매수 시 필수)
                 "volume": float | None,       # 주문 수량 (지정가, 시장가 매도 시 필수)
-                "krw_amount": int             # 주문 금액 (KRW)
             }
         """
         try:
@@ -116,39 +115,63 @@ class TradingExecutor:
                 
             elif decision['action'] == "매도":
                 side = "ask"
-                # 매도 가능 수량 계산
-                available_volume = asset_info['balance']
-                max_order_volume = available_volume * MAX_ORDER_RATIO
+                # 매도 가능 수량 계산 (거래 중인 수량 제외)
+                available_volume = asset_info['balance'] - asset_info.get('locked', 0)
                 
-                # 리스크와 확신도 기반 매도 수량 계산
-                volume = available_volume * final_ratio
+                if available_volume <= 0:
+                    if self.log_manager:
+                        self.log_manager.log(
+                            category=LogCategory.TRADING,
+                            message=f"{symbol} 매도 가능 수량 없음",
+                            data={
+                                "balance": asset_info['balance'],
+                                "locked": asset_info.get('locked', 0)
+                            }
+                        )
+                    return {
+                        "side": "none",
+                        "order_type": "none",
+                        "price": 0,
+                        "volume": 0,
+                        "krw_amount": 0
+                    }
                 
-                # 최대 매도 가능 수량 제한
-                volume = min(volume, max_order_volume, available_volume)
+                # 전량 매도
+                volume = available_volume
                 
-                # 매도는 시장가 주문 사용 (market)
-                order_type = "market"
-                price = None
+                # 매도는 지정가 주문 사용
+                order_type = "limit"
+                price = decision['entry_price']
                 
-                # 현재가로 예상 주문 금액 계산
-                current_price = decision['entry_price']  # 현재가 사용
-                krw_amount = volume * current_price
+                # 예상 주문 금액 계산
+                krw_amount = volume * price
                 
                 # 최소 주문 금액 확인
                 if krw_amount < MIN_ORDER_AMOUNT:
-                    volume = MIN_ORDER_AMOUNT / current_price
+                    if self.log_manager:
+                        self.log_manager.log(
+                            category=LogCategory.TRADING,
+                            message=f"{symbol} 매도 금액이 최소 주문 금액보다 작음",
+                            data={
+                                "krw_amount": krw_amount,
+                                "min_order_amount": MIN_ORDER_AMOUNT
+                            }
+                        )
+                    return {
+                        "side": "none",
+                        "order_type": "none",
+                        "price": 0,
+                        "volume": 0,
+                        "krw_amount": 0
+                    }
                 
                 if self.log_manager:
                     self.log_manager.log(
                         category=LogCategory.TRADING,
-                        message=f"{symbol} 매도 주문 계산",
+                        message=f"{symbol} 매도 주문 계산 (전량 매도)",
                         data={
                             "available_volume": available_volume,
-                            "risk_level": decision['risk_level'],
-                            "confidence": decision['confidence'],
-                            "final_ratio": final_ratio,
                             "price": price,
-                            "current_price": current_price,
                             "volume": volume,
                             "krw_amount": krw_amount,
                             "order_type": order_type
@@ -168,10 +191,8 @@ class TradingExecutor:
                 "side": side,
                 "order_type": order_type,
                 "price": price,
-                "volume": round(volume, 8) if volume is not None else None,  # 소수점 8자리까지 반올림
-                "krw_amount": int(volume * (current_price if side == "ask" else price))
+                "volume": round(volume, 8) if volume is not None else None  # 소수점 8자리까지 반올
             }
-            
         except Exception as e:
             if self.log_manager:
                 self.log_manager.log(
@@ -278,8 +299,7 @@ class TradingExecutor:
                     "side": order_info['side'],
                     "order_type": order_info['order_type'],
                     "price": order_info['price'],
-                    "volume": order_info['volume'],
-                    "krw_amount": order_info['krw_amount']
+                    "volume": order_info['volume']
                 }
             )
             
