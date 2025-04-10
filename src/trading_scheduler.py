@@ -90,7 +90,6 @@ class TradingScheduler:
 
             # Discord 알림 전송
             self.discord_notifier.send_trade_notification(
-                symbol=symbol,
                 result=result
             )
                 
