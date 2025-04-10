@@ -53,18 +53,6 @@ class Candle:
         if to:
             params["to"] = to
             
-        if self.log_manager:
-            self.log_manager.log(
-                category=LogCategory.API,
-                message="빗썸 API: 분봉 데이터 조회 요청",
-                data={
-                    "symbol": symbol,
-                    "unit": unit,
-                    "count": params["count"],
-                    "to": to
-                }
-            )
-            
         try:
             response = self.session.get(endpoint, params=params)
             response.raise_for_status()

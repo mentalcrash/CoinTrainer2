@@ -62,7 +62,7 @@ class TradingAnalyzer:
             orderbook = self.ticker.get_orderbook(symbol)
             
             # 1분봉 데이터 조회 (최근 5분)
-            candles = self.candle.get_minute_candles(symbol=symbol, unit=1, count=5)
+            candles = self.candle.get_minute_candles(symbol=symbol, unit=1, count=10)
             df = pd.DataFrame(candles)
             df['close'] = pd.to_numeric(df['trade_price'])
             df['volume'] = pd.to_numeric(df['candle_acc_trade_volume'])
