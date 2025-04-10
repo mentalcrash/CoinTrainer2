@@ -130,10 +130,13 @@ class TradingExecutor:
                 order_type = "market"
                 price = None
                 
+                # 현재가로 예상 주문 금액 계산
+                current_price = decision['entry_price']  # 현재가 사용
+                krw_amount = volume * current_price
+                
                 # 최소 주문 금액 확인
-                krw_amount = volume * price
                 if krw_amount < MIN_ORDER_AMOUNT:
-                    volume = MIN_ORDER_AMOUNT / price
+                    volume = MIN_ORDER_AMOUNT / current_price
                 
                 if self.log_manager:
                     self.log_manager.log(
@@ -145,8 +148,9 @@ class TradingExecutor:
                             "confidence": decision['confidence'],
                             "final_ratio": final_ratio,
                             "price": price,
+                            "current_price": current_price,
                             "volume": volume,
-                            "krw_amount": volume * price,
+                            "krw_amount": krw_amount,
                             "order_type": order_type
                         }
                     )
@@ -164,8 +168,8 @@ class TradingExecutor:
                 "side": side,
                 "order_type": order_type,
                 "price": price,
-                "volume": round(volume, 8),  # 소수점 8자리까지 반올림
-                "krw_amount": int(volume * price)
+                "volume": round(volume, 8) if volume is not None else None,  # 소수점 8자리까지 반올림
+                "krw_amount": int(volume * (current_price if side == "ask" else price))
             }
             
         except Exception as e:
