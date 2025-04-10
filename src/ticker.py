@@ -124,14 +124,15 @@ class Ticker:
             self.log_manager.log(
                 category=LogCategory.API,
                 message="빗썸 API: 호가창 조회 요청",
-                data={"markets": symbol}
+                data={"symbol": symbol}
             )
         
         try:
-            response = requests.get(
-                f"{self.base_url}/v1/orderbook",
-                params={"markets": market}
-            )
+            url = f"{self.base_url}/v1/orderbook"
+            headers = {"accept": "application/json"}
+            params = {"markets": market}
+            
+            response = requests.get(url, params=params, headers=headers)
             
             if response.status_code == 200:
                 result = response.json()
@@ -166,7 +167,7 @@ class Ticker:
                             category=LogCategory.API,
                             message="빗썸 API: 호가창 조회 성공",
                             data={
-                                "request_url": f"{self.base_url}/v1/orderbook",
+                                "request_url": url,
                                 "response_status": response.status_code,
                                 "symbol": symbol,
                                 "total_asks": total_asks,
@@ -181,7 +182,7 @@ class Ticker:
                         category=LogCategory.ERROR,
                         message="빗썸 API: 호가창 조회 실패 - HTTP 오류",
                         data={
-                            "request_url": f"{self.base_url}/v1/orderbook",
+                            "request_url": url,
                             "response_status": response.status_code,
                             "symbol": symbol,
                             "response": response.text,
@@ -196,7 +197,7 @@ class Ticker:
                     category=LogCategory.ERROR,
                     message="빗썸 API: 호가창 조회 실패 - 예외 발생",
                     data={
-                        "request_url": f"{self.base_url}/v1/orderbook",
+                        "request_url": url,
                         "symbol": symbol,
                         "error": str(e),
                         "error_traceback": traceback.format_exc().split('\n')
