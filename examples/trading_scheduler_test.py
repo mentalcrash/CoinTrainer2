@@ -41,7 +41,7 @@ def test_trading_scheduler():
         )
 
         # DiscordNotifier 생성
-        discord_notifier = DiscordNotifier(discord_webhook_url)
+        discord_notifier = DiscordNotifier(discord_webhook_url, log_manager)
 
         # TradingLogger 생성
         trading_logger = TradingLogger(

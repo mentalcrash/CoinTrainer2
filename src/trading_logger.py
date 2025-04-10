@@ -5,6 +5,7 @@ from typing import Dict, Optional, List
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from src.utils.log_manager import LogManager, LogCategory
+from src.models.market_data import TradeExecutionResult
 
 class TradingLogger:
     """Google Sheets를 이용한 트레이딩 로거"""
@@ -121,9 +122,20 @@ class TradingLogger:
         """시트의 헤더를 초기화합니다."""
         headers = {
             'Trading History': [
-                'ID', 'Timestamp', 'Symbol', 'Order ID', 'Action', 'Order Type', 'Order Status',
-                'Price', 'Executed Volume', 'Remaining Volume', 'Total Amount',
-                'Fee Paid', 'Reserved Fee', 'Trades Count', 'Created At'
+                'Timestamp', 'Symbol',
+                # 매매 판단 정보
+                'Action', 'Entry Price', 'Take Profit', 'Stop Loss',
+                'Confidence', 'Risk Level', 'Decision Reason',
+                # 주문 정보
+                'Order Type', 'Order Side', 'Order Volume', 'Order Price', 'Order Amount',
+                # 체결 정보
+                'Order Status', 'Executed Price', 'Executed Volume', 'Total Amount', 'Fee',
+                # 자산 정보
+                'Balance', 'Locked', 'Average Buy Price', 'Current Value',
+                'Profit Loss', 'Profit Loss Rate', 'KRW Balance',
+                # 시장 정보
+                'Current Market Price', 'MA5', 'RSI', 'Volatility',
+                'Market State', 'Signal Strength', 'Overall Signal'
             ],
             'Asset History': [
                 'ID', 'Timestamp', 'Symbol', 'Balance', 'Locked', 'Average Buy Price',
@@ -133,52 +145,6 @@ class TradingLogger:
             'Performance': [
                 'Timestamp', 'Symbol', 'Daily ROI', 'Weekly ROI',
                 'Monthly ROI', 'Total Profit Loss', 'Win Rate'
-            ],
-            'Trading Decisions': [
-                '기록 ID',           # 매매 판단 기록의 고유 식별자
-                '기록 시각',         # 매매 판단이 기록된 시각
-                '심볼',             # 거래 대상 코인 심볼
-                '매매 행동',         # 매수/매도/관망
-                '진입 가격',         # 매수/매도 희망가격
-                '목표가',           # 목표 수익 가격
-                '손절가',           # 손실 제한 가격
-                '확신도',           # 매매 판단에 대한 확신도
-                '리스크 레벨',       # 위험도 수준 (상/중/하)
-                '진입 타이밍',       # 매매 실행 시점
-                '긴급도',           # 매매 실행 긴급도
-                '판단 근거',         # 매매 판단의 주요 이유
-                '다음 판단 시각',     # 다음 매매 판단 시각
-                '다음 판단 이유'      # 다음 매매 판단 시점 선택 이유
-            ],
-            'Market Data': [
-                'ID', 'Timestamp', 'Symbol',
-                # 가격 정보
-                'Current Price',         # 현재가
-                'MA1', 'MA3', 'MA5',     # 이동평균선
-                'VWAP (3m)',            # 3분 VWAP
-                # 기술적 지표
-                'RSI (1m)', 'RSI (3m)', # RSI
-                'BB Width',             # 볼린저밴드 폭
-                'Volatility (3m)',      # 3분 변동성
-                'Volatility (5m)',      # 5분 변동성
-                # 호가/선물 지표
-                'Order Book Ratio',      # 매수/매도 호가 비율
-                'Spread',               # 호가 스프레드
-                'Premium Rate',         # 선물 프리미엄/디스카운트
-                'Funding Rate',         # 선물 펀딩비율
-                'Price Stability',      # 가격 안정성
-                # 추세/신호
-                'Price Trend (1m)',     # 1분 가격 추세
-                'Volume Trend (1m)',    # 1분 거래량 추세
-                'Price Signal',         # 가격 신호
-                'Momentum Signal',      # 모멘텀 신호
-                'Volume Signal',        # 거래량 신호
-                'Orderbook Signal',     # 호가창 신호
-                'Futures Signal',       # 선물 신호
-                'Market State',         # 시장 상태
-                'Overall Signal',       # 종합 신호
-                'Signal Strength',      # 신호 강도
-                'Entry Timing'          # 진입 타이밍
             ]
         }
         
@@ -718,4 +684,83 @@ class TradingLogger:
                 message="시장 상태 설명 생성 실패",
                 data={"error": str(e)}
             )
-            return "상태 분석 불가" 
+            return "상태 분석 불가"
+
+    def log_trade_record(
+        self,
+        symbol: str,
+        result: TradeExecutionResult
+    ):
+        """통합된 매매 기록을 저장합니다.
+        
+        Args:
+            symbol (str): 매매 심볼 (예: BTC)
+            result (TradeExecutionResult): 매매 실행 결과
+        """
+        try:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            decision = result.decision_result.decision
+            analysis = result.decision_result.analysis
+            order_info = result.order_info
+            order_result = result.order_result
+            
+            values = [[
+                now,                                    # Timestamp
+                symbol,                                 # Symbol
+                
+                # 매매 판단 정보
+                decision.action,                        # Action
+                str(decision.entry_price),              # Entry Price
+                str(decision.take_profit),              # Take Profit
+                str(decision.stop_loss),                # Stop Loss
+                str(decision.confidence),               # Confidence
+                decision.risk_level,                    # Risk Level
+                decision.reason,                        # Decision Reason
+                
+                # 주문 정보
+                order_info.order_type,                  # Order Type
+                order_info.side,                        # Order Side
+                str(order_info.volume),                 # Order Volume
+                str(order_info.price),                  # Order Price
+                str(order_info.krw_amount),             # Order Amount
+                
+                # 체결 정보
+                order_result.state if order_result else "미체결",  # Order Status
+                str(order_result.price if order_result else 0),    # Executed Price
+                str(order_result.executed_volume if order_result else 0),  # Executed Volume
+                str(order_result.total_amount if order_result else 0),    # Total Amount
+                str(order_result.paid_fee if order_result else 0),        # Fee
+                
+                # 자산 정보
+                str(analysis.asset_info.balance),       # Balance
+                str(analysis.asset_info.locked),        # Locked
+                str(analysis.asset_info.avg_buy_price), # Average Buy Price
+                str(analysis.asset_info.current_value), # Current Value
+                str(analysis.asset_info.profit_loss),   # Profit Loss
+                str(analysis.asset_info.profit_loss_rate), # Profit Loss Rate
+                str(analysis.asset_info.krw_balance),   # KRW Balance
+                
+                # 시장 정보
+                str(analysis.market_data.current_price), # Current Market Price
+                str(analysis.market_data.ma5),          # MA5
+                str(analysis.market_data.rsi_1),        # RSI
+                str(analysis.market_data.volatility_3m), # Volatility
+                analysis.market_data.market_state,      # Market State
+                str(analysis.market_data.signal_strength), # Signal Strength
+                analysis.market_data.overall_signal     # Overall Signal
+            ]]
+            
+            self._append_values(self.SHEETS['trades'], values)
+            
+            self.log_manager.log(
+                category=LogCategory.TRADING,
+                message=f"{symbol} 매매 기록 저장 완료",
+                data=result.to_dict()
+            )
+            
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ERROR,
+                message=f"{symbol} 매매 기록 저장 실패: {str(e)}"
+            )
+            raise 

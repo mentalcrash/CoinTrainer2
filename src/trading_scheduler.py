@@ -8,6 +8,7 @@ from src.trading_executor import TradingExecutor
 from src.discord_notifier import DiscordNotifier
 from src.utils.log_manager import LogManager, LogCategory
 from src.trading_logger import TradingLogger
+from src.models.market_data import TradeExecutionResult
 
 class TradingScheduler:
     def __init__(
@@ -64,85 +65,37 @@ class TradingScheduler:
     def _handle_trading_result(
         self,
         symbol: str,
-        decision: Dict,
-        asset_info: Dict,
-        market_data: Dict,
-        order_result: Optional[Dict] = None,
+        result: TradeExecutionResult,
     ):
         """트레이딩 결과를 처리합니다.
 
         Args:
             symbol (str): 매매 심볼
-            decision (Dict): 매매 판단 정보
-            order_result (Dict): 주문 실행 결과
-            asset_info (Dict): 자산 정보
+            result (TradeExecutionResult): 매매 실행 결과
         """
         try:
-            # 고유 ID 생성 (타임스탬프 + UUID)
-            execution_id = f"exec_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
             
-            # 매매 판단 기록
-            self.trading_logger.log_decision(
-                id=execution_id,
+            # 실행 실패 또는 관망인 경우 처리하지 않음
+            if not result.success or result.decision_result.decision.action == "관망":
+                return
+                
+            # 통합된 매매 기록
+            self.trading_logger.log_trade_record(
                 symbol=symbol,
-                decision_data=decision
+                result=result
             )
-            
-            # 자산 현황 기록
-            self.trading_logger.log_asset_status(
-                id=execution_id,
-                symbol=symbol,
-                asset_data=asset_info
-            )
-
-            self.trading_logger.log_market_data(
-                id=execution_id,
-                symbol=symbol,
-                market_data=market_data
-            )
-            
-            # 주문 실행 결과가 있는 경우 기록
-            if order_result:
-                self.trading_logger.log_trade(
-                    id=execution_id,
-                    order_result=order_result
-                )
 
             # Discord 알림 전송
-            if self.discord_notifier and decision["action"] != "관망":
-                try:
-                    self.discord_notifier.send_trade_notification(
-                        symbol, decision, asset_info, order_result
-                    )
-                except Exception as e:
-                    error_msg = f"Discord 알림 전송 실패: {str(e)}"
-                    self.log_manager.log(
-                        category=LogCategory.ERROR,
-                        message=error_msg,
-                        data={"error": str(e)}
-                    )
-
-            # 다음 실행 시간 설정
-            interval_minutes = int(decision["next_decision"]["interval_minutes"])
-            self.next_execution_time = self._calculate_next_execution_time(interval_minutes)
-            self.log_manager.log(
-                category=LogCategory.SYSTEM,
-                message="다음 실행 시간 설정",
-                data={
-                    "symbol": symbol,
-                    "next_execution_time": self.next_execution_time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "interval_minutes": interval_minutes
-                }
+            self.discord_notifier.send_trade_notification(
+                symbol=symbol,
+                result=result
             )
+                
             
         except Exception as e:
             self.log_manager.log(
                 category=LogCategory.ERROR,
-                message="트레이딩 결과 처리 실패",
-                data={
-                    "symbol": symbol,
-                    "error": str(e)
-                }
+                message=f"{symbol} 트레이딩 결과 처리 실패: {str(e)}"
             )
             raise
 
@@ -152,36 +105,8 @@ class TradingScheduler:
         Args:
             error (Exception): 발생한 에러
         """
-        error_message = f"트레이딩 실행 중 에러 발생: {str(error)}"
-        self.log_manager.log(
-            category=LogCategory.ERROR,
-            message=error_message,
-            data={"traceback": str(error)}
-        )
-
-        # Discord 에러 알림 전송
-        if self.discord_notifier:
-            try:
-                self.discord_notifier.send_error_notification(error_message)
-                self.log_manager.log(
-                    category=LogCategory.DISCORD,
-                    message="Discord 에러 알림 전송 완료"
-                )
-            except Exception as e:
-                error_msg = f"Discord 에러 알림 전송 실패: {str(e)}"
-                self.log_manager.log(
-                    category=LogCategory.ERROR,
-                    message=error_msg,
-                    data={"error": str(e)}
-                )
-
-        # 에러 발생 시 30분 후에 다시 시도
-        self.next_execution_time = self._calculate_next_execution_time(30)
-        self.log_manager.log(
-            category=LogCategory.SYSTEM,
-            message="에러로 인한 재시도 시간 설정",
-            data={"next_execution_time": self.next_execution_time.strftime("%Y-%m-%d %H:%M:%S")}
-        )
+        
+            
 
     def start(self, symbol: str):
         """트레이딩을 시작합니다.
@@ -193,12 +118,11 @@ class TradingScheduler:
         self.log_manager.start_new_trading_session(symbol)
         self.log_manager.log(
             category=LogCategory.SYSTEM,
-            message=f"{symbol} 자동 매매 시작",
+            message=f"{symbol} 자동매매 스케줄러 시작",
             data={"dev_mode": self.dev_mode}
         )
         
         self.is_running = True
-        max_age_hours = 0.25  # 첫 실행시 기본값
 
         while self.is_running:
             try:
@@ -206,48 +130,32 @@ class TradingScheduler:
                 self._wait_until_next_execution()
 
                 # 트레이딩 실행
-                self.log_manager.log(
-                    category=LogCategory.SYSTEM,
-                    message=f"{symbol} 매매 실행 시작",
-                    data={"max_age_hours": max_age_hours}
-                )
-                
-                result = self.trading_executor.execute_trade(
-                    symbol=symbol,
-                    dev_mode=self.dev_mode,
-                    limit=15,
-                    max_age_hours=max_age_hours
-                )
+                result = self.trading_executor.execute_trade(symbol)
 
-                # 다음 실행을 위한 max_age_hours 설정
-                interval_minutes = int(result['decision']["next_decision"]["interval_minutes"])
-                max_age_hours = float(interval_minutes) / 60
-                self.log_manager.log(
-                    category=LogCategory.SYSTEM,
-                    message="뉴스 수집 기간 설정",
-                    data={
-                        "max_age_hours": max_age_hours,
-                        "interval_minutes": interval_minutes
-                    }
-                )
+                interval_minutes = int(result.decision_result.decision.next_decision.interval_minutes)
+                self.next_execution_time = self._calculate_next_execution_time(interval_minutes)
 
                 # 결과 처리
                 self._handle_trading_result(
                     symbol=symbol,
-                    decision=result['decision'],
-                    order_result=result.get("order_result"),
-                    asset_info=result["asset_info"],
-                    market_data=result["market_data"]
+                    result=result
                 )
 
             except Exception as e:
-                self._handle_error(e)
-                max_age_hours = 0.25  # 에러 발생 시 기본값으로 리셋
+                self.next_execution_time = self._calculate_next_execution_time(1)
+                error_message = f"트레이딩 실행 중 에러 발생: {str(e)}"
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=error_message,
+                    data={"traceback": str(e)}
+                )
 
+                # Discord 에러 알림 전송
+                self.discord_notifier.send_error_notification(error_message)
             except KeyboardInterrupt:
                 self.log_manager.log(
                     category=LogCategory.SYSTEM,
-                    message="프로그램 종료 요청"
+                    message=f"{symbol} 자동매매 스케줄러 종료 요청"
                 )
                 break
 

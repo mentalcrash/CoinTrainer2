@@ -9,6 +9,12 @@ from src.account import Account
 from src.ticker import Ticker
 from src.candle import Candle
 from src.utils.log_manager import LogManager, LogCategory
+from src.models.market_data import (
+    MarketOverview, TradingSignals, AssetInfo, AnalysisResult,
+    PriceTrendType, VolumeTrendType, CurrentPrice,
+    SignalType, MomentumType, VolumeSignalType,
+    OrderbookType, MarketStateType, OverallSignalType, EntryTimingType
+)
 
 class TradingAnalyzer:
     """암호화폐 매매 판단을 위한 데이터 수집 및 분석 클래스"""
@@ -40,41 +46,19 @@ class TradingAnalyzer:
         self.run_dir = base_dir / run_id
         self.run_dir.mkdir(exist_ok=True)
         
-    def get_market_overview(self, symbol: str) -> Dict:
+    def get_market_overview(self, symbol: str, current_price: CurrentPrice) -> MarketOverview:
         """
         분봉 기준 시장 개요 조회 (스캘핑 트레이딩용)
 
-        Returns:
-            Dict: {
-                'current_price': float,       # 현재가
-                'ma1': float,                 # 1분 이동평균
-                'ma3': float,                 # 3분 이동평균
-                'ma5': float,                 # 5분 이동평균
-                'rsi_1': float,               # 1분 RSI
-                'rsi_3': float,               # 3분 RSI
-                'volatility_3m': float,       # 3분 변동성
-                'volatility_5m': float,       # 5분 변동성
-                'price_trend_1m': str,        # 1분 가격 추세
-                'volume_trend_1m': str,       # 1분 거래량 추세
-                'vwap_3m': float,            # 3분 VWAP
-                'bb_width': float,           # 볼린저 밴드 폭
-                'order_book_ratio': float,   # 매수/매도 호가 비율
-                'spread': float,             # 호가 스프레드
-                'premium_rate': float,       # 선물 프리미엄/디스카운트
-                'funding_rate': float,       # 선물 펀딩비율
-                'price_stability': float,    # 가격 안정성 점수
-            }
-        """
-        if self.log_manager:
-            self.log_manager.log(
-                category=LogCategory.MARKET,
-                message=f"{symbol} 시장 개요 조회 시작",
-                data={"symbol": symbol}
-            )
+        Args:
+            symbol: 심볼 (예: BTC, ETH)
+            current_price: 현재가 정보 (선택사항, 없으면 조회)
 
+        Returns:
+            MarketOverview: 시장 개요 데이터
+        """
         try:
-            # 현재가 및 호가 데이터 조회
-            current_data = self.ticker.get_current_price(symbol)
+            # 호가 데이터 조회
             orderbook = self.ticker.get_orderbook(symbol)
             
             # 1분봉 데이터 조회 (최근 5분)
@@ -124,7 +108,7 @@ class TradingAnalyzer:
             spread = (best_ask - best_bid) / best_bid * 100
             
             # 추세 계산 (1분)
-            def get_trend(current: float, previous: float) -> str:
+            def get_trend(current: float, previous: float) -> PriceTrendType:
                 change = (current - previous) / previous * 100
                 if change > 0.1:  # 0.1% 이상
                     return "상승"
@@ -138,121 +122,111 @@ class TradingAnalyzer:
             # 선물 데이터
             futures_data = self.ticker.analyze_premium_index(symbol)
             
-            result = {
-                'current_price': current_data['trade_price'],
-                'ma1': ma1,
-                'ma3': ma3,
-                'ma5': ma5,
-                'rsi_1': rsi_1,
-                'rsi_3': rsi_3,
-                'volatility_3m': volatility_3m,
-                'volatility_5m': volatility_5m,
-                'price_trend_1m': price_trend_1m,
-                'volume_trend_1m': volume_trend_1m,
-                'vwap_3m': vwap_3m,
-                'bb_width': bb_width,
-                'order_book_ratio': order_book_ratio,
-                'spread': spread,
-                'premium_rate': futures_data['premium_rate'],
-                'funding_rate': futures_data['funding_rate'],
-                'price_stability': futures_data['price_stability']
-            }
+            # MarketOverview 객체 생성
+            result = MarketOverview(
+                current_price=current_price.trade_price,
+                ma1=ma1,
+                ma3=ma3,
+                ma5=ma5,
+                rsi_1=rsi_1,
+                rsi_3=rsi_3,
+                volatility_3m=volatility_3m,
+                volatility_5m=volatility_5m,
+                price_trend_1m=price_trend_1m,
+                volume_trend_1m=volume_trend_1m,
+                vwap_3m=vwap_3m,
+                bb_width=bb_width,
+                order_book_ratio=order_book_ratio,
+                spread=spread,
+                premium_rate=futures_data['premium_rate'],
+                funding_rate=futures_data['funding_rate'],
+                price_stability=futures_data['price_stability']
+            )
             
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.MARKET,
                     message=f"{symbol} 스캘핑 시장 분석 완료",
-                    data=result
+                    data=result.__dict__  # dataclass를 dict로 변환하여 로깅
                 )
             
             return result
             
         except Exception as e:
-            error_msg = f"{symbol} 시장 개요 조회 실패: {str(e)}"
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.ERROR,
-                    message=error_msg,
-                    data={"error": str(e)}
+                    message=f"{symbol} 시장 분석 실패: {str(e)}",
+                    data={"symbol": symbol, "error": str(e)}
                 )
             raise
             
-    def get_trading_signals(self, market_data: dict) -> Dict:
+    def get_trading_signals(self, market_data: MarketOverview) -> TradingSignals:
         """스캘핑 매매를 위한 신호 분석
         
         Args:
             market_data: 시장 데이터
             
         Returns:
-            Dict: {
-                'price_signal': str,        # 가격 신호 (매수/매도/중립)
-                'momentum_signal': str,     # 모멘텀 신호 (강세/약세/중립)
-                'volume_signal': str,       # 거래량 신호 (활발/침체/중립)
-                'orderbook_signal': str,    # 호가창 신호 (매수세/매도세/중립)
-                'futures_signal': str,      # 선물 신호 (매수/매도/중립)
-                'market_state': str,        # 시장 상태 (안정/불안정)
-                'overall_signal': str,      # 종합 신호 (매수/매도/관망)
-                'signal_strength': float,   # 신호 강도 (0.0 ~ 1.0)
-                'entry_timing': str,        # 진입 타이밍 (즉시/대기)
-            }
+            TradingSignals: 매매 신호 데이터
         """
         try:
             # 1. 가격 신호 분석 (이동평균, VWAP 기반)
-            price_signal = "중립"
-            current_price = market_data['current_price']
+            price_signal: SignalType = "중립"
+            current_price = market_data.current_price
             
             # 단기 이동평균 정배열/역배열 확인
-            if current_price > market_data['ma1'] > market_data['ma3']:
+            if current_price > market_data.ma1 > market_data.ma3:
                 price_signal = "매수"
-            elif current_price < market_data['ma1'] < market_data['ma3']:
+            elif current_price < market_data.ma1 < market_data.ma3:
                 price_signal = "매도"
                 
             # VWAP과의 관계 확인
-            vwap_diff = (current_price - market_data['vwap_3m']) / market_data['vwap_3m'] * 100
+            vwap_diff = (current_price - market_data.vwap_3m) / market_data.vwap_3m * 100
             if abs(vwap_diff) > 0.1:  # 0.1% 이상 차이
                 price_signal = "매수" if vwap_diff < 0 else "매도"  # VWAP 회귀 전략
             
             # 2. 모멘텀 신호 분석 (RSI, 볼린저밴드 기반)
-            momentum_signal = "중립"
+            momentum_signal: MomentumType = "중립"
             
             # RSI 1분봉 기준
-            if market_data['rsi_1'] < 30:
+            if market_data.rsi_1 < 30:
                 momentum_signal = "강세"
-            elif market_data['rsi_1'] > 70:
+            elif market_data.rsi_1 > 70:
                 momentum_signal = "약세"
             
             # RSI 방향성 확인
-            if market_data['rsi_1'] > market_data['rsi_3']:
+            if market_data.rsi_1 > market_data.rsi_3:
                 momentum_signal = "강세" if momentum_signal != "약세" else "중립"
-            elif market_data['rsi_1'] < market_data['rsi_3']:
+            elif market_data.rsi_1 < market_data.rsi_3:
                 momentum_signal = "약세" if momentum_signal != "강세" else "중립"
             
             # 3. 거래량 신호 분석
-            volume_signal = "중립"
-            if market_data['volume_trend_1m'] == "상승":
+            volume_signal: VolumeSignalType = "중립"
+            if market_data.volume_trend_1m == "상승":
                 volume_signal = "활발"
-            elif market_data['volume_trend_1m'] == "하락":
+            elif market_data.volume_trend_1m == "하락":
                 volume_signal = "침체"
             
             # 4. 호가창 신호 분석
-            orderbook_signal = "중립"
-            if market_data['order_book_ratio'] > 1.1:  # 매수세 10% 이상 우위
+            orderbook_signal: OrderbookType = "중립"
+            if market_data.order_book_ratio > 1.1:  # 매수세 10% 이상 우위
                 orderbook_signal = "매수세"
-            elif market_data['order_book_ratio'] < 0.9:  # 매도세 10% 이상 우위
+            elif market_data.order_book_ratio < 0.9:  # 매도세 10% 이상 우위
                 orderbook_signal = "매도세"
             
             # 5. 선물 신호 분석 (프리미엄/펀딩비율 기반)
-            futures_signal = "중립"
-            if market_data['premium_rate'] < -0.2 and market_data['funding_rate'] < -0.008:
+            futures_signal: SignalType = "중립"
+            if market_data.premium_rate < -0.2 and market_data.funding_rate < -0.008:
                 futures_signal = "매수"
-            elif market_data['premium_rate'] > 0.2 and market_data['funding_rate'] > 0.008:
+            elif market_data.premium_rate > 0.2 and market_data.funding_rate > 0.008:
                 futures_signal = "매도"
             
             # 6. 시장 상태 판단
-            market_state = "안정"
-            if (market_data['volatility_3m'] > 0.5 or  # 변동성 0.5% 초과
-                market_data['bb_width'] > 0.8 or       # 볼린저밴드 폭 0.8% 초과
-                market_data['spread'] > 0.1):          # 스프레드 0.1% 초과
+            market_state: MarketStateType = "안정"
+            if (market_data.volatility_3m > 0.5 or  # 변동성 0.5% 초과
+                market_data.bb_width > 0.8 or       # 볼린저밴드 폭 0.8% 초과
+                market_data.spread > 0.1):          # 스프레드 0.1% 초과
                 market_state = "불안정"
             
             # 7. 종합 신호 계산
@@ -298,6 +272,9 @@ class TradingAnalyzer:
             signal_strength = signal_points / total_points
             
             # 8. 종합 신호 및 진입 타이밍 결정
+            overall_signal: OverallSignalType
+            entry_timing: EntryTimingType
+            
             if market_state == "불안정" and abs(signal_strength) < 0.5:
                 overall_signal = "관망"
                 entry_timing = "대기"
@@ -311,72 +288,51 @@ class TradingAnalyzer:
                 overall_signal = "관망"
                 entry_timing = "대기"
             
-            result = {
-                'price_signal': price_signal,
-                'momentum_signal': momentum_signal,
-                'volume_signal': volume_signal,
-                'orderbook_signal': orderbook_signal,
-                'futures_signal': futures_signal,
-                'market_state': market_state,
-                'overall_signal': overall_signal,
-                'signal_strength': abs(signal_strength),
-                'entry_timing': entry_timing
-            }
+            result = TradingSignals(
+                price_signal=price_signal,
+                momentum_signal=momentum_signal,
+                volume_signal=volume_signal,
+                orderbook_signal=orderbook_signal,
+                futures_signal=futures_signal,
+                market_state=market_state,
+                overall_signal=overall_signal,
+                signal_strength=abs(signal_strength),
+                entry_timing=entry_timing
+            )
             
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.TRADING,
-                    message="스캘핑 매매 신호 분석 완료",
-                    data=result
+                    message="매매 신호 분석 완료",
+                    data=result.__dict__
                 )
             
             return result
             
         except Exception as e:
-            error_msg = f"매매 신호 분석 실패: {str(e)}"
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.ERROR,
-                    message=error_msg,
+                    message=f"매매 신호 분석 실패: {str(e)}",
                     data={"error": str(e)}
                 )
             raise
             
-    def get_asset_info(self, symbol: str) -> Dict:
+    def get_asset_info(self, symbol: str, current_price: CurrentPrice) -> AssetInfo:
         """계정 자산 정보 조회
         
         Args:
             symbol: 심볼 (예: BTC, ETH)
+            current_price: 현재가 정보 (선택사항, 없으면 조회)
             
         Returns:
-            Dict: {
-                'balance': float,           # 보유 수량
-                'locked': float,            # 거래중 수량
-                'avg_buy_price': float,     # 매수 평균가
-                'current_value': float,     # 현재 평가금액
-                'profit_loss': float,       # 평가손익
-                'profit_loss_rate': float,  # 수익률(%)
-                'krw_balance': float,       # 보유 현금(KRW)
-                'krw_locked': float,        # 거래중인 현금(KRW)
-            }
+            AssetInfo: 자산 정보 데이터
         """
-        if self.log_manager:
-            self.log_manager.log(
-                category=LogCategory.ASSET,
-                message=f"{symbol} 자산 정보 조회 시작",
-                data={"symbol": symbol}
-            )
-        
         try:
             # 계정 잔고 조회
             balances = self.account.get_balance()
             if not balances:
                 raise Exception("잔고 조회 실패")
-                
-            # 현재가 조회
-            current_price = self.ticker.get_current_price(symbol)
-            if not current_price:
-                raise Exception("현재가 조회 실패")
                 
             # KRW 잔고 찾기
             krw_balance = 0.0
@@ -395,79 +351,71 @@ class TradingAnalyzer:
                     break
                     
             if not asset:
-                result = {
-                    'balance': 0.0,
-                    'locked': 0.0,
-                    'avg_buy_price': 0.0,
-                    'current_value': 0.0,
-                    'profit_loss': 0.0,
-                    'profit_loss_rate': 0.0,
-                    'krw_balance': krw_balance,
-                    'krw_locked': krw_locked
-                }
+                result = AssetInfo(
+                    balance=0.0,
+                    locked=0.0,
+                    avg_buy_price=0.0,
+                    current_value=0.0,
+                    profit_loss=0.0,
+                    profit_loss_rate=0.0,
+                    krw_balance=krw_balance,
+                    krw_locked=krw_locked
+                )
                 
                 if self.log_manager:
                     self.log_manager.log(
                         category=LogCategory.ASSET,
-                        message=f"{symbol} 자산 정보 조회 완료 (보유 없음)",
-                        data=result
+                        message=f"{symbol} 자산 정보 조회 완료",
+                        data={"symbol": symbol, "status": "미보유"}
                     )
                 
                 return result
                 
             # 평가금액 계산
-            current_value = float(asset['balance']) * float(current_price['trade_price'])
+            current_value = float(asset['balance']) * current_price.trade_price
             
             # 평가손익 계산
             invested = float(asset['balance']) * float(asset['avg_buy_price'])
             profit_loss = current_value - invested
             profit_loss_rate = (profit_loss / invested * 100) if invested > 0 else 0.0
             
-            result = {
-                'balance': float(asset['balance']),
-                'locked': float(asset['locked']),
-                'avg_buy_price': float(asset['avg_buy_price']),
-                'current_value': current_value,
-                'profit_loss': profit_loss,
-                'profit_loss_rate': profit_loss_rate,
-                'krw_balance': krw_balance,
-                'krw_locked': krw_locked
-            }
+            result = AssetInfo(
+                balance=float(asset['balance']),
+                locked=float(asset['locked']),
+                avg_buy_price=float(asset['avg_buy_price']),
+                current_value=current_value,
+                profit_loss=profit_loss,
+                profit_loss_rate=profit_loss_rate,
+                krw_balance=krw_balance,
+                krw_locked=krw_locked
+            )
             
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.ASSET,
                     message=f"{symbol} 자산 정보 조회 완료",
-                    data=result
+                    data=result.__dict__
                 )
             
             return result
             
         except Exception as e:
-            error_msg = f"{symbol} 자산 정보 조회 실패: {str(e)}"
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.ERROR,
-                    message=error_msg,
-                    data={"error": str(e)}
+                    message=f"{symbol} 자산 정보 조회 실패: {str(e)}",
+                    data={"symbol": symbol, "error": str(e)}
                 )
             raise
             
-    def analyze(self, symbol: str) -> Dict:
+    def analyze(self, symbol: str) -> AnalysisResult:
         """심볼에 대한 전체 분석을 수행합니다.
         
         Args:
             symbol: 심볼 (예: BTC, ETH)
             
         Returns:
-            Dict: {
-                'success': bool,            # 분석 성공 여부
-                'error': str,               # 에러 메시지 (실패시)
-                'market_data': Dict,        # 시장 데이터
-                'signals': Dict,            # 매매 신호
-                'asset_info': Dict,         # 자산 정보
-                'timestamp': datetime       # 분석 시간
-            }
+            AnalysisResult: 종합 분석 결과 데이터
         """
         if self.log_manager:
             self.log_manager.log(
@@ -477,123 +425,47 @@ class TradingAnalyzer:
             )
         
         try:
+            # 0. 현재가 조회 (공통으로 사용)
+            current_price = self.ticker.get_current_price(symbol)
+        
             # 1. 시장 데이터 수집
-            market_data = self.get_market_overview(symbol)
+            market_data = self.get_market_overview(symbol, current_price)
 
             # 2. 매매 신호 분석
             signals = self.get_trading_signals(market_data)
 
             # 3. 자산 정보 조회
-            asset_info = self.get_asset_info(symbol)
+            asset_info = self.get_asset_info(symbol, current_price)
             
-            if not all([market_data, signals, asset_info]):
+            # 데이터 유효성 검사 (데이터클래스는 항상 True이므로 None 체크로 변경)
+            if any(data is None for data in [market_data, signals, asset_info]):
                 error_msg = "데이터 조회 실패"
                 if self.log_manager:
                     self.log_manager.log(
                         category=LogCategory.ERROR,
                         message=error_msg,
                         data={
-                            "market_data_success": bool(market_data),
-                            "signals_success": bool(signals),
-                            "asset_info_success": bool(asset_info)
+                            "market_data_success": market_data is not None,
+                            "signals_success": signals is not None,
+                            "asset_info_success": asset_info is not None
                         }
                     )
                 raise Exception(error_msg)
-                
-            result = {
-                'success': True,
-                'error': None,
-                'market_data': market_data,
-                'signals': signals,
-                'asset_info': asset_info,
-                'timestamp': datetime.now()
-            }
             
-            if self.log_manager:
-                self.log_manager.log(
-                    category=LogCategory.TRADING,
-                    message=f"{symbol} 시장 분석 완료",
-                    data=result
-                )
-            
-            return result
+            return AnalysisResult(
+                success=True,
+                market_data=market_data,
+                signals=signals,
+                asset_info=asset_info,
+                timestamp=datetime.now()
+            )
             
         except Exception as e:
-            error_msg = f"{symbol} 분석 실패: {str(e)}"
-            error_result = {
-                'success': False,
-                'error': str(e),
-                'market_data': None,
-                'signals': None,
-                'asset_info': None,
-                'timestamp': datetime.now()
-            }
-            
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.ERROR,
-                    message=error_msg,
-                    data=error_result
+                    message=f"{symbol} 분석 실패: {str(e)}",
+                    data={"error": str(e)}
                 )
             
             raise
-            
-    def format_analysis(self, symbol: str) -> str:
-        """분석 결과를 보기 좋게 포맷팅
-        
-        Args:
-            symbol: 심볼 (예: BTC, ETH)
-            
-        Returns:
-            포맷팅된 분석 결과 문자열
-        """
-        if self.log_manager:
-            self.log_manager.log(
-                category=LogCategory.SYSTEM,
-                message=f"{symbol} 분석 결과 포맷팅 시작",
-                data={"symbol": symbol}
-            )
-        
-        # 분석 수행
-        result = self.analyze(symbol)
-        
-        if not result['success']:
-            return f"분석 실패: {result['error']}"
-            
-        market_data = result['market_data']
-        signals = result['signals']
-        asset_info = result['asset_info']
-        
-        output = []
-        output.append(f"\n📊 {symbol} 매매 분석 ({result['timestamp'].strftime('%Y-%m-%d %H:%M')})")
-        output.append("=" * 60)
-        
-        # 시장 상황
-        output.append("\n🌍 시장 상황")
-        output.append(f"• 현재가: {market_data['current_price']:,.0f} KRW ({market_data['daily_change']:+.2f}%)")
-        output.append(f"• 거래량: {market_data['daily_volume']:,.0f}")
-        output.append(f"• 이동평균: MA5 {market_data['ma5']:,.0f} / MA20 {market_data['ma20']:,.0f}")
-        output.append(f"• RSI(14): {market_data['rsi_14']:.1f}")
-        output.append(f"• 변동성: {market_data['volatility']:.1f}%")
-        
-        # 매매 신호
-        output.append("\n🎯 매매 신호")
-        output.append(f"• 가격 신호: {signals['price_signal']}")
-        output.append(f"• 모멘텀 신호: {signals['momentum_signal']}")
-        output.append(f"• 거래량 신호: {signals['volume_signal']}")
-        output.append(f"• 호가창 신호: {signals['orderbook_signal']}")
-        output.append(f"• 종합 신호: {signals['overall_signal']} (강도: {signals['signal_strength']:.1%})")
-        
-        # 자산 정보
-        if asset_info['balance'] > 0:
-            output.append("\n💰 자산 정보")
-            output.append(f"• 보유수량: {asset_info['balance']:.8f} {symbol}")
-            output.append(f"• 매수평균가: {asset_info['avg_buy_price']:,.0f} KRW")
-            output.append(f"• 평가금액: {asset_info['current_value']:,.0f} KRW")
-            output.append(f"• 평가손익: {asset_info['profit_loss']:,.0f} KRW ({asset_info['profit_loss_rate']:+.2f}%)")
-            output.append(f"• 보유 현금: {asset_info['krw_balance']:,.0f} KRW")
-            if asset_info['krw_locked'] > 0:
-                output.append(f"• 거래중인 현금: {asset_info['krw_locked']:,.0f} KRW")
-        
-        formatted_result = "\n".join(output)
-        return formatted_result 

@@ -10,6 +10,7 @@ from datetime import datetime
 from urllib.parse import urlencode
 from typing import Dict, Optional, Union, Literal
 from src.utils.log_manager import LogManager, LogCategory
+from src.models.market_data import OrderResult, OrderSideType, OrderType, OrderInfo
 
 class TradingOrder:
     """주문 처리를 담당하는 클래스"""
@@ -91,61 +92,74 @@ class TradingOrder:
     def create_order(
         self,
         symbol: str,
-        side: Literal['bid', 'ask'],
-        order_type: Literal['limit', 'price', 'market'],
-        price: Optional[float] = None,
-        volume: Optional[float] = None
-    ) -> Dict:
-        endpoint = f"{self.base_url}/v1/orders"
+        order_info: OrderInfo
+    ) -> OrderResult:
+        """주문을 생성합니다.
         
-        params = {
-            'market': f'KRW-{symbol}',
-            'side': side,            
-            'ord_type': order_type
-        }
-
-        if price:
-            params['price'] = price
-        if volume:
-            params['volume'] = volume
-
-        authorization_token = self._create_auth_token(params)
-        headers = {
-            'Authorization': authorization_token,
-            'Content-Type': 'application/json'
-        }
+        Args:
+            symbol: 거래 심볼 (예: 'BTC')
+            order_info: 주문 정보 객체
             
+        Returns:
+            OrderResult: 주문 실행 결과
+            
+        Raises:
+            Exception: API 호출 실패 시 발생
+        """
         try:
+            # API 요청 준비
+            endpoint = f"{self.base_url}/v1/orders"
+            params = {
+                'market': f'KRW-{symbol}',
+                'side': order_info.side,
+                'ord_type': order_info.order_type
+            }
+            
+            if order_info.price:
+                params['price'] = order_info.price
+            if order_info.volume:
+                params['volume'] = order_info.volume
+            
+            # API 호출
+            headers = {
+                'Authorization': self._create_auth_token(params),
+                'Content-Type': 'application/json'
+            }
+            
             response = requests.post(endpoint, data=json.dumps(params), headers=headers)
             response.raise_for_status()
-            order_data = response.json()
+            data = response.json()
+            
+            if not data or 'error' in data:
+                raise Exception(f"API Error: {data.get('error', {}).get('message', 'Unknown error')}")
+            
+            # 주문 결과 생성
+            order_result = OrderResult.from_dict(data)
+            
+            # 주문 결과 로깅
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.TRADING,
-                    message=f"{symbol} 주문 생성 완료",
-                    data=order_data
+                    message=f"{symbol} {order_info.side} 주문 {'완료' if order_result.state == 'done' else '접수'}",
+                    data={
+                        "symbol": symbol,
+                        "order_result": order_result.to_dict()
+                    }
                 )
-            return order_data
-                
-        except Exception as e:
-            error_details = {
-                "error": str(e),
-                "symbol": symbol,
-                "request_url": endpoint,
-                "request_params": params,
-                "response_status": response.status_code if 'response' in locals() else None,
-                "response_headers": dict(response.headers) if 'response' in locals() else None,
-                "response_body": response.text if 'response' in locals() else None,
-                "response_json": response.json() if 'response' in locals() and response.headers.get('content-type', '').startswith('application/json') else None
-            }
             
+            return order_result
+            
+        except Exception as e:
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.ERROR,
-                    message="주문 생성 중 오류 발생",
-                    data=error_details
+                    message=f"{symbol} {order_info.side} 주문 실패",
+                    data={
+                        "symbol": symbol,
+                        "error": str(e)
+                    }
                 )
-            return {}
+            raise
             
     def get_order(self, symbol: str, order_id: str) -> Dict:
         """개별 주문 조회

@@ -3,6 +3,7 @@ import traceback
 from typing import Dict, Optional, List
 from datetime import datetime
 from src.utils.log_manager import LogManager, LogCategory
+from src.models.market_data import CurrentPrice
 
 class Ticker:
     def __init__(self, log_manager: Optional[LogManager] = None):
@@ -15,32 +16,16 @@ class Ticker:
         self.binance_url = "https://fapi.binance.com"
         self.log_manager = log_manager
     
-    def get_current_price(self, symbol: str) -> Optional[Dict]:
+    def get_current_price(self, symbol: str) -> Optional[CurrentPrice]:
         """현재가 조회
         
         Args:
             symbol (str): 심볼 (예: "BTC_KRW")
             
         Returns:
-            Optional[Dict]: 
-                - 성공시: {
-                    'symbol': str,           # 심볼
-                    'current_price': float,  # 현재가
-                    'daily_change': float,   # 전일대비
-                    'daily_volume': float,   # 거래량
-                    'timestamp': int         # 타임스탬프
-                }
-                - 오류 발생시: None
+            Optional[CurrentPrice]: 현재가 정보 데이터클래스, 오류 발생시 None
         """
-
         market = f'KRW-{symbol}'
-
-        if self.log_manager:
-            self.log_manager.log(
-                category=LogCategory.API,
-                message="빗썸 API: 현재가 조회 요청",
-                data={"symbol": symbol}
-            )
         
         try:
             response = requests.get(
@@ -54,36 +39,46 @@ class Ticker:
                     if self.log_manager:
                         self.log_manager.log(
                             category=LogCategory.ERROR,
-                            message="빗썸 API: 현재가 조회 실패 - 오류 응답",
-                            data=result['error']
+                            message=f"현재가 조회 실패: {result['error']}",
+                            data={"symbol": symbol, "error": result['error']}
                         )
                     return None
-                else:
-                    if self.log_manager:
-                        self.log_manager.log(
-                            category=LogCategory.API,
-                            message="빗썸 API: 현재가 조회 성공",
-                            data={
-                                "request_url": f"{self.base_url}/v1/ticker",
-                                "response_status": response.status_code,
-                                "symbol": symbol,
-                                "response": result
-                            }
-                        )
                     
-                    return result[0]
+                data = result[0]
+                current_price = CurrentPrice(
+                    symbol=data['market'].split('-')[1],
+                    trade_price=float(data['trade_price']),
+                    opening_price=float(data['opening_price']),
+                    high_price=float(data['high_price']),
+                    low_price=float(data['low_price']),
+                    prev_closing_price=float(data['prev_closing_price']),
+                    change=data['change'],
+                    change_price=float(data['change_price']),
+                    change_rate=float(data['change_rate']),
+                    signed_change_price=float(data['signed_change_price']),
+                    signed_change_rate=float(data['signed_change_rate']),
+                    trade_volume=float(data['trade_volume']),
+                    acc_trade_price=float(data['acc_trade_price']),
+                    acc_trade_price_24h=float(data['acc_trade_price_24h']),
+                    acc_trade_volume=float(data['acc_trade_volume']),
+                    acc_trade_volume_24h=float(data['acc_trade_volume_24h']),
+                    timestamp=int(data['timestamp'])
+                )
+                
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.API,
+                        message=f"{symbol} 현재가 조회 완료",
+                        data=current_price.__dict__
+                    )
+                
+                return current_price
             else:
                 if self.log_manager:
                     self.log_manager.log(
                         category=LogCategory.ERROR,
-                        message="빗썸 API: 현재가 조회 실패 - HTTP 오류",
-                        data={
-                            "request_url": f"{self.base_url}/v1/ticker",
-                            "response_status": response.status_code,
-                            "symbol": symbol,
-                            "response": response.text,
-                            "error_traceback": traceback.format_stack()
-                        }
+                        message=f"현재가 조회 실패: HTTP {response.status_code}",
+                        data={"symbol": symbol, "status_code": response.status_code}
                     )
                 return None
                 
@@ -91,13 +86,8 @@ class Ticker:
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.ERROR,
-                    message="빗썸 API: 현재가 조회 실패 - 예외 발생",
-                    data={
-                        "request_url": f"{self.base_url}/v1/ticker",
-                        "symbol": symbol,
-                        "error": str(e),
-                        "error_traceback": traceback.format_exc().split('\n')
-                    }
+                    message=f"현재가 조회 실패: {str(e)}",
+                    data={"symbol": symbol, "error": str(e)}
                 )
             return None
     

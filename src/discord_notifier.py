@@ -1,21 +1,22 @@
 import json
-import logging
 from datetime import datetime
 from typing import Dict, Optional
 
 import requests
 from requests import Response
-
-logger = logging.getLogger(__name__)
+from src.models.market_data import TradeExecutionResult
+from src.utils.log_manager import LogManager, LogCategory
 
 class DiscordNotifier:
-    def __init__(self, webhook_url: str):
+    def __init__(self, webhook_url: str, log_manager: LogManager):
         """Discord 웹훅을 통해 알림을 보내는 클래스
 
         Args:
             webhook_url (str): Discord 웹훅 URL
+            log_manager (LogManager): 로깅을 담당할 LogManager 인스턴스
         """
         self.webhook_url = webhook_url
+        self.log_manager = log_manager
 
     def _send_message(self, content: str, embeds: Optional[list] = None) -> Response:
         """Discord로 메시지를 전송합니다.
@@ -38,7 +39,14 @@ class DiscordNotifier:
         )
 
         if response.status_code != 204:
-            logger.error(f"Discord 메시지 전송 실패: {response.status_code} - {response.text}")
+            self.log_manager.log(
+                category=LogCategory.ERROR,
+                message="Discord 메시지 전송 실패",
+                data={
+                    "status_code": response.status_code,
+                    "response": response.text
+                }
+            )
         
         return response
 
@@ -54,119 +62,57 @@ class DiscordNotifier:
     def send_trade_notification(
         self,
         symbol: str,
-        decision: Dict,
-        asset_info: Dict,
-        order_result: Optional[Dict] = None
-    ) -> None:
-        """매매 실행 결과를 Discord로 전송합니다.
+        result: TradeExecutionResult
+    ):
+        """매매 알림을 Discord로 전송합니다.
 
         Args:
-            symbol (str): 매매 심볼 (예: XRP)
-            decision (Dict): 매매 판단 정보
-            {
-                "action": "매수" | "매도" | "관망",
-                "reason": str,              # 판단 이유
-                "entry_price": float,       # 매수/매도 희망가격
-                "stop_loss": float,         # 손절가격
-                "take_profit": float,       # 목표가격
-                "confidence": float,        # 확신도 (0.0 ~ 1.0)
-                "risk_level": str,          # "상" | "중" | "하"
-                "next_decision": {
-                    "interval_minutes": int, # 1 | 2 | 3 | 5
-                    "reason": str           # 다음 판단 시점 이유
-                }
-            }
-            asset_info (Dict): 자산 정보
-            {
-                'balance': float,           # 보유 수량
-                'locked': float,            # 거래중인 수량
-                'avg_buy_price': float,     # 평균 매수가
-                'current_value': float,     # 현재 평가액
-                'profit_loss': float,       # 평가 손익
-                'profit_loss_rate': float,  # 수익률
-                'krw_balance': float,       # KRW 잔고
-                'krw_locked': float         # 거래중인 KRW
-            }
-            order_result (Optional[Dict]): 주문 실행 결과
+            symbol (str): 매매 심볼 (예: BTC)
+            result (TradeExecutionResult): 매매 실행 결과
         """
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # 매매 판단 임베드
-        decision_embed = {
-            "title": f"🤖 {symbol} 매매 판단",
-            "color": 0x00ff00 if decision["action"] == "매수" else 0xff0000,
-            "fields": [
-                {"name": "결정", "value": decision["action"], "inline": True},
-                {"name": "확신도", "value": f"{decision['confidence']:.2f}", "inline": True},
-                {"name": "리스크", "value": decision["risk_level"], "inline": True},
-                {"name": "진입가", "value": f"{self._format_number(decision['entry_price'])} KRW", "inline": True},
-                {"name": "목표가", "value": f"{self._format_number(decision['take_profit'])} KRW", "inline": True},
-                {"name": "손절가", "value": f"{self._format_number(decision['stop_loss'])} KRW", "inline": True},
-                {"name": "판단 이유", "value": decision["reason"]},
-                {"name": "다음 판단", "value": f"{decision['next_decision']['interval_minutes']}분 후\n사유: {decision['next_decision']['reason']}"}
-            ]
-        }
+        try:
+            decision = result.decision_result.decision
+            analysis = result.decision_result.analysis
+            order_info = result.order_info
+            order_result = result.order_result
 
-        # 주문 실행 임베드
-        if order_result:
-            order_embed = {
-                "title": f"💰 {symbol} 주문 실행",
-                "color": 0x00ff00,
-                "fields": [
-                    {"name": "주문 ID", "value": order_result["uuid"], "inline": True},
-                    {"name": "주문 방향", "value": "매수" if order_result["side"] == "bid" else "매도", "inline": True},
-                    {"name": "주문 타입", "value": order_result["ord_type"], "inline": True},
-                    {"name": "주문 상태", "value": order_result["state"], "inline": True},
-                    {"name": "마켓", "value": order_result["market"], "inline": True},
-                    {"name": "주문 시각", "value": order_result["created_at"], "inline": True}
-                ]
-            }
+            # 매매 행동에 따른 이모지 선택
+            emoji = "🔵" if decision.action == "매수" else "🔴"
+            
+            # 메시지 생성
+            message = (
+                f"{emoji} **{symbol} {decision.action}**\n"
+                f"```\n"
+                f"가격: {order_info.price:,.0f} KRW\n"
+                f"수량: {order_info.volume:.8f} {symbol}\n"
+                f"금액: {order_info.krw_amount:,.0f} KRW\n"
+                f"체결상태: {order_result.state if order_result else '미체결'}\n"
+                f"\n"
+                f"보유수량: {analysis.asset_info.balance:.8f} {symbol}\n"
+                f"평가금액: {analysis.asset_info.current_value:,.0f} KRW\n"
+                f"수익률: {analysis.asset_info.profit_loss_rate:.2f}%\n"
+                f"\n"
+                f"판단근거: {decision.reason}\n"
+                f"```"
+            )
 
-            # 매수/매도에 따라 다른 필드 추가
-            if order_result["side"] == "bid":
-                order_embed["fields"].extend([
-                    {"name": "주문 가격", "value": f"{self._format_number(order_result['price'])} KRW", "inline": True},
-                    {"name": "체결 수량", "value": order_result["executed_volume"], "inline": True},
-                    {"name": "거래 횟수", "value": str(order_result["trades_count"]), "inline": True},
-                    {"name": "수수료", "value": f"{self._format_number(order_result['paid_fee'])} KRW", "inline": True},
-                    {"name": "예약 수수료", "value": f"{self._format_number(order_result['reserved_fee'])} KRW", "inline": True},
-                    {"name": "잠긴 금액", "value": f"{self._format_number(order_result['locked'])} KRW", "inline": True}
-                ])
-            else:  # 매도
-                order_embed["fields"].extend([
-                    {"name": "주문 수량", "value": order_result["volume"], "inline": True},
-                    {"name": "남은 수량", "value": order_result["remaining_volume"], "inline": True},
-                    {"name": "체결 수량", "value": order_result["executed_volume"], "inline": True},
-                    {"name": "거래 횟수", "value": str(order_result["trades_count"]), "inline": True},
-                    {"name": "수수료", "value": f"{self._format_number(order_result['paid_fee'])} KRW", "inline": True},
-                    {"name": "잠긴 수량", "value": order_result["locked"], "inline": True}
-                ])
-
-        # 자산 정보 임베드
-        asset_embed = {
-            "title": "💼 자산 정보",
-            "color": 0x0000ff,
-            "fields": [
-                {"name": "보유 수량", "value": f"{asset_info['balance']:.8f} {symbol}", "inline": True},
-                {"name": "거래중 수량", "value": f"{asset_info['locked']:.8f} {symbol}", "inline": True},
-                {"name": "평균 매수가", "value": f"{self._format_number(asset_info['avg_buy_price'])} KRW", "inline": True},
-                {"name": "현재 평가액", "value": f"{self._format_number(asset_info['current_value'])} KRW", "inline": True},
-                {"name": "평가 손익", "value": f"{self._format_number(asset_info['profit_loss'])} KRW", "inline": True},
-                {"name": "수익률", "value": f"{asset_info['profit_loss_rate']:.2f}%", "inline": True},
-                {"name": "KRW 잔고", "value": f"{self._format_number(asset_info['krw_balance'])} KRW", "inline": True},
-                {"name": "거래중 KRW", "value": f"{self._format_number(asset_info['krw_locked'])} KRW", "inline": True}
-            ]
-        }
-
-        content = f"📊 {symbol} 매매 알림 ({now})"
-        
-        # order_result가 None이면 order_embed를 제외
-        embeds = [decision_embed]
-        if order_result:
-            embeds.append(order_embed)
-        embeds.append(asset_embed)
-        
-        self._send_message(content, embeds)
+            self._send_message(message)
+            self.log_manager.log(
+                category=LogCategory.DISCORD,
+                message=f"{symbol} 매매 알림 전송 완료",
+                data={
+                    "symbol": symbol,
+                    "action": decision.action,
+                    "price": order_info.price,
+                    "volume": order_info.volume
+                }
+            )
+            
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ERROR,
+                message=f"Discord 매매 알림 전송 실패: {str(e)}"
+            )
 
     def send_error_notification(self, error_message: str) -> None:
         """에러 메시지를 Discord로 전송합니다.
@@ -183,4 +129,9 @@ class DiscordNotifier:
             "footer": {"text": now}
         }
 
-        self._send_message("", [embed]) 
+        self._send_message("", [embed])
+        self.log_manager.log(
+            category=LogCategory.DISCORD,
+            message="에러 알림 전송 완료",
+            data={"error_message": error_message}
+        ) 
