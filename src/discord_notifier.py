@@ -92,29 +92,43 @@ class DiscordNotifier:
             
             # 기본 정보 설정
             action_emoji = "🔵" if order_info and order_info.side == "bid" else "🔴"
-            symbol = result.decision_result.symbol.upper() if result.decision_result and result.decision_result.symbol else "Unknown"
+            symbol = result.decision_result.symbol.upper()
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            # 가격 정보 포맷팅
-            price = safe_float(order_info.price if order_info else None)
-            confidence = safe_percent(decision.confidence)
-            risk_level = safe_str(decision.risk_level)
-            entry_price = safe_float(decision.entry_price)
-            take_profit = safe_float(decision.take_profit)
-            stop_loss = safe_float(decision.stop_loss)
-            state = safe_str(order_info.state if order_info else "미체결")
-            reason = safe_str(decision.reason)
-            next_interval = safe_str(decision.next_decision.interval_minutes if decision.next_decision else "N/A")
-            volume = safe_str(order_info.volume if order_info else "N/A")
             
             # 메시지 생성
             message = f"""
-{action_emoji} **{symbol} {decision.action}** | {timestamp}
-• 주문가: `{price}` | 수량: `{volume}`
-• 목표가: `{take_profit}` | 손절가: `{stop_loss}`
-• 확신도: `{confidence}` | 리스크: `{risk_level}`
-• 근거: `{reason}`"""
-            
+{action_emoji} **{symbol} 주문 실행 결과** ({timestamp})
+```ini
+[주문 상태]
+실행 성공 여부: {result.success}
+주문 상태: {safe_str(order_info.state if order_info else "미체결")}
+에러 메시지: {safe_str(result.error)}
+
+[주문 정보]
+주문 가격: {safe_float(order_info.price if order_info else None)} KRW
+주문 수량: {safe_str(order_info.volume if order_info else "N/A")}
+주문 유형: {safe_str(order_info.type if order_info else "N/A")}
+
+[매매 판단]
+신뢰도: {safe_percent(decision.confidence)}
+위험 수준: {safe_str(decision.risk_level)}
+진입 가격: {safe_float(decision.entry_price)} KRW
+목표 가격: {safe_float(decision.take_profit)} KRW
+손절 가격: {safe_float(decision.stop_loss)} KRW
+
+[시장 데이터]
+현재 가격: {safe_float(market_data.current_price)} KRW
+RSI (1분): {safe_float(market_data.rsi_1)}
+변동성 (3분): {safe_percent(market_data.volatility_3m)}
+호가 비율: {safe_float(market_data.order_book_ratio)}
+스프레드: {safe_percent(market_data.spread)}
+
+[판단 근거]
+{safe_str(decision.reason)}
+
+[다음 판단]
+다음 판단 시간: {safe_str(decision.next_decision.interval_minutes if decision.next_decision else "N/A")}분 후
+```"""
             return message
             
         except Exception as e:
