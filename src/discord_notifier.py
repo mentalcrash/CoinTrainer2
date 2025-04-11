@@ -64,6 +64,7 @@ class DiscordNotifier:
         try:
             order_info = result.order_result
             decision = result.decision_result.decision
+            market_data = result.decision_result.analysis.market_data
             
             def safe_str(value: Any) -> str:
                 """None이나 빈 값을 안전하게 문자열로 변환합니다."""
@@ -121,6 +122,14 @@ class DiscordNotifier:
 • 리스크: `{risk_level}`
 • 근거: `{reason}`
 • 다음 판단: `{next_interval}분 후`
+
+📊 **시장 분석**
+• 이동평균선: MA1 `{market_data.ma1:,.0f}` | MA5 `{market_data.ma5:,.0f}` | MA20 `{market_data.ma20:,.0f}`
+• RSI: 1분 `{market_data.rsi_1:.1f}` | 3분 `{market_data.rsi_3:.1f}` | 14분 `{market_data.rsi_14:.1f}`
+• 변동성: 3분 `{market_data.volatility_3m:.2f}%` | 15분 `{market_data.volatility_15m:.2f}%`
+• 캔들 분석: 강도 `{market_data.candle_strength}` (비율 `{market_data.candle_body_ratio:.2f}`)
+• 5분 신고점: 고가 `{"갱신" if market_data.new_high_5m else "미갱신"}` | 저가 `{"갱신" if market_data.new_low_5m else "미갱신"}`
+• 선물 지표: 프리미엄 `{market_data.premium_rate:.3f}%` | 펀딩비 `{market_data.funding_rate:.4f}%`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
             
             return message

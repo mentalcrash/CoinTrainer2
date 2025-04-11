@@ -41,23 +41,33 @@ class CurrentPrice:
 @dataclass
 class MarketOverview:
     """분봉 기준 시장 개요 데이터"""
-    current_price: float = 0.0       # 현재가
-    ma1: Optional[float] = 0.0       # 1분 이동평균
-    ma3: Optional[float] = 0.0       # 3분 이동평균
-    ma5: Optional[float] = 0.0       # 5분 이동평균
-    rsi_1: Optional[float] = 50.0    # 1분 RSI
-    rsi_3: Optional[float] = 50.0    # 3분 RSI
-    volatility_3m: Optional[float] = 0.0  # 3분 변동성
-    volatility_5m: Optional[float] = 0.0  # 5분 변동성
-    price_trend_1m: PriceTrendType = "횡보"    # 1분 가격 추세
-    volume_trend_1m: VolumeTrendType = "횡보"  # 1분 거래량 추세
-    vwap_3m: Optional[float] = 0.0   # 3분 VWAP
-    bb_width: Optional[float] = 0.0  # 볼린저 밴드 폭
-    order_book_ratio: Optional[float] = 1.0  # 매수/매도 호가 비율
-    spread: Optional[float] = 0.0    # 호가 스프레드
-    premium_rate: Optional[float] = 0.0  # 선물 프리미엄/디스카운트
-    funding_rate: Optional[float] = 0.0  # 선물 펀딩비율
-    price_stability: Optional[float] = 1.0  # 가격 안정성 점수
+    current_price: float           # 현재가
+    ma1: float                    # 1분 이동평균
+    ma3: float                    # 3분 이동평균
+    ma5: float                    # 5분 이동평균
+    ma10: float                   # 10분 이동평균
+    ma20: float                   # 20분 이동평균
+    rsi_1: float                  # 1분 RSI
+    rsi_3: float                  # 3분 RSI
+    rsi_7: float                  # 7분 RSI
+    rsi_14: float                 # 14분 RSI
+    volatility_3m: float          # 3분 변동성
+    volatility_5m: float          # 5분 변동성
+    volatility_10m: float         # 10분 변동성
+    volatility_15m: float         # 15분 변동성
+    price_trend_1m: PriceTrendType  # 1분 가격 추세
+    volume_trend_1m: PriceTrendType # 1분 거래량 추세
+    vwap_3m: float               # 3분 VWAP
+    bb_width: float              # 볼린저밴드 폭
+    order_book_ratio: float      # 호가 비율
+    spread: float                # 스프레드
+    premium_rate: float          # 프리미엄
+    funding_rate: float          # 펀딩비율
+    price_stability: float       # 가격 안정성
+    candle_body_ratio: float     # 캔들 실체 비율
+    candle_strength: str         # 캔들 강도 (강함/중간/약함)
+    new_high_5m: bool           # 5분 신고가 갱신
+    new_low_5m: bool            # 5분 신저가 갱신
 
     @classmethod
     def from_dict(cls, data: Dict) -> 'MarketOverview':
@@ -94,7 +104,11 @@ class MarketOverview:
             'spread': self.spread if self.spread is not None else 0.0,
             'premium_rate': self.premium_rate if self.premium_rate is not None else 0.0,
             'funding_rate': self.funding_rate if self.funding_rate is not None else 0.0,
-            'price_stability': self.price_stability if self.price_stability is not None else 1.0
+            'price_stability': self.price_stability if self.price_stability is not None else 1.0,
+            'candle_body_ratio': self.candle_body_ratio if self.candle_body_ratio is not None else 0.0,
+            'candle_strength': self.candle_strength if self.candle_strength is not None else "중간",
+            'new_high_5m': self.new_high_5m,
+            'new_low_5m': self.new_low_5m
         }
 
 @dataclass

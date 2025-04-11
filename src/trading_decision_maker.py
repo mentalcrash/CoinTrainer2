@@ -73,7 +73,6 @@ class TradingDecisionMaker:
         try:
             asset_data = analysis_result.asset_info
             market_data = analysis_result.market_data
-            signals = analysis_result.signals
 
             # JSON 응답 형식 (포맷 지정자와 충돌하지 않도록 따옴표 처리)
             json_format = '''
@@ -108,35 +107,37 @@ class TradingDecisionMaker:
 - 1분 이동평균: {market_data.ma1:,.0f} KRW
 - 3분 이동평균: {market_data.ma3:,.0f} KRW
 - 5분 이동평균: {market_data.ma5:,.0f} KRW
+- 10분 이동평균: {market_data.ma10:,.0f} KRW
+- 20분 이동평균: {market_data.ma20:,.0f} KRW
 - VWAP(3분): {market_data.vwap_3m:,.0f} KRW
 
 2. 모멘텀 지표:
 - 1분 RSI: {market_data.rsi_1:.1f}
 - 3분 RSI: {market_data.rsi_3:.1f}
+- 7분 RSI: {market_data.rsi_7:.1f}
+- 14분 RSI: {market_data.rsi_14:.1f}
 - 볼린저밴드 폭: {market_data.bb_width:.2f}%
 
 3. 변동성/추세:
 - 3분 변동성: {market_data.volatility_3m:.2f}%
 - 5분 변동성: {market_data.volatility_5m:.2f}%
+- 10분 변동성: {market_data.volatility_10m:.2f}%
+- 15분 변동성: {market_data.volatility_15m:.2f}%
 - 1분 가격추세: {market_data.price_trend_1m}
 - 1분 거래량추세: {market_data.volume_trend_1m}
 
-4. 호가/선물 지표:
+4. 캔들 분석:
+- 캔들 실체 비율: {market_data.candle_body_ratio:.2f}
+- 캔들 강도: {market_data.candle_strength}
+- 5분 신고가: {"갱신" if market_data.new_high_5m else "미갱신"}
+- 5분 신저가: {"갱신" if market_data.new_low_5m else "미갱신"}
+
+5. 호가/선물 지표:
 - 매수/매도 비율: {market_data.order_book_ratio:.2f}
 - 호가 스프레드: {market_data.spread:.3f}%
 - 선물 프리미엄: {market_data.premium_rate:.3f}%
 - 펀딩비율: {market_data.funding_rate:.4f}%
 - 가격 안정성: {market_data.price_stability:.2f}
-
-[현재 신호 분석]
-- 가격 신호: {signals.price_signal}
-- 모멘텀 신호: {signals.momentum_signal}
-- 거래량 신호: {signals.volume_signal}
-- 호가창 신호: {signals.orderbook_signal}
-- 선물 신호: {signals.futures_signal}
-- 시장 상태: {signals.market_state}
-- 종합 신호: {signals.overall_signal} (강도: {signals.signal_strength:.2f})
-- 진입 타이밍: {signals.entry_timing}
 
 [보유 자산 정보]
 - 보유수량: {asset_data.balance:.8f} {symbol}

@@ -62,40 +62,76 @@ class TradingAnalyzer:
             orderbook = self.ticker.get_orderbook(symbol)
             
             # 1분봉 데이터 조회 (최근 5분)
-            candles = self.candle.get_minute_candles(symbol=symbol, unit=1, count=10)
+            candles = self.candle.get_minute_candles(symbol=symbol, unit=1, count=50)
             df = pd.DataFrame(candles)
             df['close'] = pd.to_numeric(df['trade_price'])
             df['volume'] = pd.to_numeric(df['candle_acc_trade_volume'])
+            df['open'] = pd.to_numeric(df['opening_price'])
+            df['high'] = pd.to_numeric(df['high_price'])
+            df['low'] = pd.to_numeric(df['low_price'])
             
             # 이동평균 계산
-            ma1 = df['close'].rolling(window=1).mean().iloc[-1]
-            ma3 = df['close'].rolling(window=3).mean().iloc[-1]
-            ma5 = df['close'].rolling(window=5).mean().iloc[-1]
+            ma1 = df['close'].rolling(window=1).mean().iloc[0]
+            ma3 = df['close'].rolling(window=3).mean().iloc[0]
+            ma5 = df['close'].rolling(window=5).mean().iloc[0]
+            ma10 = df['close'].rolling(window=10).mean().iloc[0]
+            ma20 = df['close'].rolling(window=20).mean().iloc[0]
             
             # RSI 계산 (1분, 3분)
             def calculate_rsi(prices: pd.Series, period: int) -> float:
+                # 가격 변화 계산
                 delta = prices.diff()
-                gain = delta.where(delta > 0, 0).rolling(window=period).mean()
-                loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-                rs = gain / loss
-                return 100 - (100 / (1 + rs)).iloc[-1]
-                
+
+                # 상승폭과 하락폭 분리
+                gains = delta.where(delta > 0, 0)
+                losses = -delta.where(delta < 0, 0)  # 절대값으로 변환
+
+                # 첫 평균 계산 (SMA 방식)
+                avg_gains = gains.rolling(window=period, min_periods=1).mean()
+                avg_losses = losses.rolling(window=period, min_periods=1).mean()
+
+                # RS 계산 (0으로 나누기 방지)
+                rs = avg_gains / avg_losses.replace(0, float('inf'))
+
+                # RSI 계산
+                rsi = 100 - (100 / (1 + rs))
+                return float(rsi.iloc[0])  # 가장 최근 값 반환
+
             rsi_1 = calculate_rsi(df['close'], 1)
             rsi_3 = calculate_rsi(df['close'], 3)
+            rsi_7 = calculate_rsi(df['close'], 7)
+            rsi_14 = calculate_rsi(df['close'], 14)
             
             # 변동성 계산
-            volatility_3m = df['close'].pct_change().rolling(window=3).std().iloc[-1] * 100
-            volatility_5m = df['close'].pct_change().rolling(window=5).std().iloc[-1] * 100
+            def calculate_volatility(prices: pd.Series, window: int) -> float:
+                # 수익률 계산
+                returns = prices.pct_change()
+                
+                # 이상치 제거 (상하위 1% 제거)
+                lower_bound = returns.quantile(0.01)
+                upper_bound = returns.quantile(0.99)
+                returns = returns.clip(lower=lower_bound, upper=upper_bound)
+                
+                # 변동성 계산 (연율화하지 않은 표준편차)
+                volatility = returns.rolling(window=window, min_periods=1).std()
+                
+                # 퍼센트로 변환
+                return float(volatility.iloc[0] * 100)
+
+            volatility_3m = calculate_volatility(df['close'], 3)
+            volatility_5m = calculate_volatility(df['close'], 5)
+            volatility_10m = calculate_volatility(df['close'], 10)
+            volatility_15m = calculate_volatility(df['close'], 15)
             
             # VWAP 계산
             df['vwap'] = (df['close'] * df['volume']).rolling(window=3).sum() / df['volume'].rolling(window=3).sum()
-            vwap_3m = df['vwap'].iloc[-1]
+            vwap_3m = df['vwap'].iloc[0]
             
             # 볼린저 밴드 폭
             bb_std = df['close'].rolling(window=3).std()
             bb_upper = df['close'].rolling(window=3).mean() + (bb_std * 2)
             bb_lower = df['close'].rolling(window=3).mean() - (bb_std * 2)
-            bb_width = ((bb_upper - bb_lower) / df['close'].rolling(window=3).mean() * 100).iloc[-1]
+            bb_width = ((bb_upper - bb_lower) / df['close'].rolling(window=3).mean() * 100).iloc[0]
             
             # 호가 데이터 분석
             bid_total = sum([float(bid['price']) * float(bid['quantity']) for bid in orderbook['bids']])
@@ -116,11 +152,34 @@ class TradingAnalyzer:
                     return "하락"
                 return "횡보"
                 
-            price_trend_1m = get_trend(df['close'].iloc[-1], df['close'].iloc[-2])
-            volume_trend_1m = get_trend(df['volume'].iloc[-1], df['volume'].iloc[-2])
+            price_trend_1m = get_trend(df['close'].iloc[0], df['close'].iloc[1])
+            volume_trend_1m = get_trend(df['volume'].iloc[0], df['volume'].iloc[1])
             
             # 선물 데이터
             futures_data = self.ticker.analyze_premium_index(symbol)
+            
+            # 캔들 실체 강도 분석
+            def analyze_candle_strength(row: pd.Series) -> Tuple[float, str]:
+                candle_body = row['close'] - row['open']
+                candle_range = row['high'] - row['low']
+                body_ratio = abs(candle_body) / candle_range if candle_range != 0 else 0
+                
+                # 캔들 강도 해석
+                if body_ratio > 0.7:
+                    strength = "강함"
+                elif body_ratio > 0.4:
+                    strength = "중간"
+                else:
+                    strength = "약함"
+                
+                return body_ratio, strength
+            
+            latest_candle = df.iloc[0]
+            body_ratio, candle_strength = analyze_candle_strength(latest_candle)
+            
+            # 단기 고점/저점 갱신 여부 확인
+            new_high = df['close'].iloc[0] > df['high'].rolling(window=5).max().shift(1).iloc[0]
+            new_low = df['close'].iloc[0] < df['low'].rolling(window=5).min().shift(1).iloc[0]
             
             # MarketOverview 객체 생성
             result = MarketOverview(
@@ -128,10 +187,16 @@ class TradingAnalyzer:
                 ma1=ma1,
                 ma3=ma3,
                 ma5=ma5,
+                ma10=ma10,
+                ma20=ma20,
                 rsi_1=rsi_1,
                 rsi_3=rsi_3,
+                rsi_7=rsi_7,
+                rsi_14=rsi_14,
                 volatility_3m=volatility_3m,
                 volatility_5m=volatility_5m,
+                volatility_10m=volatility_10m,
+                volatility_15m=volatility_15m,
                 price_trend_1m=price_trend_1m,
                 volume_trend_1m=volume_trend_1m,
                 vwap_3m=vwap_3m,
@@ -140,7 +205,11 @@ class TradingAnalyzer:
                 spread=spread,
                 premium_rate=futures_data['premium_rate'],
                 funding_rate=futures_data['funding_rate'],
-                price_stability=futures_data['price_stability']
+                price_stability=futures_data['price_stability'],
+                candle_body_ratio=body_ratio,
+                candle_strength=candle_strength,
+                new_high_5m=new_high,
+                new_low_5m=new_low
             )
             
             if self.log_manager:

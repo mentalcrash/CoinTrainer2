@@ -149,67 +149,66 @@ class TradingLogger:
             ],
             'Order Request': [
                 'ID',                              # 고유 ID
-                     'Timestamp',                       # 타임스탬프
-                     'Symbol',                          # 심볼
-                     
-                     # Order Result 필드
-                     'Order UUID',                      # 주문 ID
-                     'Order Side',                      # 주문 방향
-                     'Order Type',                      # 주문 타입
-                     'Order State',                     # 주문 상태
-                     'Market',                          # 마켓 정보
-                     'Created At',                      # 주문 생성 시각
-                     'Trades Count',                    # 거래 횟수
-                     'Paid Fee',                        # 지불된 수수료
-                     'Executed Volume',                 # 체결된 수량
-                     'Order Price',                     # 주문 가격
-                     'Reserved Fee',                    # 예약된 수수료
-                     'Remaining Fee',                   # 남은 수수료
-                     'Locked Amount',                   # 잠긴 금액/수량
-                     'Order Volume',                    # 주문 수량
-                     'Remaining Volume',                # 남은 수량
-                     
-                     # TradingDecision 필드
-                     'Action',                          # 매매 행동
-                     'Entry Price',                     # 진입 가격
-                     'Take Profit',                     # 목표가
-                     'Stop Loss',                       # 손절가
-                     'Confidence',                      # 확신도
-                     'Risk Level',                      # 리스크 레벨
-                     'Decision Reason',                 # 판단 근거
-                     'Next Decision Interval',          # 다음 판단 시간
-                     'Next Decision Reason',            # 다음 판단 이유
-                     
-                     # Market Data 필드
-                     'Current Price',                   # 현재가
-                     'MA1',                            # 1분 이동평균
-                     'MA3',                            # 3분 이동평균
-                     'MA5',                            # 5분 이동평균
-                     'RSI 1m',                         # 1분 RSI
-                     'RSI 3m',                         # 3분 RSI
-                     'Volatility 3m',                  # 3분 변동성
-                     'Volatility 5m',                  # 5분 변동성
-                     'Price Trend 1m',                 # 1분 가격 추세
-                     'Volume Trend 1m',                # 1분 거래량 추세
-                     'VWAP 3m',                        # 3분 VWAP
-                     'BB Width',                       # 볼린저 밴드 폭
-                     'Order Book Ratio',               # 호가 비율
-                     'Spread',                         # 스프레드
-                     'Premium Rate',                   # 프리미엄
-                     'Funding Rate',                   # 펀딩비율
-                     'Price Stability',                # 가격 안정성
-                     
-                     # Signals 필드
-                     'Price Signal',                   # 가격 신호
-                     'Momentum Signal',                # 모멘텀 신호
-                     'Volume Signal',                  # 거래량 신호
-                     'Orderbook Signal',               # 호가창 신호
-                     'Futures Signal',                 # 선물 신호
-                     'Market State',                   # 시장 상태
-                     'Overall Signal',                 # 종합 신호
-                     'Signal Strength',                # 신호 강도
-                     'Entry Timing'                    # 진입 타이밍
-                    ]
+                'Timestamp',                       # 타임스탬프
+                'Symbol',                          # 심볼
+                
+                # Order Result 필드
+                'Order UUID',                      # 주문 ID
+                'Order Side',                      # 주문 방향
+                'Order Type',                      # 주문 타입
+                'Order State',                     # 주문 상태
+                'Market',                          # 마켓 정보
+                'Created At',                      # 주문 생성 시각
+                'Trades Count',                    # 거래 횟수
+                'Paid Fee',                        # 지불된 수수료
+                'Executed Volume',                 # 체결된 수량
+                'Order Price',                     # 주문 가격
+                'Reserved Fee',                    # 예약된 수수료
+                'Remaining Fee',                   # 남은 수수료
+                'Locked Amount',                   # 잠긴 금액/수량
+                'Order Volume',                    # 주문 수량
+                'Remaining Volume',                # 남은 수량
+                
+                # TradingDecision 필드
+                'Action',                          # 매매 행동
+                'Entry Price',                     # 진입 가격
+                'Take Profit',                     # 목표가
+                'Stop Loss',                       # 손절가
+                'Confidence',                      # 확신도
+                'Risk Level',                      # 리스크 레벨
+                'Decision Reason',                 # 판단 근거
+                'Next Decision Interval',          # 다음 판단 시간
+                'Next Decision Reason',            # 다음 판단 이유
+                
+                # Market Data 필드
+                'Current Price',                   # 현재가
+                'MA1',                            # 1분 이동평균
+                'MA3',                            # 3분 이동평균
+                'MA5',                            # 5분 이동평균
+                'MA10',                           # 10분 이동평균
+                'MA20',                           # 20분 이동평균
+                'RSI 1m',                         # 1분 RSI
+                'RSI 3m',                         # 3분 RSI
+                'RSI 7m',                         # 7분 RSI
+                'RSI 14m',                        # 14분 RSI
+                'Volatility 3m',                  # 3분 변동성
+                'Volatility 5m',                  # 5분 변동성
+                'Volatility 10m',                 # 10분 변동성
+                'Volatility 15m',                 # 15분 변동성
+                'Price Trend 1m',                 # 1분 가격 추세
+                'Volume Trend 1m',                # 1분 거래량 추세
+                'VWAP 3m',                        # 3분 VWAP
+                'BB Width',                       # 볼린저 밴드 폭
+                'Order Book Ratio',               # 호가 비율
+                'Spread',                         # 스프레드
+                'Premium Rate',                   # 프리미엄
+                'Funding Rate',                   # 펀딩비율
+                'Price Stability',                # 가격 안정성
+                'Candle Body Ratio',              # 캔들 실체 비율
+                'Candle Strength',                # 캔들 강도
+                'New High 5m',                    # 5분 신고가 갱신
+                'New Low 5m'                      # 5분 신저가 갱신
+            ]
         }
         
         if sheet_name in headers:
@@ -758,7 +757,6 @@ class TradingLogger:
             analysis = result.decision_result.analysis
             order_result = result.order_result
             market_data = analysis.market_data
-            signals = analysis.signals
             
             def safe_str(value) -> str:
                 """None이나 빈 값을 안전하게 처리합니다."""
@@ -803,10 +801,16 @@ class TradingLogger:
                 safe_str(market_data.ma1),              # MA1
                 safe_str(market_data.ma3),              # MA3
                 safe_str(market_data.ma5),              # MA5
+                safe_str(market_data.ma10),             # MA10
+                safe_str(market_data.ma20),             # MA20
                 safe_str(market_data.rsi_1),            # RSI 1m
                 safe_str(market_data.rsi_3),            # RSI 3m
+                safe_str(market_data.rsi_7),            # RSI 7m
+                safe_str(market_data.rsi_14),           # RSI 14m
                 safe_str(market_data.volatility_3m),    # Volatility 3m
                 safe_str(market_data.volatility_5m),    # Volatility 5m
+                safe_str(market_data.volatility_10m),   # Volatility 10m
+                safe_str(market_data.volatility_15m),   # Volatility 15m
                 market_data.price_trend_1m,             # Price Trend 1m
                 market_data.volume_trend_1m,            # Volume Trend 1m
                 safe_str(market_data.vwap_3m),          # VWAP 3m
@@ -816,17 +820,10 @@ class TradingLogger:
                 safe_str(market_data.premium_rate),     # Premium Rate
                 safe_str(market_data.funding_rate),     # Funding Rate
                 safe_str(market_data.price_stability),  # Price Stability
-                
-                # Signals
-                signals.price_signal if signals else "",      # Price Signal
-                signals.momentum_signal if signals else "",   # Momentum Signal
-                signals.volume_signal if signals else "",     # Volume Signal
-                signals.orderbook_signal if signals else "",  # Orderbook Signal
-                signals.futures_signal if signals else "",    # Futures Signal
-                signals.market_state if signals else "",      # Market State
-                signals.overall_signal if signals else "",    # Overall Signal
-                safe_str(signals.signal_strength if signals else ""), # Signal Strength
-                signals.entry_timing if signals else "",      # Entry Timing
+                safe_str(market_data.candle_body_ratio), # Candle Body Ratio
+                market_data.candle_strength,            # Candle Strength
+                "Y" if market_data.new_high_5m else "N", # New High 5m
+                "Y" if market_data.new_low_5m else "N"   # New Low 5m
             ]]
             
             self._append_values(self.SHEETS['order_request'], values)
