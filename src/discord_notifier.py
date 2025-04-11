@@ -91,7 +91,7 @@ class DiscordNotifier:
             
             # 기본 정보 설정
             action_emoji = "🔵" if order_info and order_info.side == "bid" else "🔴"
-            symbol = result.symbol.upper()
+            symbol = result.decision_result.symbol.upper() if result.decision_result and result.decision_result.symbol else "Unknown"
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
             # 가격 정보 포맷팅
@@ -129,7 +129,7 @@ class DiscordNotifier:
             self.log_manager.log(
                 category=LogCategory.ERROR,
                 message=f"디스코드 메시지 생성 실패: {str(e)}",
-                data={"symbol": result.symbol if result else "Unknown"}
+                data={"symbol": result.decision_result.symbol if result.decision_result else "Unknown"}
             )
             return "⚠️ 메시지 생성 중 오류가 발생했습니다."
 
