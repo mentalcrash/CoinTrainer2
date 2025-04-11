@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 import requests
 from requests import Response
@@ -59,56 +59,94 @@ class DiscordNotifier:
         except (ValueError, TypeError):
             return str(value)
 
-    def send_trade_notification(self, result: TradeExecutionResult) -> None:
-        """매매 실행 결과를 Discord로 전송합니다."""
+    def _create_order_message(self, result: TradeExecutionResult) -> str:
+        """주문 실행 결과로부터 디스코드 메시지를 생성합니다."""
         try:
-            # 기본 정보 추출
-            symbol = result.decision_result.symbol
+            order_info = result.order_result
             decision = result.decision_result.decision
-            analysis = result.decision_result.analysis
-            order_info = result.order_info
-            order_result = result.order_result
-
-            # 이모지 설정
-            action_emoji = "🔵" if order_info.side == "bid" else "🔴"
             
-            # 가격 정보 포맷팅 (None 값 처리)
-            price = order_info.price if order_info and order_info.price is not None else 0
-            volume = order_info.volume if order_info and order_info.volume is not None else 0
-            amount = order_info.krw_amount if order_info and order_info.krw_amount is not None else 0
+            def safe_str(value: Any) -> str:
+                """None이나 빈 값을 안전하게 문자열로 변환합니다."""
+                return str(value) if value is not None else "N/A"
             
-            # 자산 정보 포맷팅
-            balance = analysis.asset_info.balance if analysis and analysis.asset_info else 0
-            current_value = analysis.asset_info.current_value if analysis and analysis.asset_info else 0
-            profit_loss_rate = analysis.asset_info.profit_loss_rate if analysis and analysis.asset_info else 0
+            def safe_float(value: Any) -> str:
+                """숫자 값을 안전하게 포맷팅합니다."""
+                try:
+                    if value is None:
+                        return "N/A"
+                    float_val = float(value)
+                    return f"{float_val:,.2f}" if float_val != 0 else "N/A"
+                except (ValueError, TypeError):
+                    return "N/A"
+            
+            def safe_percent(value: Any) -> str:
+                """퍼센트 값을 안전하게 포맷팅합니다."""
+                try:
+                    if value is None:
+                        return "N/A"
+                    float_val = float(value)
+                    return f"{float_val:.1f}%" if float_val != 0 else "N/A"
+                except (ValueError, TypeError):
+                    return "N/A"
+            
+            # 기본 정보 설정
+            action_emoji = "🔵" if order_info and order_info.side == "bid" else "🔴"
+            symbol = result.symbol.upper()
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # 가격 정보 포맷팅
+            price = safe_float(order_info.price if order_info else None)
+            confidence = safe_percent(decision.confidence)
+            risk_level = safe_str(decision.risk_level)
+            entry_price = safe_float(decision.entry_price)
+            take_profit = safe_float(decision.take_profit)
+            stop_loss = safe_float(decision.stop_loss)
+            state = safe_str(order_info.state if order_info else "미체결")
+            reason = safe_str(decision.reason)
+            next_interval = safe_str(decision.next_decision.interval_minutes if decision.next_decision else "N/A")
             
             # 메시지 생성
-            message = (
-                f"{action_emoji} **{symbol} {order_info.side.upper()}**\n"
-                f"```\n"
-                f"가격: {price:,.0f} KRW\n"
-                f"수량: {volume:.8f}\n"
-                f"금액: {amount:,.0f} KRW\n"
-                f"상태: {order_result.state if order_result else '미체결'}\n"
-                f"보유량: {balance:.8f}\n"
-                f"평가금액: {current_value:,.0f} KRW\n"
-                f"수익률: {profit_loss_rate:.2f}%\n"
-                f"판단근거: {decision.reason}\n"
-                f"```"
+            message = f"""
+{action_emoji} **{symbol} 주문 알림** | {timestamp}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 **주문 정보**
+• 상태: `{state}`
+• 주문가: `{price}`
+• 진입가: `{entry_price}`
+• 목표가: `{take_profit}`
+• 손절가: `{stop_loss}`
+
+📈 **매매 판단**
+• 확신도: `{confidence}`
+• 리스크: `{risk_level}`
+• 근거: `{reason}`
+• 다음 판단: `{next_interval}분 후`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+            
+            return message
+            
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ERROR,
+                message=f"디스코드 메시지 생성 실패: {str(e)}",
+                data={"symbol": result.symbol if result else "Unknown"}
             )
+            return "⚠️ 메시지 생성 중 오류가 발생했습니다."
+
+    def send_trade_notification(self, result: TradeExecutionResult) -> None:
+        """매매 실행 결과를 Discord로 전송합니다."""
+        try:     
+            # 메시지 생성
+            message = self._create_order_message(result)
 
             # Discord로 전송
             self._send_message(message)
             
             self.log_manager.log(
                 category=LogCategory.DISCORD,
-                message=f"{symbol} 매매 알림 전송 완료",
+                message=f"매매 알림 전송 완료",
                 data={
-                    "symbol": symbol,
-                    "action": order_info.side,
-                    "price": price,
-                    "volume": volume,
-                    "amount": amount
+                    "message": message
                 }
             )
             
