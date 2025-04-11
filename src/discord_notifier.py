@@ -105,32 +105,15 @@ class DiscordNotifier:
             state = safe_str(order_info.state if order_info else "미체결")
             reason = safe_str(decision.reason)
             next_interval = safe_str(decision.next_decision.interval_minutes if decision.next_decision else "N/A")
+            volume = safe_str(order_info.volume if order_info else "N/A")
             
             # 메시지 생성
             message = f"""
-{action_emoji} **{symbol} 주문 알림** | {timestamp}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 **주문 정보**
-• 상태: `{state}`
-• 주문가: `{price}`
-• 진입가: `{entry_price}`
-• 목표가: `{take_profit}`
-• 손절가: `{stop_loss}`
-
-📈 **매매 판단**
-• 확신도: `{confidence}`
-• 리스크: `{risk_level}`
-• 근거: `{reason}`
-• 다음 판단: `{next_interval}분 후`
-
-📊 **시장 분석**
-• 이동평균선: MA1 `{market_data.ma1:,.0f}` | MA5 `{market_data.ma5:,.0f}` | MA20 `{market_data.ma20:,.0f}`
-• RSI: 1분 `{market_data.rsi_1:.1f}` | 3분 `{market_data.rsi_3:.1f}` | 14분 `{market_data.rsi_14:.1f}`
-• 변동성: 3분 `{market_data.volatility_3m:.2f}%` | 15분 `{market_data.volatility_15m:.2f}%`
-• 캔들 분석: 강도 `{market_data.candle_strength}` (비율 `{market_data.candle_body_ratio:.2f}`)
-• 5분 신고점: 고가 `{"갱신" if market_data.new_high_5m else "미갱신"}` | 저가 `{"갱신" if market_data.new_low_5m else "미갱신"}`
-• 선물 지표: 프리미엄 `{market_data.premium_rate:.3f}%` | 펀딩비 `{market_data.funding_rate:.4f}%`
-━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+{action_emoji} **{symbol} {decision.action}** | {timestamp}
+• 주문가: `{price}` | 수량: `{volume}`
+• 목표가: `{take_profit}` | 손절가: `{stop_loss}`
+• 확신도: `{confidence}` | 리스크: `{risk_level}`
+• 근거: `{reason}`"""
             
             return message
             
