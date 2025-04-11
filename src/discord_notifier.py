@@ -113,10 +113,37 @@ class DiscordNotifier:
 
 [시장 데이터]
 현재 가격: {safe_float(market_data.current_price)} KRW
-RSI (1분): {safe_float(market_data.rsi_1)}
-변동성 (3분): {safe_percent(market_data.volatility_3m)}
-호가 비율: {safe_float(market_data.order_book_ratio)}
-스프레드: {safe_percent(market_data.spread)}
+이동평균선:
+• MA1: {safe_float(market_data.ma1)} KRW
+• MA3: {safe_float(market_data.ma3)} KRW
+• MA5: {safe_float(market_data.ma5)} KRW
+• MA10: {safe_float(market_data.ma10)} KRW
+
+RSI 지표:
+• 1분: {safe_float(market_data.rsi_1)}
+• 3분: {safe_float(market_data.rsi_3)}
+• 7분: {safe_float(market_data.rsi_7)}
+• 14분: {safe_float(market_data.rsi_14)}
+
+변동성:
+• 3분: {safe_percent(market_data.volatility_3m)}
+• 5분: {safe_percent(market_data.volatility_5m)}
+• 10분: {safe_percent(market_data.volatility_10m)}
+• 15분: {safe_percent(market_data.volatility_15m)}
+
+호가 정보:
+• 매수/매도 비율: {safe_float(market_data.order_book_ratio)}
+• 스프레드: {safe_percent(market_data.spread)}
+
+선물 시장:
+• 프리미엄: {safe_percent(market_data.premium_rate)}
+• 펀딩비율: {safe_percent(market_data.funding_rate)}
+
+캔들 분석:
+• 캔들 강도: {safe_str(market_data.candle_strength)}
+• 실체비율: {safe_percent(market_data.candle_body_ratio)}
+• 신규 고가: {'O' if market_data.new_high_5m else 'X'}
+• 신규 저가: {'O' if market_data.new_low_5m else 'X'}
 
 [판단 근거]
 {safe_str(decision.reason)}
