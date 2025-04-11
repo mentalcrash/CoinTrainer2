@@ -89,7 +89,7 @@ class TradingExecutor:
                 # 매수 가능 금액 계산
                 available_krw = asset_info.krw_balance                
                 # 실제 주문 가능한 금액으로 조정
-                order_amount = available_krw * 0.93
+                order_amount = available_krw * 0.995
                 
                 if order_amount < MIN_ORDER_AMOUNT:
                     return OrderInfo(
