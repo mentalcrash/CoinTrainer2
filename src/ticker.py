@@ -160,8 +160,8 @@ class Ticker:
                                 "request_url": url,
                                 "response_status": response.status_code,
                                 "symbol": symbol,
-                                "total_asks": total_asks,
-                                "total_bids": total_bids
+                                "orderbook": orderbook,
+                                "result": result
                             }
                         )
                     
