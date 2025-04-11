@@ -76,7 +76,7 @@ class DiscordNotifier:
                     if value is None:
                         return "N/A"
                     float_val = float(value)
-                    return f"{float_val:,.2f}" if float_val != 0 else "N/A"
+                    return f"{float_val:,.2f}" if float_val != 0 else 0
                 except (ValueError, TypeError):
                     return "N/A"
             
@@ -120,7 +120,6 @@ class DiscordNotifier:
 • MA10: {safe_float(market_data.ma10)} KRW
 
 RSI 지표:
-• 1분: {safe_float(market_data.rsi_1)}
 • 3분: {safe_float(market_data.rsi_3)}
 • 7분: {safe_float(market_data.rsi_7)}
 • 14분: {safe_float(market_data.rsi_14)}
