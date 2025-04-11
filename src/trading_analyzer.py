@@ -178,8 +178,8 @@ class TradingAnalyzer:
             body_ratio, candle_strength = analyze_candle_strength(latest_candle)
             
             # 단기 고점/저점 갱신 여부 확인
-            new_high = df['close'].iloc[0] > df['high'].rolling(window=5).max().shift(1).iloc[0]
-            new_low = df['close'].iloc[0] < df['low'].rolling(window=5).min().shift(1).iloc[0]
+            new_high = bool(df['close'].iloc[0] > df['high'].rolling(window=5).max().shift(1).iloc[0])
+            new_low = bool(df['close'].iloc[0] < df['low'].rolling(window=5).min().shift(1).iloc[0])
             
             # MarketOverview 객체 생성
             result = MarketOverview(

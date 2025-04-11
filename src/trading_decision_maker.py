@@ -277,12 +277,6 @@ class TradingDecisionMaker:
             try:
                 decision_dict = json.loads(content)
                 
-                # 중첩된 next_decision 객체 생성
-                next_decision = NextDecision(
-                    interval_minutes=float(decision_dict["next_decision"]["interval_minutes"]),
-                    reason=decision_dict["next_decision"]["reason"]
-                )
-                
                 # TradingDecision 객체 생성
                 decision = TradingDecision.from_dict(decision_dict)
                 
