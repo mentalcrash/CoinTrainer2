@@ -93,77 +93,71 @@ class TradingDecisionMaker:
 
             # 최종 프롬프트 조합
             prompt = f"""
-당신은 전문적인 암호화폐 스캘핑 트레이더입니다. 현재 {symbol}에 대한 신속한 매매 판단이 필요합니다.
+당신은 초단타 암호화폐 트레이딩에 특화된 전문 스캘핑 트레이더입니다. 현재 {symbol}에 대한 매매 판단이 필요합니다.
 
-- 1~5분 이내의 초단기 매매 전략에 특화되어 있습니다.
-- 기술적 지표, 호가창 정보, 선물 시장 데이터를 철저하게 종합 분석하여 신속히 판단합니다.
-- 관망보다는 적극적인 매수 또는 매도 결정을 내려 빠르게 시장에 대응합니다.
-- 매매 시 항상 수수료를 고려하여 현실적으로 실현 가능한 수익을 목표로 합니다.
-- 철저한 리스크 관리로 손실을 최소화하고 수익 기회를 극대화합니다.
+전략 핵심:
+- 1~5분 이내의 초단기 수익 기회를 포착하여 즉각 진입/청산합니다.
+- '관망'은 극히 예외적인 상황에만 허용되며, 가능한 한 적극적인 매수 또는 매도 판단을 내려야 합니다.
+- 시장 흐름이 정체되어 있더라도, 수익 실현 가능성이 있다면 과감한 진입이 우선입니다.
+- 지표 간 소폭의 충돌이 있어도 수익 가능성이 우선되는 방향으로 판단합니다.
 
-[시장 기술 지표]
-1. 가격 동향:
+시장 지표:
+[가격]
 - 현재가: {market_data.current_price:,.0f} KRW
-- 3분 이동평균: {market_data.ma3:,.0f} KRW
-- 5분 이동평균: {market_data.ma5:,.0f} KRW
-- 10분 이동평균: {market_data.ma10:,.0f} KRW
-- 20분 이동평균: {market_data.ma20:,.0f} KRW
+- MA (3/5/10/20분): {market_data.ma3:,.0f} / {market_data.ma5:,.0f} / {market_data.ma10:,.0f} / {market_data.ma20:,.0f}
 - VWAP(3분): {market_data.vwap_3m:,.0f} KRW
 
-2. 모멘텀 지표:
-- 3분 RSI: {market_data.rsi_3:.1f}
-- 7분 RSI: {market_data.rsi_7:.1f}
-- 14분 RSI: {market_data.rsi_14:.1f}
+[모멘텀]
+- RSI (3/7/14분): {market_data.rsi_3:.1f} / {market_data.rsi_7:.1f} / {market_data.rsi_14:.1f}
 - 볼린저밴드 폭: {market_data.bb_width:.2f}%
 
-3. 변동성 및 추세:
-- 3분 변동성: {market_data.volatility_3m:.2f}%
-- 5분 변동성: {market_data.volatility_5m:.2f}%
-- 10분 변동성: {market_data.volatility_10m:.2f}%
-- 15분 변동성: {market_data.volatility_15m:.2f}%
-- 1분 가격추세: {market_data.price_trend_1m}
-- 1분 거래량추세: {market_data.volume_trend_1m}
+[변동성 & 추세]
+- 변동성 (3/5/10/15분): {market_data.volatility_3m:.2f}% / {market_data.volatility_5m:.2f}% / {market_data.volatility_10m:.2f}% / {market_data.volatility_15m:.2f}%
+- 가격 추세(1분): {market_data.price_trend_1m}
+- 거래량 추세(1분): {market_data.volume_trend_1m}
 
-4. 캔들 분석:
-- 캔들 실체 비율: {market_data.candle_body_ratio:.2f}
-- 캔들 강도: {market_data.candle_strength}
+[캔들 분석]
+- 실체 비율: {market_data.candle_body_ratio:.2f}
+- 강도: {market_data.candle_strength}
 - 5분 신고가: {"갱신" if market_data.new_high_5m else "미갱신"}
 - 5분 신저가: {"갱신" if market_data.new_low_5m else "미갱신"}
 
-5. 호가 및 선물 지표:
+[호가 & 선물]
 - 매수/매도 비율: {market_data.order_book_ratio:.2f}
-- 호가 스프레드: {market_data.spread:.3f}%
+- 스프레드: {market_data.spread:.3f}%
 - 선물 프리미엄: {market_data.premium_rate:.3f}%
 - 펀딩비율: {market_data.funding_rate:.4f}%
 - 가격 안정성: {market_data.price_stability:.2f}
 
-[보유 자산 정보]
-- 보유수량: {asset_data.balance:.8f} {symbol}
-- 평균단가: {asset_data.avg_buy_price:,.0f} KRW
+보유 자산:
+- 보유 수량: {asset_data.balance:.8f} {symbol}
+- 평균 매수가: {asset_data.avg_buy_price:,.0f} KRW
 - 평가손익: {asset_data.profit_loss_rate:+.2f}%
-- 거래가능 KRW: {asset_data.krw_balance:,.0f}
+- 거래 가능 KRW: {asset_data.krw_balance:,.0f}
 
-[매매 판단 원칙]
-- 가격 및 모멘텀 지표의 방향이 일치하면 적극적으로 즉시 매매에 진입합니다.
-- 거래량과 호가창 지표의 뚜렷한 방향성이 나타나면 즉시 행동합니다.
-- 최근 3분 내 가격 또는 거래량 추세의 전환 시, 즉시 적극 대응합니다.
-- 관망은 오직 다음과 같은 조건이 모두 충족될 때만 예외적으로 허용합니다:
-  a. 모든 주요 지표가 뚜렷한 방향 없이 상충할 때.
-  b. 변동성이 극도로 낮아 실질적 수익 기회가 없다고 판단될 때.
+판단 원칙 (업데이트됨):
+- 주요 지표 2개 이상이 같은 방향을 가리키면 '즉시 진입'이 기본 전략입니다.
+- 수익 실현 가능성이 0.3% 이상이고 손절 범위가 1% 이내라면 진입을 우선합니다.
+- 호가창이 매수/매도 중 명확히 우세하거나, 프리미엄/펀딩비율이 방향을 제시하면 이를 적극 반영합니다.
+- RSI가 중립 범위를 벗어날 경우에도 추세 전환 가능성이 있으면 선제적 진입을 시도합니다.
+- 시장이 불안정하더라도 과감한 단타 진입을 통해 초단기 수익을 도모합니다.
 
-[다음 판단 시점]
-- 일반적으로 1분 내 빠르게 판단을 재수행하여 적극 대응합니다.
-- 급격한 가격 변동 또는 호가창의 급격한 변화가 발생하면 즉시(30초 이내) 재판단합니다.
-- 관망을 선택한 경우라도 최대 3분을 넘기지 않고 빠르게 다음 판단을 수행합니다.
+관망 허용 조건:
+- 모든 주요 지표가 무의미하거나 극단적으로 상충
+- 극단적으로 좁은 밴드 + 낮은 변동성 + 넓은 스프레드 → 실익 없음
 
-[리스크 관리 철칙]
-- 손절가격은 진입가격 대비 최대 1% 이내로 설정합니다.
-- 목표수익은 최소 0.3% 이상으로 설정하여, 명확한 수익 기회만을 공략합니다.
-- 손절가 도달 즉시 청산하고, 동일 방향의 재진입은 최소 1분간 보류합니다.
+다음 판단 타이밍:
+- 매매 결정 시 30초~1분 이내 즉시 재판단
+- 관망 시에도 반드시 3분 이내 재판단
+
+리스크 기준:
+- 손절: 최대 -1% 이내
+- 목표수익: 최소 +0.3% 이상
+- 손절 후 동일 방향 재진입은 1분간 제한
 
 {json_format}
 
-상기 원칙에 따라 신속하고 적극적으로 최고의 스캘핑 수익을 목표로 매매를 수행합니다.
+위 기준에 따라 명확하고 빠르게 매매 판단을 내려주세요.
 """
 
             if self.log_manager:
