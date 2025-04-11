@@ -833,9 +833,9 @@ class TradingLogger:
             
             self.log_manager.log(
                 category=LogCategory.TRADING,
-                message=f"주문 기록 저장 완료: {result.symbol}",
+                message=f"주문 기록 저장 완료: {symbol}",
                 data={
-                    "symbol": result.symbol,
+                    "symbol": symbol,
                     "action": decision.action,
                     "entry_price": decision.entry_price,
                     "order_status": order_result.state if order_result else "wait"
