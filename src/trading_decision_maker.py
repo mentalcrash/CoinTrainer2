@@ -104,7 +104,6 @@ class TradingDecisionMaker:
 [시장 기술 지표]
 1. 가격 동향:
 - 현재가: {market_data.current_price:,.0f} KRW
-- 1분 이동평균: {market_data.ma1:,.0f} KRW
 - 3분 이동평균: {market_data.ma3:,.0f} KRW
 - 5분 이동평균: {market_data.ma5:,.0f} KRW
 - 10분 이동평균: {market_data.ma10:,.0f} KRW
@@ -112,7 +111,6 @@ class TradingDecisionMaker:
 - VWAP(3분): {market_data.vwap_3m:,.0f} KRW
 
 2. 모멘텀 지표:
-- 1분 RSI: {market_data.rsi_1:.1f}
 - 3분 RSI: {market_data.rsi_3:.1f}
 - 7분 RSI: {market_data.rsi_7:.1f}
 - 14분 RSI: {market_data.rsi_14:.1f}
