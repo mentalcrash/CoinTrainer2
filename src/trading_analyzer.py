@@ -64,6 +64,10 @@ class TradingAnalyzer:
             # 1분봉 데이터 조회 (최근 5분)
             candles = self.candle.get_minute_candles(symbol=symbol, unit=1, count=50)
             df = pd.DataFrame(candles)
+            
+            # 시간순으로 정렬 (오래된 데이터 -> 최신 데이터)
+            df = df.sort_values('timestamp', ascending=True).reset_index(drop=True)
+            
             df['close'] = pd.to_numeric(df['trade_price'])
             df['volume'] = pd.to_numeric(df['candle_acc_trade_volume'])
             df['open'] = pd.to_numeric(df['opening_price'])
@@ -71,11 +75,11 @@ class TradingAnalyzer:
             df['low'] = pd.to_numeric(df['low_price'])
             
             # 이동평균 계산
-            ma1 = df['close'].rolling(window=1).mean().iloc[0]
-            ma3 = df['close'].rolling(window=3).mean().iloc[0]
-            ma5 = df['close'].rolling(window=5).mean().iloc[0]
-            ma10 = df['close'].rolling(window=10).mean().iloc[0]
-            ma20 = df['close'].rolling(window=20).mean().iloc[0]
+            ma1 = df['close'].rolling(window=1).mean().iloc[-1]
+            ma3 = df['close'].rolling(window=3).mean().iloc[-1]
+            ma5 = df['close'].rolling(window=5).mean().iloc[-1]
+            ma10 = df['close'].rolling(window=10).mean().iloc[-1]
+            ma20 = df['close'].rolling(window=20).mean().iloc[-1]
             
             # RSI 계산 (1분, 3분)
             def calculate_rsi(prices: pd.Series, period: int) -> float:
@@ -95,7 +99,7 @@ class TradingAnalyzer:
 
                 # RSI 계산
                 rsi = 100 - (100 / (1 + rs))
-                return float(rsi.iloc[0])  # 가장 최근 값 반환
+                return float(rsi.iloc[-1])  # 가장 최근 값 반환
 
             rsi_1 = calculate_rsi(df['close'], 1)
             rsi_3 = calculate_rsi(df['close'], 3)
@@ -116,7 +120,7 @@ class TradingAnalyzer:
                 volatility = returns.rolling(window=window, min_periods=1).std()
                 
                 # 퍼센트로 변환
-                return float(volatility.iloc[0] * 100)
+                return float(volatility.iloc[-1] * 100)
 
             volatility_3m = calculate_volatility(df['close'], 3)
             volatility_5m = calculate_volatility(df['close'], 5)
@@ -125,13 +129,13 @@ class TradingAnalyzer:
             
             # VWAP 계산
             df['vwap'] = (df['close'] * df['volume']).rolling(window=3).sum() / df['volume'].rolling(window=3).sum()
-            vwap_3m = df['vwap'].iloc[0]
+            vwap_3m = df['vwap'].iloc[-1]
             
             # 볼린저 밴드 폭
             bb_std = df['close'].rolling(window=3).std()
             bb_upper = df['close'].rolling(window=3).mean() + (bb_std * 2)
             bb_lower = df['close'].rolling(window=3).mean() - (bb_std * 2)
-            bb_width = ((bb_upper - bb_lower) / df['close'].rolling(window=3).mean() * 100).iloc[0]
+            bb_width = ((bb_upper - bb_lower) / df['close'].rolling(window=3).mean() * 100).iloc[-1]
             
             # 호가 데이터 분석
             bid_total = sum([float(bid['price']) * float(bid['quantity']) for bid in orderbook['bids']])
@@ -152,8 +156,8 @@ class TradingAnalyzer:
                     return "하락"
                 return "횡보"
                 
-            price_trend_1m = get_trend(df['close'].iloc[0], df['close'].iloc[1])
-            volume_trend_1m = get_trend(df['volume'].iloc[0], df['volume'].iloc[1])
+            price_trend_1m = get_trend(df['close'].iloc[-1], df['close'].iloc[-2])
+            volume_trend_1m = get_trend(df['volume'].iloc[-1], df['volume'].iloc[-2])
             
             # 선물 데이터
             futures_data = self.ticker.analyze_premium_index(symbol)
@@ -174,12 +178,12 @@ class TradingAnalyzer:
                 
                 return body_ratio, strength
             
-            latest_candle = df.iloc[0]
+            latest_candle = df.iloc[-1]
             body_ratio, candle_strength = analyze_candle_strength(latest_candle)
             
             # 단기 고점/저점 갱신 여부 확인
-            new_high = bool(df['close'].iloc[0] > df['high'].rolling(window=5).max().shift(1).iloc[0])
-            new_low = bool(df['close'].iloc[0] < df['low'].rolling(window=5).min().shift(1).iloc[0])
+            new_high = bool(df['close'].iloc[-1] > df['high'].rolling(window=5).max().shift(1).iloc[-1])
+            new_low = bool(df['close'].iloc[-1] < df['low'].rolling(window=5).min().shift(1).iloc[-1])
             
             # MarketOverview 객체 생성
             result = MarketOverview(
