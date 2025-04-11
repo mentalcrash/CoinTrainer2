@@ -95,17 +95,17 @@ class TradingDecisionMaker:
             prompt = f"""
 당신은 초단타 암호화폐 트레이딩에 특화된 전문 스캘핑 트레이더입니다. 현재 {symbol}에 대한 매매 판단이 필요합니다.
 
-📌 전략 핵심:
+전략 핵심:
 - 1~5분 이내의 초단기 수익 기회를 포착하여 즉각 진입/청산합니다.
 - '관망'은 극히 예외적인 상황에만 허용되며, 가능한 한 적극적인 매수 또는 매도 판단을 내려야 합니다.
 - 지표 간 소폭의 충돌이 있어도 수익 가능성이 우선되는 방향으로 판단합니다.
 
-🔄 현재 포지션 상태:
+현재 포지션 상태:
 - 보유 수량: {asset_data.balance:.8f} {symbol}
 - 평균 매수가: {asset_data.avg_buy_price:,.0f} KRW
 - 평가 손익: {asset_data.profit_loss_rate:+.2f}%
 
-{"📈 [무포지션 전략 - 진입 판단 기준]:" if asset_data.balance == 0 else "📉 [보유 포지션 전략 - 청산 판단 기준]:"}
+{"[무포지션 전략 - 진입 판단 기준]:" if asset_data.balance == 0 else "[보유 포지션 전략 - 청산 판단 기준]:"}
 
 {"""
 - 주요 지표 3개 이상이 같은 방향을 가리키면 '즉시 진입'이 기본 전략입니다.
@@ -119,7 +119,7 @@ class TradingDecisionMaker:
 - RSI와 캔들 강도가 급변할 경우, 수익이 낮더라도 리스크 회피를 위해 청산합니다.
 """}
 
-🧠 시장 정보 분석:
+시장 정보 분석:
 [가격]
 - 현재가: {market_data.current_price:,.0f} KRW
 - MA (3/5/10/20분): {market_data.ma3:,.0f} / {market_data.ma5:,.0f} / {market_data.ma10:,.0f} / {market_data.ma20:,.0f}
@@ -147,11 +147,11 @@ class TradingDecisionMaker:
 - 펀딩비율: {market_data.funding_rate:.4f}%
 - 가격 안정성: {market_data.price_stability:.2f}
 
-📅 다음 판단 타이밍:
+다음 판단 타이밍:
 - 매매 결정 시 30초~1분 이내 즉시 재판단
 - 관망 시에도 반드시 3분 이내 재판단
 
-📉 리스크 기준:
+리스크 기준:
 - 손절: 최대 -1% 이내
 - 목표수익: 최소 +0.15% 이상
 - 손절 후 동일 방향 재진입은 1분간 제한
