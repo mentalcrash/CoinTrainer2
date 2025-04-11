@@ -1,9 +1,10 @@
 {
     "version": "0.2.0",
     "configurations": [
+        
         {
             "name": "Python: Current File",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
@@ -13,120 +14,6 @@
             },
             "envFile": "${workspaceFolder}/.env",
             "preLaunchTask": "install-dependencies"
-        },
-        {
-            "name": "Python: News Test",
-            "type": "python",
-            "request": "launch",
-            "program": "examples/news_test.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            },
-            "envFile": "${workspaceFolder}/.env",
-            "preLaunchTask": "install-dependencies"
-        },
-        {
-            "name": "Python: Ticker Test",
-            "type": "python",
-            "request": "launch",
-            "program": "examples/ticker_test.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            },
-            "envFile": "${workspaceFolder}/.env"
-        },
-        {
-            "name": "Python: Candle Test",
-            "type": "python",
-            "request": "launch",
-            "program": "examples/candle_test.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            },
-            "envFile": "${workspaceFolder}/.env"
-        },
-        {
-            "name": "뉴스 요약기 테스트 (개발)",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/examples/news_summarizer_test.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}",
-                "DEV_MODE": "true"
-            },
-            "envFile": "${workspaceFolder}/.env"
-        },
-        {
-            "name": "뉴스 요약기 테스트 (프로덕션)",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/examples/news_summarizer_test.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}",
-                "DEV_MODE": "false"
-            },
-            "envFile": "${workspaceFolder}/.env"
-        },
-        {
-            "name": "매매 실행기 테스트 (개발)",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/examples/trading_executor_test.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}",
-                "DEV_MODE": "true"
-            },
-            "envFile": "${workspaceFolder}/.env"
-        },
-        {
-            "name": "매매 실행기 테스트 (프로덕션)",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/examples/trading_executor_test.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}",
-                "DEV_MODE": "false"
-            },
-            "envFile": "${workspaceFolder}/.env"
-        },
-        {
-            "name": "Discord 알림 테스트",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/examples/discord_notifier_test.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            },
-            "envFile": "${workspaceFolder}/.env"
-        },
-        {
-            "name": "트레이딩 스케줄러 테스트 (개발)",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/examples/trading_scheduler_test.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}",
-                "DEV_MODE": "true"
-            },
-            "envFile": "${workspaceFolder}/.env"
         },
         {
             "name": "트레이딩 스케줄러 테스트 (프로덕션)",

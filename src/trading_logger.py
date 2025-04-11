@@ -1,7 +1,7 @@
 import os
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from src.utils.log_manager import LogManager, LogCategory
@@ -756,5 +756,166 @@ class TradingLogger:
             self.log_manager.log(
                 category=LogCategory.ERROR,
                 message=f"{symbol} 매매 기록 저장 실패: {str(e)}"
+            )
+            raise
+
+    def query_trades(
+        self,
+        conditions: Dict[str, Any],
+        sheet_name: str
+    ) -> List[Dict]:
+        """특정 조건에 맞는 거래 기록을 조회합니다.
+
+        Args:
+            conditions (Dict[str, Any]): 조회 조건 (예: {"Status": "wait", "Symbol": "BTC"})
+            sheet_name (str): 조회할 시트 이름 (기본값: 'trades')
+
+        Returns:
+            List[Dict]: 조건에 맞는 기록 목록
+        """
+        try:
+            # 시트의 모든 데이터 조회
+            range_name = f"{self.SHEETS[sheet_name]}!A:Z"
+            result = self.service.spreadsheets().values().get(
+                spreadsheetId=self.SPREADSHEET_ID,
+                range=range_name
+            ).execute()
+            
+            values = result.get('values', [])
+            if not values:
+                return []
+            
+            # 헤더 추출
+            headers = values[0]
+            
+            # 조건에 맞는 데이터 필터링
+            filtered_records = []
+            for row in values[1:]:
+                record = dict(zip(headers, row))
+                
+                # 모든 조건 확인
+                matches_all = True
+                for field, value in conditions.items():
+                    if field not in record or record[field] != str(value):
+                        matches_all = False
+                        break
+                
+                if matches_all:
+                    filtered_records.append(record)
+            
+            self.log_manager.log(
+                category=LogCategory.SYSTEM,
+                message=f"조건부 데이터 조회 완료: {len(filtered_records)}건",
+                data={"conditions": conditions}
+            )
+            
+            return filtered_records
+            
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ERROR,
+                message="조건부 데이터 조회 실패",
+                data={
+                    "conditions": conditions,
+                    "error": str(e)
+                }
+            )
+            raise 
+
+    def update_trade_record(
+        self,
+        conditions: Dict[str, Any],
+        updates: Dict[str, Any],
+        sheet_name: str
+    ) -> None:
+        """매매 기록을 수정합니다.
+
+        Args:
+            conditions (Dict[str, Any]): 수정할 레코드를 찾기 위한 조건 (예: {"ID": "trade_123"} 또는 {"Symbol": "BTC", "Order Status": "wait"})
+            updates (Dict[str, Any]): 수정할 필드와 값의 딕셔너리
+        """
+        try:
+            # 기록 조회
+            range_name = f"{self.SHEETS[sheet_name]}!A:Z"
+            result = self.service.spreadsheets().values().get(
+                spreadsheetId=self.SPREADSHEET_ID,
+                range=range_name
+            ).execute()
+            
+            values = result.get('values', [])
+            if not values:
+                raise ValueError("데이터가 없습니다.")
+            
+            # 헤더 추출
+            headers = values[0]
+            
+            # 조건에 맞는 레코드 찾기
+            target_rows = []
+            for i, row in enumerate(values[1:], 1):
+                record = dict(zip(headers, row))
+                
+                # 모든 조건 확인
+                matches_all = True
+                for field, value in conditions.items():
+                    if field not in record or record[field] != str(value):
+                        matches_all = False
+                        break
+                
+                if matches_all:
+                    target_rows.append(i)
+            
+            if not target_rows:
+                raise ValueError(f"조건에 맞는 기록을 찾을 수 없습니다: {conditions}")
+            
+            if len(target_rows) > 1:
+                self.log_manager.log(
+                    category=LogCategory.WARNING,
+                    message=f"여러 개의 레코드가 조건과 일치합니다: {len(target_rows)}개",
+                    data={"conditions": conditions}
+                )
+            
+            # 업데이트할 값 준비
+            updates_list = []
+            for target_row in target_rows:
+                for field, value in updates.items():
+                    try:
+                        col = headers.index(field)
+                        updates_list.append({
+                            'range': f"{self.SHEETS[sheet_name]}!{chr(65+col)}{target_row+1}",
+                            'values': [[str(value)]]
+                        })
+                    except ValueError:
+                        self.log_manager.log(
+                            category=LogCategory.WARNING,
+                            message=f"필드 '{field}'를 찾을 수 없습니다.",
+                            data={"conditions": conditions}
+                        )
+                        continue
+            
+            if not updates_list:
+                raise ValueError("업데이트할 유효한 필드가 없습니다.")
+            
+            # 업데이트 실행
+            body = {
+                'valueInputOption': 'USER_ENTERED',
+                'data': updates_list
+            }
+            
+            response = self.service.spreadsheets().values().batchUpdate(
+                spreadsheetId=self.SPREADSHEET_ID,
+                body=body
+            ).execute()
+
+            print(response)
+            
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ERROR,
+                message="매매 기록 수정 실패",
+                data={
+                    "conditions": conditions,
+                    "updates": updates,
+                    "error": str(e)
+                }
             )
             raise 
