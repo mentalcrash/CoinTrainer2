@@ -83,7 +83,7 @@ class TradingScheduler:
                 return
                 
             # 통합된 매매 기록
-            self.trading_logger.log_trade_record(
+            self.trading_logger.log_order_record(
                 symbol=symbol,
                 result=result
             )

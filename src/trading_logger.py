@@ -6,6 +6,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from src.utils.log_manager import LogManager, LogCategory
 from src.models.market_data import TradeExecutionResult
+import uuid
 
 class TradingLogger:
     """Google Sheets를 이용한 트레이딩 로거"""
@@ -38,7 +39,8 @@ class TradingLogger:
             'assets': 'Asset History',      # 자산 현황
             'performance': 'Performance',    # 성과 지표
             'decisions': 'Trading Decisions', # 매매 판단
-            'market': 'Market Data'         # 시장 데이터
+            'market': 'Market Data',         # 시장 데이터
+            'order_request': 'Order Request'  # 주문 기록
         }
         
         # 시트 초기화
@@ -144,7 +146,70 @@ class TradingLogger:
             'Performance': [
                 'Timestamp', 'Symbol', 'Daily ROI', 'Weekly ROI',
                 'Monthly ROI', 'Total Profit Loss', 'Win Rate'
-            ]
+            ],
+            'Order Request': [
+                'ID',                              # 고유 ID
+                     'Timestamp',                       # 타임스탬프
+                     'Symbol',                          # 심볼
+                     
+                     # Order Result 필드
+                     'Order UUID',                      # 주문 ID
+                     'Order Side',                      # 주문 방향
+                     'Order Type',                      # 주문 타입
+                     'Order State',                     # 주문 상태
+                     'Market',                          # 마켓 정보
+                     'Created At',                      # 주문 생성 시각
+                     'Trades Count',                    # 거래 횟수
+                     'Paid Fee',                        # 지불된 수수료
+                     'Executed Volume',                 # 체결된 수량
+                     'Order Price',                     # 주문 가격
+                     'Reserved Fee',                    # 예약된 수수료
+                     'Remaining Fee',                   # 남은 수수료
+                     'Locked Amount',                   # 잠긴 금액/수량
+                     'Order Volume',                    # 주문 수량
+                     'Remaining Volume',                # 남은 수량
+                     
+                     # TradingDecision 필드
+                     'Action',                          # 매매 행동
+                     'Entry Price',                     # 진입 가격
+                     'Take Profit',                     # 목표가
+                     'Stop Loss',                       # 손절가
+                     'Confidence',                      # 확신도
+                     'Risk Level',                      # 리스크 레벨
+                     'Decision Reason',                 # 판단 근거
+                     'Next Decision Interval',          # 다음 판단 시간
+                     'Next Decision Reason',            # 다음 판단 이유
+                     
+                     # Market Data 필드
+                     'Current Price',                   # 현재가
+                     'MA1',                            # 1분 이동평균
+                     'MA3',                            # 3분 이동평균
+                     'MA5',                            # 5분 이동평균
+                     'RSI 1m',                         # 1분 RSI
+                     'RSI 3m',                         # 3분 RSI
+                     'Volatility 3m',                  # 3분 변동성
+                     'Volatility 5m',                  # 5분 변동성
+                     'Price Trend 1m',                 # 1분 가격 추세
+                     'Volume Trend 1m',                # 1분 거래량 추세
+                     'VWAP 3m',                        # 3분 VWAP
+                     'BB Width',                       # 볼린저 밴드 폭
+                     'Order Book Ratio',               # 호가 비율
+                     'Spread',                         # 스프레드
+                     'Premium Rate',                   # 프리미엄
+                     'Funding Rate',                   # 펀딩비율
+                     'Price Stability',                # 가격 안정성
+                     
+                     # Signals 필드
+                     'Price Signal',                   # 가격 신호
+                     'Momentum Signal',                # 모멘텀 신호
+                     'Volume Signal',                  # 거래량 신호
+                     'Orderbook Signal',               # 호가창 신호
+                     'Futures Signal',                 # 선물 신호
+                     'Market State',                   # 시장 상태
+                     'Overall Signal',                 # 종합 신호
+                     'Signal Strength',                # 신호 강도
+                     'Entry Timing'                    # 진입 타이밍
+                    ]
         }
         
         if sheet_name in headers:
@@ -684,6 +749,106 @@ class TradingLogger:
                 data={"error": str(e)}
             )
             return "상태 분석 불가"
+
+    def log_order_record(self, symbol: str, result: TradeExecutionResult):
+        """주문 기록을 저장합니다."""
+        try:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            decision = result.decision_result.decision
+            analysis = result.decision_result.analysis
+            order_result = result.order_result
+            market_data = analysis.market_data
+            signals = analysis.signals
+            
+            def safe_str(value) -> str:
+                """None이나 빈 값을 안전하게 처리합니다."""
+                return str(value) if value is not None else ""
+            
+            values = [[
+                str(uuid.uuid4()),                      # ID
+                now,                                    # Timestamp
+                symbol,                                 # Symbol
+                
+                # Order Result
+                order_result.uuid if order_result else "",                    # Order UUID
+                order_result.side if order_result else "",                    # Order Side
+                order_result.ord_type if order_result else "",               # Order Type
+                order_result.state if order_result else "wait",              # Order State
+                order_result.market if order_result else "",                 # Market
+                order_result.created_at if order_result else "",             # Created At
+                safe_str(order_result.trades_count if order_result else 0),  # Trades Count
+                safe_str(order_result.paid_fee if order_result else 0),      # Paid Fee
+                safe_str(order_result.executed_volume if order_result else ""), # Executed Volume
+                safe_str(order_result.price if order_result else ""),        # Order Price
+                safe_str(order_result.reserved_fee if order_result else ""), # Reserved Fee
+                safe_str(order_result.remaining_fee if order_result else ""), # Remaining Fee
+                safe_str(order_result.locked if order_result else ""),       # Locked Amount
+                safe_str(order_result.volume if order_result else ""),       # Order Volume
+                safe_str(order_result.remaining_volume if order_result else ""), # Remaining Volume
+
+                # TradingDecision 데이터
+                decision.action,                        # Action
+                safe_str(decision.entry_price),         # Entry Price
+                safe_str(decision.take_profit),         # Take Profit
+                safe_str(decision.stop_loss),           # Stop Loss
+                safe_str(decision.confidence),          # Confidence
+                decision.risk_level,                    # Risk Level
+                decision.reason,                        # Decision Reason
+                
+                safe_str(decision.next_decision.interval_minutes if decision.next_decision else ""), # Next Decision Interval
+                decision.next_decision.reason if decision.next_decision else "",                     # Next Decision Reason
+                
+                # Market Data
+                safe_str(market_data.current_price),    # Current Price
+                safe_str(market_data.ma1),              # MA1
+                safe_str(market_data.ma3),              # MA3
+                safe_str(market_data.ma5),              # MA5
+                safe_str(market_data.rsi_1),            # RSI 1m
+                safe_str(market_data.rsi_3),            # RSI 3m
+                safe_str(market_data.volatility_3m),    # Volatility 3m
+                safe_str(market_data.volatility_5m),    # Volatility 5m
+                market_data.price_trend_1m,             # Price Trend 1m
+                market_data.volume_trend_1m,            # Volume Trend 1m
+                safe_str(market_data.vwap_3m),          # VWAP 3m
+                safe_str(market_data.bb_width),         # BB Width
+                safe_str(market_data.order_book_ratio), # Order Book Ratio
+                safe_str(market_data.spread),           # Spread
+                safe_str(market_data.premium_rate),     # Premium Rate
+                safe_str(market_data.funding_rate),     # Funding Rate
+                safe_str(market_data.price_stability),  # Price Stability
+                
+                # Signals
+                signals.price_signal if signals else "",      # Price Signal
+                signals.momentum_signal if signals else "",   # Momentum Signal
+                signals.volume_signal if signals else "",     # Volume Signal
+                signals.orderbook_signal if signals else "",  # Orderbook Signal
+                signals.futures_signal if signals else "",    # Futures Signal
+                signals.market_state if signals else "",      # Market State
+                signals.overall_signal if signals else "",    # Overall Signal
+                safe_str(signals.signal_strength if signals else ""), # Signal Strength
+                signals.entry_timing if signals else "",      # Entry Timing
+            ]]
+            
+            self._append_values(self.SHEETS['order_request'], values)
+            
+            self.log_manager.log(
+                category=LogCategory.TRADING,
+                message=f"주문 기록 저장 완료: {result.symbol}",
+                data={
+                    "symbol": result.symbol,
+                    "action": decision.action,
+                    "entry_price": decision.entry_price,
+                    "order_status": order_result.state if order_result else "wait"
+                }
+            )
+            
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ERROR,
+                message=f"주문 기록 저장 실패: {str(e)}",
+                data={"symbol": result.symbol if result else "Unknown"}
+            )
+            raise
 
     def log_trade_record(
         self,
