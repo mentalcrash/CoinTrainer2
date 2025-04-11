@@ -99,15 +99,10 @@ class DiscordNotifier:
             message = f"""
 {action_emoji} **{symbol} 주문 실행 결과** ({timestamp})
 ```ini
-[주문 상태]
-실행 성공 여부: {result.success}
-주문 상태: {safe_str(order_info.state if order_info else "미체결")}
-에러 메시지: {safe_str(result.error)}
-
 [주문 정보]
 주문 가격: {safe_float(order_info.price if order_info else None)} KRW
 주문 수량: {safe_str(order_info.volume if order_info else "N/A")}
-주문 유형: {safe_str(order_info.type if order_info else "N/A")}
+주문 유형: {safe_str(order_info.side if order_info else "N/A")}
 
 [매매 판단]
 신뢰도: {safe_percent(decision.confidence)}
