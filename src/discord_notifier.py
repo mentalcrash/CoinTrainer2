@@ -106,7 +106,6 @@ class DiscordNotifier:
             reason = safe_str(decision.reason)
             next_interval = safe_str(decision.next_decision.interval_minutes if decision.next_decision else "N/A")
             volume = safe_str(order_info.volume if order_info else "N/A")
-            profit_rate = safe_percent(order_info.profit_rate if order_info else "N/A") 
             
             # 메시지 생성
             message = f"""
@@ -114,7 +113,6 @@ class DiscordNotifier:
 • 주문가: `{price}` | 수량: `{volume}`
 • 목표가: `{take_profit}` | 손절가: `{stop_loss}`
 • 확신도: `{confidence}` | 리스크: `{risk_level}`
-• 수익률: `{profit_rate}`
 • 근거: `{reason}`"""
             
             return message
