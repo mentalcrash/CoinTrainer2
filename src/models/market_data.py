@@ -289,9 +289,6 @@ class OrderResult:
     volume: Optional[float] = None          # 주문 수량
     remaining_volume: Optional[float] = None # 남은 수량
 
-    # 에러 발생 시 사용되는 필드
-    error: Optional[str] = None     # 에러 메시지
-
     @classmethod
     def from_dict(cls, data: Dict) -> 'OrderResult':
         """딕셔너리로부터 OrderResult 객체 생성

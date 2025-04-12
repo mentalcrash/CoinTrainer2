@@ -11,93 +11,7 @@ from urllib.parse import urlencode
 from typing import Dict, Optional, Union, Literal, List
 from src.utils.log_manager import LogManager, LogCategory
 from src.models.market_data import OrderResult, OrderSideType, OrderType, OrderInfo
-from dataclasses import dataclass
-
-@dataclass
-class Trade:
-    """주문 체결 정보"""
-    market: str           # 마켓의 유일 키
-    uuid: str            # 체결의 고유 아이디
-    price: str           # 체결 가격
-    volume: str          # 체결 양
-    funds: str           # 체결된 총 가격
-    side: str            # 체결 종류
-    created_at: str      # 체결 시각
-
-    @classmethod
-    def from_dict(cls, data: dict) -> Optional['Trade']:
-        """딕셔너리에서 Trade 객체 생성"""
-        try:
-            return cls(
-                market=data.get('market', ''),
-                uuid=data.get('uuid', ''),
-                price=data.get('price', '0'),
-                volume=data.get('volume', '0'),
-                funds=data.get('funds', '0'),
-                side=data.get('side', ''),
-                created_at=data.get('created_at', '')
-            )
-        except Exception:
-            return None
-
-@dataclass
-class OrderResponse:
-    """주문 조회 응답 데이터"""
-    uuid: str                     # 주문의 고유 아이디
-    side: str                     # 주문 종류
-    ord_type: str                 # 주문 방식
-    price: str                    # 주문 당시 화폐 가격
-    state: str                    # 주문 상태
-    market: str                   # 마켓의 유일키
-    created_at: str               # 주문 생성 시간
-    volume: str                   # 사용자가 입력한 주문 양
-    remaining_volume: str         # 체결 후 남은 주문 양
-    reserved_fee: str             # 수수료로 예약된 비용
-    remaining_fee: str            # 남은 수수료
-    paid_fee: str                # 사용된 수수료
-    locked: str                   # 거래에 사용중인 비용
-    executed_volume: str          # 체결된 양
-    trades_count: int             # 해당 주문에 걸린 체결 수
-    trades: List[Trade]           # 체결 목록
-
-    @classmethod
-    def from_dict(cls, data: dict) -> Optional['OrderResponse']:
-        """딕셔너리에서 OrderResponse 객체 생성
-        
-        Args:
-            data (dict): API 응답 데이터
-            
-        Returns:
-            Optional[OrderResponse]: 변환된 OrderResponse 객체 또는 None
-        """
-        try:
-            # 체결 목록 변환
-            trades = [
-                Trade.from_dict(trade_data) 
-                for trade_data in data.get('trades', [])
-                if trade_data is not None
-            ]
-            
-            return cls(
-                uuid=data.get('uuid', ''),
-                side=data.get('side', ''),
-                ord_type=data.get('ord_type', ''),
-                price=data.get('price', '0'),
-                state=data.get('state', ''),
-                market=data.get('market', ''),
-                created_at=data.get('created_at', ''),
-                volume=data.get('volume', '0'),
-                remaining_volume=data.get('remaining_volume', '0'),
-                reserved_fee=data.get('reserved_fee', '0'),
-                remaining_fee=data.get('remaining_fee', '0'),
-                paid_fee=data.get('paid_fee', '0'),
-                locked=data.get('locked', '0'),
-                executed_volume=data.get('executed_volume', '0'),
-                trades_count=int(data.get('trades_count', 0)),
-                trades=trades
-            )
-        except Exception:
-            return None
+from src.models.order import Trade
 
 class TradingOrder:
     """주문 처리를 담당하는 클래스"""
@@ -248,7 +162,7 @@ class TradingOrder:
                 )
             raise
             
-    def get_order(self, order_id: str) -> OrderResponse:
+    def get_order(self, order_id: str) -> OrderResult:
         """개별 주문 조회
         
         Args:
@@ -256,7 +170,7 @@ class TradingOrder:
             order_id (str): 주문 ID
             
         Returns:
-            Optional[OrderResponse]: 주문 정보를 담은 OrderResponse 객체 또는 None
+            Optional[OrderResult]: 주문 정보를 담은 OrderResult 객체 또는 None
         """
         endpoint = f"{self.base_url}/v1/order"
         params = {
@@ -281,7 +195,7 @@ class TradingOrder:
             response = requests.get(endpoint, params=params, headers=headers)
             response.raise_for_status()
             data = response.json()
-            order_response = OrderResponse.from_dict(data)
+            order_result = OrderResult.from_dict(data)
                 
             if self.log_manager:
                 self.log_manager.log(
@@ -290,10 +204,10 @@ class TradingOrder:
                     data={
                         "order_id": order_id,
                         "response_status": response.status_code,
-                        "order_response": order_response
+                        "order_result": order_result
                     }
                 )
-            return order_response            
+            return order_result
         except requests.exceptions.RequestException as e:
             if self.log_manager:
                 self.log_manager.log(
