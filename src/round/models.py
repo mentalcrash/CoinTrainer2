@@ -181,4 +181,12 @@ class GPTEntryDecision:
     current_price: float        # 현재가
     target_price: float         # 목표가
     stop_loss_price: float      # 손절가
+    timestamp: datetime         # 결정 시간
+
+class GPTExitDecision:
+    """GPT의 매도 청산 결정 데이터"""
+    should_exit: bool           # 매도 청산 여부
+    reasons: List[str]          # 판단 근거
+    current_price: float        # 현재가
+    profit_loss_rate: float     # 현재 수익률 (%)
     timestamp: datetime         # 결정 시간 

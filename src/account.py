@@ -30,8 +30,8 @@ class Account:
         jwt_token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         return f'Bearer {jwt_token}'
 
-    def get_balance(self) -> Optional[List[Dict]]:
-        """계정 잔고 조회
+    def get_all_balances(self) -> Optional[List[Dict]]:
+        """모든 계정 잔고를 조회합니다.
             
         Returns:
             Optional[List[Dict]]: 
@@ -48,7 +48,7 @@ class Account:
         if self.log_manager:
             self.log_manager.log(
                 category=LogCategory.API,
-                message="빗썸 API: 계정 잔고 조회 요청"
+                message="빗썸 API: 전체 계정 잔고 조회 요청"
             )
         
         headers = {
@@ -73,7 +73,7 @@ class Account:
                         
                         self.log_manager.log(
                             category=LogCategory.API,
-                            message="빗썸 API: 계정 잔고 조회 성공",
+                            message="빗썸 API: 전체 계정 잔고 조회 성공",
                             data={
                                 "request_url": f"{self.base_url}/v1/accounts",
                                 "response_status": response.status_code
@@ -134,7 +134,66 @@ class Account:
                 )
             print(error_msg)
             return None
+
+    def get_balance(self, symbol: str) -> Optional[Dict]:
+        """특정 심볼의 잔고를 조회합니다.
+        
+        Args:
+            symbol (str): 조회할 화폐 심볼 (예: BTC, ETH)
             
+        Returns:
+            Optional[Dict]: 
+                - 성공시: {
+                    'currency': str,        # 화폐 코드
+                    'balance': float,       # 주문 가능 수량
+                    'locked': float,        # 주문중 묶여있는 수량
+                    'avg_buy_price': float, # 매수평균가
+                    'avg_buy_price_modified': bool,  # 매수평균가 수정 여부
+                    'unit_currency': str    # 평단가 기준 화폐
+                }
+                - 오류 발생시: None
+        """
+        try:
+            # 전체 잔고 조회
+            all_balances = self.get_all_balances()
+            if not all_balances:
+                return None
+            
+            # 해당 심볼의 잔고 찾기
+            for balance in all_balances:
+                if balance['currency'] == symbol:
+                    if self.log_manager:
+                        self.log_manager.log(
+                            category=LogCategory.API,
+                            message=f"빗썸 API: {symbol} 잔고 조회 성공",
+                            data={
+                                "symbol": symbol,
+                                "balance": balance
+                            }
+                        )
+                    return balance
+            
+            # 해당 심볼의 잔고가 없는 경우
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.API,
+                    message=f"빗썸 API: {symbol} 잔고 없음",
+                    data={"symbol": symbol}
+                )
+            return None
+            
+        except Exception as e:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.API,
+                    message=f"빗썸 API: {symbol} 잔고 조회 실패",
+                    data={
+                        "symbol": symbol,
+                        "error": str(e)
+                    }
+                )
+            return None
+
     def _format_balance_item(self, data: Dict) -> Dict:
         """잔고 데이터 포맷팅
         

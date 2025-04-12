@@ -35,19 +35,22 @@ class LogCategory:
     ERROR = "ERROR"          # 오류
     API = "API"              # API 호출
     TRADE = "TRADE"          # 거래 실행
+    TRADING = "TRADING"      # 거래 관련
     MARKET = "MARKET"        # 시장 데이터
     MONITOR = "MONITOR"      # 주문 모니터링
     MONITOR_STATE = "MONITOR_STATE"    # 모니터링 상태 변경
     MONITOR_ERROR = "MONITOR_ERROR"    # 모니터링 오류
     
     # 라운드 관련 카테고리
-    ROUND = 'round'                    # 일반적인 라운드 관련 로그
-    ROUND_STATE = 'round_state'        # 라운드 상태 변경
-    ROUND_ENTRY = 'round_entry'        # 진입 관련 (시그널, 주문, 체결)
-    ROUND_EXIT = 'round_exit'          # 청산 관련 (시그널, 주문, 체결)
-    ROUND_METRICS = 'round_metrics'    # 성과 지표 관련
-    ROUND_WARNING = 'round_warning'    # 라운드 관련 경고
-    ROUND_ERROR = 'round_error'        # 라운드 관련 오류
+    ROUND = 'ROUND'                    # 일반적인 라운드 관련 로그
+    ROUND_STATE = 'ROUND_STATE'        # 라운드 상태 변경
+    ROUND_ENTRY = 'ROUND_ENTRY'        # 진입 관련 (시그널, 주문, 체결)
+    ROUND_EXIT = 'ROUND_EXIT'          # 청산 관련 (시그널, 주문, 체결)
+    ROUND_METRICS = 'ROUND_METRICS'    # 성과 지표 관련
+    ROUND_WARNING = 'ROUND_WARNING'    # 라운드 관련 경고
+    ROUND_ERROR = 'ROUND_ERROR'        # 라운드 관련 오류
+    
+    ASSET = 'ASSET'                    # 자산 관련
 
 class LogManager:
     """로깅 관리자"""

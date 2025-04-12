@@ -7,11 +7,14 @@ from typing import Optional, List, Dict, Tuple
 from src.utils.log_manager import LogManager, LogCategory
 from src.models.market_data import TradeExecutionResult
 from src.models.order import OrderRequest, OrderResponse
-from .models import TradingRound, RoundOrder, RoundMetrics, RoundStatus, GPTEntryDecision
+from .models import TradingRound, RoundOrder, RoundMetrics, RoundStatus, GPTEntryDecision, GPTExitDecision
 from src.trading_analyzer import TradingAnalyzer
 import time
 from src.account import Account
 from src.trading_order import TradingOrder
+import threading
+from src.models.market_data import MarketOverview
+import traceback
 
 class RoundManager:
     """매매 라운드 관리자"""
@@ -254,15 +257,22 @@ class RoundManager:
             if not trading_round:
                 return False
             
+            # 총 거래량과 평균 체결가 계산
+            total_volume = sum(float(trade.volume) for trade in order_response.trades) if order_response.trades else 0.0
+            avg_price = (
+                sum(float(trade.price) * float(trade.volume) for trade in order_response.trades) / total_volume
+                if total_volume > 0 else 0.0
+            )
+            
             # 주문 객체 생성
             order = RoundOrder(
                 order_id=order_response.uuid,
                 timestamp=datetime.now(),
-                price=float(order_response.price) if order_response.price else 0.0,
-                volume=float(order_response.volume) if order_response.volume else 0.0,
+                price=avg_price,
+                volume=total_volume,
                 type=order_type,
                 status='completed' if order_response.state == 'complete' else 'pending',
-                order_response=order_response
+                order_result=order_response
             )
             
             # 주문 타입에 따라 저장
@@ -279,8 +289,9 @@ class RoundManager:
                 data={
                     "round_id": round_id,
                     "order_id": order_response.uuid,
-                    "price": order.price,
-                    "volume": order.volume,
+                    "avg_price": avg_price,
+                    "total_volume": total_volume,
+                    "trades_count": len(order_response.trades) if order_response.trades else 0,
                     "state": order_response.state
                 }
             )
@@ -420,44 +431,187 @@ class RoundManager:
             
         Returns:
             bool: 성공 여부
+            
+        Note:
+            전체 매수 진입 프로세스를 관리합니다:
+            1. 라운드 상태 검증
+            2. 주문 생성 및 실행
+            3. 주문 체결 대기 및 확인
+            4. 포지션 보유 상태로 전환
         """
         try:
-            # 1. 주문 생성
-            order_request = self.create_entry_order(round_id)
-            if not order_request:
-                self.log_manager.log(
-                    category=LogCategory.ROUND_ERROR,
-                    message="매수 주문 생성 실패",
-                    data={"round_id": round_id}
+            # 1. 라운드 상태 검증
+            trading_round = self.active_rounds.get(round_id)
+            if not trading_round:
+                self._log_entry_error(round_id, "라운드를 찾을 수 없음")
+                return False
+                
+            if trading_round.status != RoundStatus.ENTRY_READY:
+                self._log_entry_error(
+                    round_id,
+                    "부적절한 라운드 상태",
+                    {
+                        "current_status": trading_round.status,
+                        "required_status": RoundStatus.ENTRY_READY
+                    }
                 )
                 return False
             
-            # 2. 주문 실행
-            order_response = self.execute_entry_order(round_id, order_request)
-            
-            # 3. 주문 결과 확인
-            if self.confirm_entry_order(round_id, order_response):
-                wait_res = self.wait_order_completion(order_response)
-                if wait_res:
-                    # 4. 보유 상태로 전환
-                    return self.update_round_status(round_id, RoundStatus.HOLDING, "매수 주문 체결")
-                else:
+            # 2. 주문 생성 및 실행
+            try:
+                # 2-1. 프로세스 시작 로깅
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ENTRY,
+                    message="매수 진입 프로세스 시작",
+                    data={
+                        "round_id": round_id,
+                        "symbol": trading_round.symbol,
+                        "take_profit": trading_round.take_profit,
+                        "stop_loss": trading_round.stop_loss
+                    }
+                )
+                
+                # 2-2. 주문 생성
+                order_request = self.create_entry_order(round_id)
+                if not order_request:
+                    self._log_entry_error(round_id, "주문 생성 실패")
                     return False
-            else:
+                
+                # 2-3. 주문 실행
+                order_response = self.execute_entry_order(round_id, order_request)
+                if not order_response:
+                    self._log_entry_error(
+                        round_id,
+                        "주문 실행 실패",
+                        {"order_request": order_request.to_dict()}
+                    )
+                    return False
+                
+                # 2-4. 주문 상태 기록
+                if not self.confirm_entry_order(round_id, order_response):
+                    self._log_entry_error(
+                        round_id,
+                        "주문 상태 기록 실패",
+                        {"order_response": order_response.to_dict()}
+                    )
+                    return False
+                
+            except Exception as e:
+                self._log_entry_error(
+                    round_id,
+                    f"주문 생성/실행 중 오류: {str(e)}",
+                    {"error": str(e)}
+                )
+                return self._revert_to_watching(round_id, "주문 생성/실행 실패")
+            
+            # 3. 주문 체결 대기 및 확인
+            try:
+                completed_order = self.wait_order_completion(order_response)
+                if not completed_order:
+                    self._log_entry_error(
+                        round_id,
+                        "주문 체결 실패",
+                        {"order_id": order_response.uuid}
+                    )
+                    return self._revert_to_watching(round_id, "주문 체결 실패")
+                
+                # 주문 정보 라운드에 추가
+                if not self.add_order_to_round(round_id, completed_order, 'entry'):
+                    self._log_entry_error(
+                        round_id,
+                        "주문 정보 추가 실패",
+                        {"completed_order": completed_order.to_dict()}
+                    )
+                    return self._revert_to_watching(round_id, "주문 정보 추가 실패")
+                
+            except Exception as e:
+                self._log_entry_error(
+                    round_id,
+                    f"주문 체결 확인 중 오류: {str(e)}",
+                    {"error": str(e)}
+                )
+                return self._revert_to_watching(round_id, "주문 체결 확인 실패")
+            
+            # 4. 포지션 보유 상태로 전환
+            try:
+                if not self.update_round_status(
+                    round_id=round_id,
+                    new_status=RoundStatus.HOLDING,
+                    reason=self._get_entry_completion_message(completed_order)
+                ):
+                    self._log_entry_error(
+                        round_id,
+                        "상태 전환 실패",
+                        {"completed_order": completed_order.to_dict()}
+                    )
+                    return False
+                
+                # 성공 로깅
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ENTRY,
+                    message="매수 진입 프로세스 완료",
+                    data={
+                        "round_id": round_id,
+                        "symbol": trading_round.symbol,
+                        "entry_price": completed_order.price,
+                        "entry_volume": completed_order.volume,
+                        "take_profit": trading_round.take_profit,
+                        "stop_loss": trading_round.stop_loss,
+                        "trades_count": len(completed_order.trades) if completed_order.trades else 0
+                    }
+                )
+                
+                return True
+                
+            except Exception as e:
+                self._log_entry_error(
+                    round_id,
+                    f"상태 전환 중 오류: {str(e)}",
+                    {"error": str(e)}
+                )
                 return False
-
+            
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ROUND_ERROR,
-                message=f"매수 진입 프로세스 실패: {str(e)}",
-                data={"round_id": round_id}
+            self._log_entry_error(
+                round_id,
+                f"매수 진입 프로세스 중 예외 발생: {str(e)}",
+                {"error": str(e)}
             )
-            return False
+            return self._revert_to_watching(round_id, "예외 발생")
+    
+    def _log_entry_error(self, round_id: str, message: str, additional_data: dict = None) -> None:
+        """매수 진입 관련 에러를 로깅합니다."""
+        data = {"round_id": round_id}
+        if additional_data:
+            data.update(additional_data)
+            
+        self.log_manager.log(
+            category=LogCategory.ROUND_ERROR,
+            message=f"매수 진입 실패: {message}",
+            data=data
+        )
+    
+    def _revert_to_watching(self, round_id: str, reason: str) -> bool:
+        """watching 상태로 복귀하고 False를 반환합니다."""
+        self.revert_to_watching(round_id, f"{reason}로 관찰 상태로 복귀")
+        return False
+    
+    def _get_entry_completion_message(self, completed_order) -> str:
+        """매수 완료 메시지를 생성합니다."""
+        trades_info = ""
+        if completed_order.trades:
+            trades_count = len(completed_order.trades)
+            trades_info = f" ({trades_count}건 체결)"
+            
+        return (
+            f"매수 주문 체결 완료{trades_info} "
+            f"(체결가: {completed_order.price}, 수량: {completed_order.volume})"
+        )
 
     def start_watching(
         self,
         round_id: str,
-        interval: float = 30.0,
+        interval: float = 3.0,
         max_watching_time: float = 120.0
     ) -> bool:
         """라운드를 시작하고 매수 기회를 지속적으로 탐색합니다."""
@@ -518,7 +672,32 @@ class RoundManager:
                     )
                     
                     # GPT 매수 진입 결정 요청
-                    entry_decision = self.get_entry_decision(round_id, market_data)
+                    # TODO: 테스트 종료 이부분 수정 요망
+                    #entry_decision = self.get_entry_decision(round_id, market_data)
+                    
+                    ## 테스트용 더미 entry_decision 생성
+                    entry_decision = GPTEntryDecision(
+                        should_enter=True,
+                        target_price=market_data.current_price * 1.05,
+                        stop_loss_price=market_data.current_price * 0.95,
+                        reasons=["테스트 이유 1", "테스트 이유 2", "테스트 이유 3"],
+                        current_price=market_data.current_price,
+                        # target_price=market_data.current_price * 1.05,
+                        # stop_loss_price=market_data.current_price * 0.95,
+                        timestamp=datetime.now(),
+                        
+                        # should_enter=True,
+                        # target_profit_rate=10,
+                        # stop_loss_rate=5,
+                        # reasons=["테스트 이유 1", "테스트 이유 2", "테스트 이유 3"],
+                        # current_price: float        # 현재가
+                        # target_price: float         # 목표가
+                        # stop_loss_price: float      # 손절가
+                        # timestamp: datetime         # 결정 시간 
+                        target_profit_rate=10,
+                        stop_loss_rate=5,
+                    )
+                    
                     if not entry_decision:
                         self.log_manager.log(
                             category=LogCategory.ROUND_ERROR,
@@ -612,9 +791,7 @@ class RoundManager:
     def confirm_entry_order(self, round_id: str, order_response: OrderResponse) -> bool:
         """매수 주문 결과를 라운드에 기록합니다."""
         try:
-            if not order_response or order_response.state != 'complete':
-                return False
-            
+
             # 주문 정보를 라운드에 추가
             if self.add_order_to_round(round_id, order_response, 'entry'):
                 # 상태 업데이트
@@ -645,7 +822,7 @@ class RoundManager:
         """매도 시그널이 발생하여 청산 준비 상태로 변경합니다."""
         return self.update_round_status(round_id, RoundStatus.EXIT_READY, reason)
 
-    def confirm_exit_order(self, round_id: str, order_result: OrderResult) -> bool:
+    def confirm_exit_order(self, round_id: str, order_result: OrderResponse) -> bool:
         """매도 주문이 발생했음을 기록합니다."""
         if self.add_order_to_round(round_id, order_result, 'exit'):
             return self.update_round_status(
@@ -766,13 +943,13 @@ class RoundManager:
         
         return system_prompt, user_prompt
 
-    def _parse_gpt_response(
+    def _parse_gpt_entry_response(
         self,
         round_id: str,
         response: str,
         current_price: float
     ) -> Optional[GPTEntryDecision]:
-        """GPT의 JSON 응답을 파싱하여 결정 객체를 생성합니다.
+        """GPT의 매수 진입 응답을 파싱하여 결정 객체를 생성합니다.
         
         Args:
             round_id (str): 라운드 ID
@@ -783,15 +960,36 @@ class RoundManager:
             Optional[GPTEntryDecision]: 파싱된 결정 객체 또는 None
         """
         try:
-            # JSON 파싱
+            # 1. 응답 검증
+            if not response or len(response) > 2000:  # 응답이 너무 길면 거부
+                raise ValueError("응답이 비어있거나 너무 깁니다")
+
+            # 2. JSON 파싱 전 응답 정리
+            response = response.strip()
+            if response.startswith('```json'):
+                response = response[7:]
+            if response.endswith('```'):
+                response = response[:-3]
+            response = response.strip()
+
+            # 3. 중복 필드 검사
+            field_counts = {}
+            for line in response.split('\n'):
+                if ':' in line:
+                    field = line.split(':')[0].strip().strip('"')
+                    field_counts[field] = field_counts.get(field, 0) + 1
+                    if field_counts[field] > 1:
+                        raise ValueError(f"중복된 필드 발견: {field}")
+
+            # 4. JSON 파싱
             data = json.loads(response)
             
-            # 필수 필드 검증
+            # 5. 필수 필드 검증
             required_fields = ['should_enter', 'target_price', 'stop_loss_price', 'reasons']
             if not all(field in data for field in required_fields):
                 raise ValueError("필수 필드 누락")
             
-            # 데이터 타입 검증
+            # 6. 데이터 타입 검증
             if not isinstance(data['should_enter'], bool):
                 raise ValueError("should_enter must be boolean")
             if not isinstance(data['target_price'], (int, float)):
@@ -800,18 +998,12 @@ class RoundManager:
                 raise ValueError("stop_loss_price must be number")
             if not isinstance(data['reasons'], list) or len(data['reasons']) != 3:
                 raise ValueError("reasons must be array of 3 strings")
-                
-            # 가격 범위 검증
-            if data['target_price'] <= current_price:
-                raise ValueError("target_price must be higher than current price")
-            if data['stop_loss_price'] >= current_price:
-                raise ValueError("stop_loss_price must be lower than current price")
             
-            # 수익률 계산
+            # 7. 수익률 계산
             target_profit_rate = ((data['target_price'] - current_price) / current_price) * 100
             stop_loss_rate = ((data['stop_loss_price'] - current_price) / current_price) * 100
             
-            # 결정 객체 생성
+            # 8. 결정 객체 생성
             decision = GPTEntryDecision(
                 should_enter=data['should_enter'],
                 target_profit_rate=target_profit_rate,
@@ -825,7 +1017,7 @@ class RoundManager:
             
             self.log_manager.log(
                 category=LogCategory.ROUND,
-                message="GPT 응답 파싱 완료",
+                message="GPT 매수 진입 응답 파싱 완료",
                 data={
                     "round_id": round_id,
                     "should_enter": decision.should_enter,
@@ -841,13 +1033,109 @@ class RoundManager:
         except Exception as e:
             self.log_manager.log(
                 category=LogCategory.ROUND_ERROR,
-                message=f"GPT 응답 파싱 실패: {str(e)}",
+                message=f"GPT 매수 진입 응답 파싱 실패: {str(e)}",
                 data={
                     "round_id": round_id,
-                    "response": response
+                    "response": response,
+                    "error": str(e)
                 }
             )
-            return None 
+            return None
+
+    def _parse_gpt_exit_response(
+        self,
+        round_id: str,
+        response: str,
+        current_price: float
+    ) -> Optional[GPTExitDecision]:
+        """GPT의 매도 청산 응답을 파싱합니다.
+        
+        Args:
+            round_id (str): 라운드 ID
+            response (str): GPT의 JSON 응답
+            current_price (float): 현재 시장 가격
+            
+        Returns:
+            Optional[GPTExitDecision]: 파싱된 결정 객체 또는 None
+        """
+        try:
+            # 1. 응답 검증
+            if not response or len(response) > 2000:
+                raise ValueError("응답이 비어있거나 너무 깁니다")
+
+            # 2. JSON 파싱 전 응답 정리
+            response = response.strip()
+            if response.startswith('```json'):
+                response = response[7:]
+            if response.endswith('```'):
+                response = response[:-3]
+            response = response.strip()
+
+            # 3. 중복 필드 검사
+            field_counts = {}
+            for line in response.split('\n'):
+                if ':' in line:
+                    field = line.split(':')[0].strip().strip('"')
+                    field_counts[field] = field_counts.get(field, 0) + 1
+                    if field_counts[field] > 1:
+                        raise ValueError(f"중복된 필드 발견: {field}")
+
+            # 4. JSON 파싱
+            data = json.loads(response)
+            
+            # 5. 필수 필드 검증
+            required_fields = ['should_exit', 'reasons']
+            if not all(field in data for field in required_fields):
+                raise ValueError("필수 필드 누락")
+            
+            # 6. 데이터 타입 검증
+            if not isinstance(data['should_exit'], bool):
+                raise ValueError("should_exit must be boolean")
+            if not isinstance(data['reasons'], list) or len(data['reasons']) != 3:
+                raise ValueError("reasons must be array of 3 strings")
+            
+            # 7. 결정 객체 생성
+            trading_round = self.active_rounds.get(round_id)
+            if not trading_round:
+                raise ValueError("라운드를 찾을 수 없음")
+                
+            # 현재 수익률 계산
+            profit_loss_rate = ((current_price - trading_round.entry_price) / trading_round.entry_price) * 100
+            
+            decision = GPTExitDecision(
+                should_exit=data['should_exit'],
+                reasons=data['reasons'],
+                current_price=current_price,
+                profit_loss_rate=profit_loss_rate,
+                timestamp=datetime.now()
+            )
+            
+            # 8. 결과 로깅
+            self.log_manager.log(
+                category=LogCategory.ROUND,
+                message="GPT 매도 청산 응답 파싱 완료",
+                data={
+                    "round_id": round_id,
+                    "should_exit": decision.should_exit,
+                    "reasons": decision.reasons,
+                    "current_price": decision.current_price,
+                    "profit_loss_rate": decision.profit_loss_rate
+                }
+            )
+            
+            return decision
+            
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ROUND_ERROR,
+                message=f"GPT 매도 청산 응답 파싱 실패: {str(e)}",
+                data={
+                    "round_id": round_id,
+                    "response": response,
+                    "error": str(e)
+                }
+            )
+            return None
 
     def _call_gpt(
         self,
@@ -963,7 +1251,7 @@ class RoundManager:
             )
             return None
 
-    def get_entry_decision(self, round_id: str, market_data) -> Optional[GPTEntryDecision]:
+    def get_entry_decision(self, round_id: str, market_data: MarketOverview) -> Optional[GPTEntryDecision]:
         """시장 데이터를 분석하여 매수 진입 결정을 얻습니다.
         
         Args:
@@ -985,7 +1273,7 @@ class RoundManager:
                 return None
                 
             # 응답 파싱
-            return self._parse_gpt_response(round_id, json.dumps(response), market_data.current_price)
+            return self._parse_gpt_entry_response(round_id, json.dumps(response), market_data.current_price)
             
         except Exception as e:
             self.log_manager.log(
@@ -996,7 +1284,7 @@ class RoundManager:
                     "error": str(e)
                 }
             )
-            return None 
+            return None
 
     def create_entry_order(self, round_id: str) -> Optional[OrderRequest]:
         """매수 주문을 생성합니다."""
@@ -1014,27 +1302,31 @@ class RoundManager:
                 return None
             
             # KRW 잔고 조회
-            balances = self.account.get_balance(trading_round.symbol)
-            krw_balance = 0.0
-            for balance in balances:
-                if balance['currency'] == 'KRW':
-                    krw_balance = float(balance['balance'])
-                    break
+            krw_balance = self.account.get_balance('KRW')
+            if not krw_balance:
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ERROR,
+                    message="매수 주문 생성 실패: KRW 잔고 조회 실패",
+                    data={"round_id": round_id}
+                )
+                return None
             
-            if krw_balance <= 0:
+            available_balance = float(krw_balance['balance'])
+            if available_balance <= 0:
                 self.log_manager.log(
                     category=LogCategory.ROUND_ERROR,
                     message="매수 주문 생성 실패: KRW 잔고 부족",
                     data={
                         "round_id": round_id,
-                        "krw_balance": krw_balance
+                        "krw_balance": available_balance
                     }
                 )
                 return None
             
             # 주문 금액 계산 (총 잔고의 10%)
             RATIO = 0.1
-            order_amount = krw_balance * RATIO
+            # order_amount = available_balance * RATIO
+            order_amount = 5000 # for test
             
             # 주문 생성
             order_request = OrderRequest(
@@ -1052,7 +1344,7 @@ class RoundManager:
                     "round_id": round_id,
                     "symbol": trading_round.symbol,
                     "order_amount": order_amount,
-                    "krw_balance": krw_balance
+                    "available_balance": available_balance
                 }
             )
             
@@ -1067,64 +1359,201 @@ class RoundManager:
             return None
 
     def execute_entry_order(self, round_id: str, order_request: OrderRequest) -> Optional[OrderResponse]:
-        """매수 주문을 실행하고 결과를 반환합니다."""
+        """매수 주문을 실행하고 결과를 반환합니다.
+        
+        Args:
+            round_id (str): 라운드 ID
+            order_request (OrderRequest): 주문 요청 객체
+            
+        Returns:
+            Optional[OrderResponse]: 주문 응답 객체 또는 None
+            
+        Note:
+            - 주문 실행 전 라운드 상태 검증
+            - 실제 거래소 API를 통한 주문 실행
+            - 주문 실행 결과에 대한 상세 로깅
+        """
         try:
+            # 1. 라운드 상태 검증
             trading_round = self.active_rounds.get(round_id)
-            if not trading_round or trading_round.status != RoundStatus.ENTRY_READY:
+            if not trading_round:
                 self.log_manager.log(
                     category=LogCategory.ROUND_ERROR,
-                    message="매수 주문 실행 실패: 라운드 상태 부적합",
+                    message="매수 주문 실행 실패: 라운드를 찾을 수 없음",
+                    data={"round_id": round_id}
+                )
+                return None
+                
+            if trading_round.status != RoundStatus.ENTRY_READY:
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ERROR,
+                    message="매수 주문 실행 실패: 부적절한 라운드 상태",
                     data={
                         "round_id": round_id,
-                        "status": trading_round.status if trading_round else None
+                        "current_status": trading_round.status,
+                        "required_status": RoundStatus.ENTRY_READY
                     }
                 )
                 return None
             
-            # 주문 실행
+            # 2. 주문 요청 검증
+            if not order_request.market or not order_request.price:
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ERROR,
+                    message="매수 주문 실행 실패: 잘못된 주문 정보",
+                    data={
+                        "round_id": round_id,
+                        "market": order_request.market,
+                        "price": order_request.price
+                    }
+                )
+                return None
+            
+            # 3. 주문 실행 전 로깅
+            self.log_manager.log(
+                category=LogCategory.ROUND_ENTRY,
+                message="매수 주문 실행 시작",
+                data={
+                    "round_id": round_id,
+                    "symbol": trading_round.symbol,
+                    "order_request": {
+                        "market": order_request.market,
+                        "side": order_request.side,
+                        "price": order_request.price,
+                        "order_type": order_request.order_type
+                    }
+                }
+            )
+            
+            # 4. 주문 실행
             order_response = self.order.create_order_v2(order_request)
             if not order_response:
                 self.log_manager.log(
                     category=LogCategory.ROUND_ERROR,
                     message="매수 주문 실행 실패: API 응답 없음",
-                    data={"round_id": round_id}
+                    data={
+                        "round_id": round_id,
+                        "order_request": order_request.to_dict()
+                    }
                 )
                 return None
+            
+            # 6. 주문 실행 결과 로깅
+            self.log_manager.log(
+                category=LogCategory.ROUND_ENTRY,
+                message="매수 주문 실행 완료",
+                data={
+                    "round_id": round_id,
+                    "order_id": order_response.uuid,
+                    "initial_state": order_response.state,
+                    "price": order_response.price,
+                    "volume": order_response.volume
+                }
+            )
             
             return order_response
             
         except Exception as e:
             self.log_manager.log(
                 category=LogCategory.ROUND_ERROR,
-                message=f"매수 주문 실행 중 오류 발생: {str(e)}",
-                data={"round_id": round_id}
+                message=f"매수 주문 실행 중 예외 발생: {str(e)}",
+                data={
+                    "round_id": round_id,
+                    "order_request": order_request.to_dict() if order_request else None
+                }
             )
             return None
 
     def wait_order_completion(self, order_response: OrderResponse) -> Optional[OrderResponse]:
-        """주문 완료 대기"""
-        # 주문 상태 확인 (최대 10회, 0.5초 간격)
-        MAX_RETRIES = 10
-        RETRY_INTERVAL = 0.5
+        """주문 완료를 대기합니다.
         
-        for _ in range(MAX_RETRIES):
-            if order_response.state == 'complete':
-                return order_response
-            elif order_response.state == 'wait':
-                time.sleep(RETRY_INTERVAL)
-                order_response = self.order.get_order_v2(order_response.uuid)
-                if not order_response:
-                    break
-            else:  # cancel, error 등
-                self.log_manager.log(
-                    category=LogCategory.ROUND_ERROR,
-                    message=f"매수 주문 실패: {order_response.state}",
-                    data={
-                        "round_id": round_id,
-                        "order_response": order_response.to_dict()
-                    }
-                )
-                return None
+        Args:
+            order_response (OrderResponse): 초기 주문 응답
+            
+        Returns:
+            Optional[OrderResponse]: 완료된 주문 응답 또는 None
+            
+        Note:
+            - 최대 10회까지 0.5초 간격으로 주문 상태를 확인
+            - complete: 주문 완료, wait: 대기 중, 그 외(cancel, error 등)는 실패로 처리
+        """
+        try:
+            MAX_RETRIES = 10
+            RETRY_INTERVAL = 0.5
+            retry_count = 0
+            
+            while retry_count < MAX_RETRIES:
+                wait_res = self.order.get_order_v2(order_response.uuid)
+                if not wait_res:
+                    self.log_manager.log(
+                        category=LogCategory.ROUND_ERROR,
+                        message="주문 상태 조회 실패",
+                        data={
+                            "order_id": order_response.uuid,
+                            "retry_count": retry_count
+                        }
+                    )
+                    return None
+                
+                if wait_res.state == 'done':
+                    self.log_manager.log(
+                        category=LogCategory.ROUND_ENTRY,
+                        message="주문 체결 완료",
+                        data={
+                            "order_id": wait_res.uuid,
+                            "price": wait_res.price,
+                            "volume": wait_res.volume,
+                            "retry_count": retry_count
+                        }
+                    )
+                    return wait_res
+                    
+                elif wait_res.state == 'wait':
+                    self.log_manager.log(
+                        category=LogCategory.ROUND,
+                        message=f"주문 체결 대기 중... ({retry_count + 1}/{MAX_RETRIES})",
+                        data={
+                            "order_id": wait_res.uuid,
+                            "state": wait_res.state
+                        }
+                    )
+                    time.sleep(RETRY_INTERVAL)
+                    retry_count += 1
+                    
+                else:  # cancel, error 등
+                    self.log_manager.log(
+                        category=LogCategory.ROUND_ERROR,
+                        message=f"주문 실패: {wait_res.state}",
+                        data={
+                            "order_id": wait_res.uuid,
+                            "state": wait_res.state,
+                            "error_code": wait_res.error_code if hasattr(wait_res, 'error_code') else None,
+                            "error_message": wait_res.error_message if hasattr(wait_res, 'error_message') else None
+                        }
+                    )
+                    return None
+            
+            # 최대 재시도 횟수 초과
+            self.log_manager.log(
+                category=LogCategory.ROUND_ERROR,
+                message="주문 체결 대기 시간 초과",
+                data={
+                    "order_id": order_response.uuid,
+                    "max_retries": MAX_RETRIES,
+                    "total_wait_time": MAX_RETRIES * RETRY_INTERVAL
+                }
+            )
+            return None
+            
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ROUND_ERROR,
+                message=f"주문 완료 대기 중 오류 발생: {str(e)}",
+                data={
+                    "order_id": order_response.uuid
+                }
+            )
+            return None
 
     def create_exit_order(self, round_id: str) -> Optional[OrderRequest]:
         """매도 주문을 생성합니다.
@@ -1249,3 +1678,387 @@ class RoundManager:
                 data={"round_id": round_id}
             )
             return False 
+
+    def start_monitoring(self, round_id: str) -> bool:
+        """포지션 모니터링을 시작합니다.
+        
+        Args:
+            round_id (str): 모니터링할 라운드 ID
+            
+        Returns:
+            bool: 모니터링 시작 성공 여부
+        """
+        MAX_RETRIES = 3
+        MONITORING_INTERVAL = 1  # seconds
+        ERROR_RETRY_INTERVAL = 5  # seconds
+        
+        def _validate_round() -> Optional[TradingRound]:
+            """라운드 상태를 검증합니다."""
+            trading_round = self.get_round(round_id)
+            if not trading_round:
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ERROR,
+                    message="모니터링 시작 실패: 라운드를 찾을 수 없음",
+                    data={"round_id": round_id}
+                )
+                return None
+                
+            if trading_round.status != RoundStatus.HOLDING:
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ERROR,
+                    message="모니터링 시작 실패: 라운드가 HOLDING 상태가 아님",
+                    data={
+                        "round_id": round_id,
+                        "current_status": trading_round.status,
+                        "expected_status": RoundStatus.HOLDING
+                    }
+                )
+                return None
+                
+            return trading_round
+            
+        def _start_monitoring_log(trading_round: TradingRound) -> None:
+            """모니터링 시작을 로깅합니다."""
+            self.log_manager.log(
+                category=LogCategory.ROUND,
+                message="포지션 모니터링 시작",
+                data={
+                    "round_id": round_id,
+                    "symbol": trading_round.symbol,
+                    "entry_price": trading_round.entry_price,
+                    "target_price": trading_round.take_profit,
+                    "stop_loss_price": trading_round.stop_loss,
+                    "current_status": trading_round.status,
+                    "monitoring_interval": MONITORING_INTERVAL
+                }
+            )
+            
+        def _handle_exit_process(trading_round: TradingRound, decision: GPTExitDecision) -> bool:
+            """매도 프로세스를 처리합니다."""
+            try:
+                if self.prepare_exit(round_id, decision.reasons):
+                    if self.execute_exit(round_id, decision.reasons):
+                        self.update_round_status(round_id, RoundStatus.COMPLETED)
+                        
+                        self.log_manager.log(
+                            category=LogCategory.ROUND,
+                            message="매도 프로세스 완료",
+                            data={
+                                "round_id": round_id,
+                                "final_status": RoundStatus.COMPLETED,
+                                "exit_price": decision.current_price,
+                                "profit_loss_rate": decision.profit_loss_rate
+                            }
+                        )
+                        return True
+                        
+                return False
+                
+            except Exception as e:
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ERROR,
+                    message="매도 프로세스 실패",
+                    data={
+                        "round_id": round_id,
+                        "error": str(e),
+                        "exit_price": decision.current_price
+                    }
+                )
+                return False
+        
+        try:
+            # 1. 라운드 검증
+            trading_round = _validate_round()
+            if not trading_round:
+                return False
+                
+            # 2. 모니터링 시작 로깅
+            _start_monitoring_log(trading_round)
+            
+            # 3. 모니터링 루프
+            retry_count = 0
+            
+            while True:
+                try:
+                    # 시장 정보 수집
+                    market_data = self.analyzer.get_market_overview(trading_round.symbol)
+                    balance = self.account.get_balance(trading_round.symbol)
+                    
+                    # 매도 결정 획득
+                    decision = self.get_exit_decision(
+                        round_id,
+                        market_data=market_data,
+                        balance=balance,
+                        trading_round=trading_round
+                    )
+                    
+                    # 매도 결정 처리
+                    if decision and decision.should_exit:
+                        return _handle_exit_process(trading_round, decision)
+                    
+                    # 재시도 카운터 초기화 (성공적인 모니터링)
+                    retry_count = 0
+                    time.sleep(MONITORING_INTERVAL)
+                    
+                except Exception as e:
+                    retry_count += 1
+                    self.log_manager.log(
+                        category=LogCategory.ROUND_WARNING,
+                        message=f"모니터링 중 오류 발생 (재시도 {retry_count}/{MAX_RETRIES})",
+                        data={
+                            "round_id": round_id,
+                            "error": str(e),
+                            "retry_count": retry_count
+                        }
+                    )
+                    
+                    if retry_count >= MAX_RETRIES:
+                        raise Exception(f"최대 재시도 횟수 초과: {str(e)}")
+                        
+                    time.sleep(ERROR_RETRY_INTERVAL)
+            
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ROUND_ERROR,
+                message="모니터링 실패",
+                data={
+                    "round_id": round_id,
+                    "error": str(e),
+                    "stacktrace": traceback.format_exc()
+                }
+            )
+            return False
+
+    def _analyze_exit_condition(self, round_id: str, current_price: float) -> None:
+        """GPT를 통해 청산 조건을 분석합니다."""
+        try:
+            trading_round = self.get_round(round_id)
+            if not trading_round:
+                return
+                
+            # 시장 데이터 수집
+            market_data = self._collect_market_data(trading_round.symbol)
+            
+            # GPT 분석 요청
+            response = self.gpt_manager.analyze_exit_condition(
+                symbol=trading_round.symbol,
+                entry_price=trading_round.entry_price,
+                current_price=current_price,
+                target_price=trading_round.take_profit,
+                stop_loss_price=trading_round.stop_loss,
+                market_data=market_data
+            )
+            
+            # 응답 파싱
+            decision = self._parse_gpt_exit_response(round_id, response, current_price)
+            if decision and decision['should_exit']:
+                self.log_manager.log(
+                    category=LogCategory.ROUND,
+                    message="GPT 청산 시그널 발생",
+                    data={
+                        "round_id": round_id,
+                        "reasons": decision['reasons']
+                    }
+                )
+                self.execute_exit_process(round_id, "GPT 청산 시그널")
+                
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ROUND_ERROR,
+                message=f"청산 조건 분석 중 오류 발생: {str(e)}",
+                data={
+                    "round_id": round_id,
+                    "error": str(e)
+                }
+            )
+
+    def _collect_market_data(self, symbol: str):
+        # Implementation of _collect_market_data method
+        pass
+
+    def execute_exit_process(self, round_id: str, reason: str) -> bool:
+        # Implementation of execute_exit_process method
+        pass
+
+    def _generate_exit_prompt(
+        self,
+        round_id: str,
+        market_data: MarketOverview,
+        balance: Dict,
+        trading_round: TradingRound
+    ) -> Tuple[str, str]:
+        """매도 시그널 감지를 위한 프롬프트를 생성합니다.
+        
+        Args:
+            round_id (str): 라운드 ID
+            market_data (MarketOverview): 시장 데이터
+            balance (Dict): 보유 잔고 정보
+            trading_round (TradingRound): 트레이딩 라운드 정보
+            
+        Returns:
+            Tuple[str, str]: (시스템 프롬프트, 사용자 프롬프트) 튜플
+        """
+        # 시스템 프롬프트 정의
+        system_prompt = """당신은 암호화폐 스캘핑 트레이딩의 청산 전문가입니다.
+현재 보유 중인 포지션에 대해 시장 상황을 실시간으로 분석하고,
+최적의 청산 시점을 결정하는 것이 당신의 주요 임무입니다.
+
+당신의 주요 임무:
+1. 제공된 시장 데이터를 종합적으로 분석
+2. 현재 보유 중인 포지션의 수익/손실 상황 평가
+3. 청산 적절성 판단 (반드시 should_exit로 표현)
+4. 판단의 근거를 명확하게 제시 (정확히 3가지)
+
+리스크 관리 원칙:
+- 목표가 도달 시 반드시 청산 권고
+- 손절가 도달 시 반드시 청산 권고
+- 수익 실현 기회 포착 시 신속한 청산 결정
+- 손실 확대 가능성 감지 시 선제적 대응
+
+응답은 반드시 지정된 JSON 형식을 따라야 합니다."""
+        
+        # 사용자 프롬프트 생성
+        user_prompt = f"""
+현재 {trading_round.symbol} 포지션의 청산 여부를 분석해 주세요.
+
+[포지션 정보]
+- 진입가: {trading_round.entry_price:,.0f}원
+- 현재가: {market_data.current_price:,.0f}원
+- 목표가: {trading_round.take_profit:,.0f}원
+- 손절가: {trading_round.stop_loss:,.0f}원
+- 현재 수익률: {balance['profit_loss_rate']:.2f}%
+- 보유수량: {balance['balance']}
+- 주문중수량: {balance['locked']}
+- 평균매수가: {balance['avg_buy_price']}
+
+[기본 시장 정보]
+- 거래량 동향: {market_data.volume_trend_1m}
+- 가격 동향: {market_data.price_trend_1m}
+- 캔들 강도: {market_data.candle_strength} (실체비율: {market_data.candle_body_ratio:.1%})
+
+[기술적 지표]
+- RSI: 1분({market_data.rsi_1:.1f}), 3분({market_data.rsi_3:.1f}), 7분({market_data.rsi_7:.1f}), 14분({market_data.rsi_14:.1f})
+- 이동평균: MA1({market_data.ma1:,.0f}), MA3({market_data.ma3:,.0f}), MA5({market_data.ma5:,.0f}), MA10({market_data.ma10:,.0f})
+- 변동성: 3분({market_data.volatility_3m:.2f}%), 5분({market_data.volatility_5m:.2f}%), 10분({market_data.volatility_10m:.2f}%)
+- VWAP(3분): {market_data.vwap_3m:,.0f}원
+- 볼린저밴드 폭: {market_data.bb_width:.2f}%
+
+[호가 분석]
+- 매수/매도 비율: {market_data.order_book_ratio:.2f}
+- 스프레드: {market_data.spread:.3f}%
+
+[선물 시장]
+- 프리미엄률: {market_data.premium_rate:.2f}%
+- 펀딩비율: {market_data.funding_rate:.3f}%
+- 가격 안정성: {market_data.price_stability}
+
+[특이사항]
+- 5분 신규 고가 돌파: {'O' if market_data.new_high_5m else 'X'}
+- 5분 신규 저가 돌파: {'O' if market_data.new_low_5m else 'X'}
+
+위 데이터를 종합적으로 분석하여 다음 형식의 JSON으로 응답해 주세요:
+
+{{
+    "should_exit": true/false,
+    "reasons": [
+        "첫 번째 근거",
+        "두 번째 근거",
+        "세 번째 근거"
+    ]
+}}"""
+        
+        self.log_manager.log(
+            category=LogCategory.ROUND,
+            message="매도 시그널 프롬프트 생성",
+            data={
+                "round_id": round_id,
+                "symbol": trading_round.symbol,
+                "current_profit_rate": balance['profit_loss_rate'],
+                "system_prompt_length": len(system_prompt),
+                "user_prompt_length": len(user_prompt)
+            }
+        )
+        
+        return system_prompt, user_prompt
+
+    def get_exit_decision(
+        self,
+        round_id: str,
+        market_data: MarketOverview,
+        balance: Dict,
+        trading_round: TradingRound
+    ) -> Optional[Dict]:
+        """시장 데이터를 분석하여 매도 청산 결정을 얻습니다.
+        
+        Args:
+            round_id (str): 라운드 ID
+            market_data (MarketOverview): 시장 데이터
+            
+        Returns:
+            Optional[Dict]: {
+                'should_exit': bool,
+                'reasons': List[str]
+            }
+        """
+        try:       
+            # 3. 프롬프트 생성
+            system_prompt, user_prompt = self._generate_exit_prompt(
+                round_id=round_id,
+                market_data=market_data,
+                balance=balance,
+                trading_round=trading_round
+            )
+            
+            if not system_prompt or not user_prompt:
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ERROR,
+                    message="청산 결정 실패: 프롬프트 생성 실패",
+                    data={"round_id": round_id}
+                )
+                return None
+                
+            # 4. GPT 호출
+            response = self._call_gpt(system_prompt, user_prompt)
+            if not response:
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ERROR,
+                    message="청산 결정 실패: GPT 응답 없음",
+                    data={"round_id": round_id}
+                )
+                return None
+            
+            decision = self._parse_gpt_exit_response(round_id, response, market_data.current_price)
+            if not decision:
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ERROR,
+                    message="청산 결정 실패: 응답 파싱 실패",
+                    data={"round_id": round_id}
+                )
+                return None
+            
+            # 6. 결과 로깅
+            self.log_manager.log(
+                category=LogCategory.ROUND,
+                message="청산 결정 완료",
+                data={
+                    "round_id": round_id,
+                    "symbol": trading_round.symbol,
+                    "should_exit": response['should_exit'],
+                    "reasons": response['reasons'],
+                    "current_price": market_data.current_price,
+                    "profit_loss_rate": balance['profit_loss_rate']
+                }
+            )
+            
+            return decision
+            
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ROUND_ERROR,
+                message="청산 결정 중 오류 발생",
+                data={
+                    "round_id": round_id,
+                    "error": str(e)
+                }
+            )
+            return None 

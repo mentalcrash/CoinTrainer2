@@ -3,6 +3,7 @@ import sys
 import time
 from datetime import datetime
 from dotenv import load_dotenv
+import threading
 
 # 상위 디렉토리의 모듈을 import 하기 위한 경로 설정
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -141,6 +142,156 @@ def test_round_lifecycle():
         print(f"- 종료 사유: {final_round['exit_reason']}")
         print(f"- 소요 시간: {final_round['duration']}")
 
+def test_entry_process():
+    """매수 진입 프로세스 테스트"""
+    print("\n=== 매수 진입 프로세스 테스트 ===")
+    
+    log_manager = LogManager(base_dir="logs/round_manager_test", log_mode="both", console_format="detailed")
+    log_manager.start_logging_thread()
+    round_manager = RoundManager(log_manager=log_manager)
+    
+    try:
+        # 1. 라운드 생성
+        trading_round = round_manager.create_round(symbol="BTC")
+        if not trading_round:
+            print("❌ 라운드 생성 실패")
+            return
+            
+        print(f"✅ 1. 라운드 생성됨 (ID: {trading_round.id})")
+        
+        # 2. 관찰 시작 및 매수 시그널 대기
+        if not round_manager.start_watching(trading_round.id):
+            print("❌ 관찰 시작 실패")
+            return
+            
+        print("✅ 2. 관찰 시작 및 매수 시그널 확인")
+        
+        # 3. 라운드 상태 확인
+        round_info = round_manager.get_round_summary(trading_round.id)
+        if not round_info or round_info['status'] != RoundStatus.ENTRY_READY:
+            print("❌ 매수 시그널 발생 실패")
+            return
+            
+        print("\n[매수 진입 준비 상태]")
+        print(f"- 상태: {round_info['status']}")
+        print(f"- 목표가: {round_info['take_profit']:,.0f}")
+        print(f"- 손절가: {round_info['stop_loss']:,.0f}")
+        
+        # 4. 매수 진입 프로세스 실행
+        if round_manager.execute_entry_process(trading_round.id):
+            print("\n✅ 4. 매수 진입 프로세스 완료")
+            
+            # 5. 최종 상태 확인
+            final_round = round_manager.get_round_summary(trading_round.id)
+            if final_round:
+                print("\n[최종 상태]")
+                print(f"- 상태: {final_round['status']}")
+                if final_round['entry_price']:
+                    print(f"- 매수가: {final_round['entry_price']:,.0f}")
+                print(f"- 목표가: {final_round['take_profit']:,.0f}")
+                print(f"- 손절가: {final_round['stop_loss']:,.0f}")
+        else:
+            print("❌ 매수 진입 프로세스 실패")
+            
+            # 실패 상태 확인
+            failed_round = round_manager.get_round_summary(trading_round.id)
+            print("\n[실패 상태]")
+            print(f"- 상태: {failed_round['status']}")
+    
+    except Exception as e:
+        print(f"❌ 테스트 중 오류 발생: {str(e)}")
+    
+    finally:
+        # 테스트 종료 대기
+        time.sleep(1)
+
+def test_monitoring_process():
+    """포지션 모니터링 프로세스 테스트"""
+    print("\n=== 포지션 모니터링 프로세스 테스트 ===")
+    
+    log_manager = LogManager(base_dir="logs/round_manager_test", log_mode="both", console_format="detailed")
+    log_manager.start_new_trading_session("BTC")
+    round_manager = RoundManager(log_manager=log_manager)
+    
+    try:
+        # 1. 라운드 생성 및 매수 진입
+        trading_round = round_manager.create_round(symbol="BTC")
+        if not trading_round:
+            print("❌ 라운드 생성 실패")
+            return
+            
+        print(f"✅ 1. 라운드 생성됨 (ID: {trading_round.id})")
+        
+        # 2. 관찰 시작 및 매수 진입
+        if not round_manager.start_watching(trading_round.id):
+            print("❌ 관찰 시작 실패")
+            return
+            
+        print("✅ 2. 관찰 및 매수 진입 완료")
+        
+        # 3. 라운드 상태 확인
+        round_info = round_manager.get_round_summary(trading_round.id)
+        if not round_info or round_info['status'] != RoundStatus.HOLDING:
+            print("❌ 매수 진입 실패")
+            return
+            
+        print("\n[매수 진입 상태]")
+        print(f"- 상태: {round_info['status']}")
+        print(f"- 매수가: {round_info['entry_price']:,.0f}")
+        print(f"- 목표가: {round_info['take_profit']:,.0f}")
+        print(f"- 손절가: {round_info['stop_loss']:,.0f}")
+        
+        # 4. 모니터링 시작
+        print("\n[모니터링 시작]")
+        monitoring_thread = threading.Thread(
+            target=round_manager.start_monitoring,
+            args=(trading_round.id,),
+            daemon=True
+        )
+        monitoring_thread.start()
+        
+        # 5. 모니터링 상태 출력 (30초 동안)
+        start_time = time.time()
+        monitoring_duration = 30  # seconds
+        
+        while time.time() - start_time < monitoring_duration:
+            current_info = round_manager.get_round_summary(trading_round.id)
+            if not current_info:
+                print("❌ 라운드 정보 조회 실패")
+                break
+                
+            # 상태가 변경된 경우
+            if current_info['status'] != RoundStatus.HOLDING:
+                print(f"\n✅ 상태 변경 감지: {current_info['status']}")
+                print(f"- 종료 사유: {current_info.get('exit_reason', 'N/A')}")
+                if current_info.get('current_metrics'):
+                    print(f"- 수익률: {current_info['current_metrics'].get('profit_loss_rate', 0):.2f}%")
+                break
+                
+            # 5초마다 상태 출력
+            if int(time.time() - start_time) % 5 == 0:
+                print(f"\n[모니터링 진행 중... {int(time.time() - start_time)}초]")
+                print(f"- 현재 상태: {current_info['status']}")
+                if current_info.get('current_metrics'):
+                    print(f"- 현재 수익률: {current_info['current_metrics'].get('profit_loss_rate', 0):.2f}%")
+                time.sleep(1)  # 출력 간격 조절
+                
+        print("\n[모니터링 테스트 완료]")
+        final_info = round_manager.get_round_summary(trading_round.id)
+        if final_info:
+            print(f"- 최종 상태: {final_info['status']}")
+            print(f"- 결과: {final_info.get('exit_reason', 'N/A')}")
+            if final_info.get('current_metrics'):
+                print(f"- 최종 수익률: {final_info['current_metrics'].get('profit_loss_rate', 0):.2f}%")
+    
+    except Exception as e:
+        print(f"❌ 테스트 중 오류 발생: {str(e)}")
+    
+    finally:
+        # 테스트 종료 대기
+        time.sleep(1)
+        print("\n테스트 종료")
+
 def main():
     """메인 테스트 함수"""
     # 환경 변수 로드
@@ -148,8 +299,10 @@ def main():
     
     # 각 테스트 실행
     # test_round_creation()
-    test_round_watching()
+    # test_round_watching()
     # test_round_lifecycle()
+    # test_entry_process()
+    test_monitoring_process()
 
 if __name__ == "__main__":
     main() 
