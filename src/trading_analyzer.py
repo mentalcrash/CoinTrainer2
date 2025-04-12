@@ -83,23 +83,45 @@ class TradingAnalyzer:
             
             # RSI 계산 (1분, 3분)
             def calculate_rsi(prices: pd.Series, period: int) -> float:
+                """
+                Wilder의 RSI 계산 방식을 사용하여 RSI를 계산합니다.
+                
+                Args:
+                    prices (pd.Series): 가격 데이터
+                    period (int): RSI 기간
+                
+                Returns:
+                    float: 계산된 RSI 값
+                """
                 # 가격 변화 계산
                 delta = prices.diff()
 
                 # 상승폭과 하락폭 분리
                 gains = delta.where(delta > 0, 0)
-                losses = -delta.where(delta < 0, 0)  # 절대값으로 변환
+                losses = -delta.where(delta < 0, 0)
 
-                # 첫 평균 계산 (SMA 방식)
-                avg_gains = gains.rolling(window=period, min_periods=1).mean()
-                avg_losses = losses.rolling(window=period, min_periods=1).mean()
+                # Wilder의 평활화 방식으로 평균 계산
+                first_avg_gains = gains.rolling(window=period, min_periods=period).mean()
+                first_avg_losses = losses.rolling(window=period, min_periods=period).mean()
+
+                # 첫 번째 유효한 데이터 포인트를 가져옴
+                avg_gains = first_avg_gains.copy()
+                avg_losses = first_avg_losses.copy()
+
+                # Wilder의 평활화 공식 적용
+                for i in range(period + 1, len(prices)):
+                    avg_gains[i] = (avg_gains[i-1] * (period-1) + gains[i]) / period
+                    avg_losses[i] = (avg_losses[i-1] * (period-1) + losses[i]) / period
 
                 # RS 계산 (0으로 나누기 방지)
                 rs = avg_gains / avg_losses.replace(0, float('inf'))
 
                 # RSI 계산
                 rsi = 100 - (100 / (1 + rs))
-                return float(rsi.iloc[-1])  # 가장 최근 값 반환
+
+                # 마지막 값이 없는 경우(NaN) 0을 반환
+                last_value = float(rsi.iloc[-1])
+                return last_value if not np.isnan(last_value) else 0.0
 
             rsi_1 = calculate_rsi(df['close'], 1)
             rsi_3 = calculate_rsi(df['close'], 3)
@@ -244,97 +266,141 @@ class TradingAnalyzer:
             TradingSignals: 매매 신호 데이터
         """
         try:
-            # 1. 가격 신호 분석 (이동평균, VWAP 기반)
+            # 1. 가격 신호 분석 (단기 이동평균, 캔들 강도 기반)
             price_signal: SignalType = "중립"
             current_price = market_data.current_price
             
-            # 단기 이동평균 정배열/역배열 확인
-            if current_price > market_data.ma1 > market_data.ma3:
+            # 초단기 이동평균 정배열/역배열 확인 (1분, 3분, 5분)
+            ma_trend = (
+                current_price > market_data.ma1 > market_data.ma3 > market_data.ma5,
+                current_price < market_data.ma1 < market_data.ma3 < market_data.ma5
+            )
+            
+            if ma_trend[0]:  # 완벽한 정배열
                 price_signal = "매수"
-            elif current_price < market_data.ma1 < market_data.ma3:
+            elif ma_trend[1]:  # 완벽한 역배열
                 price_signal = "매도"
                 
-            # VWAP과의 관계 확인
-            vwap_diff = (current_price - market_data.vwap_3m) / market_data.vwap_3m * 100
-            if abs(vwap_diff) > 0.1:  # 0.1% 이상 차이
-                price_signal = "매수" if vwap_diff < 0 else "매도"  # VWAP 회귀 전략
+            # 캔들 강도 반영
+            if market_data.candle_strength == "강함":
+                if market_data.candle_body_ratio > 0.7:  # 양봉/음봉 실체가 70% 이상
+                    price_signal = "매수" if price_signal != "매도" else "중립"
+                elif market_data.candle_body_ratio < -0.7:
+                    price_signal = "매도" if price_signal != "매수" else "중립"
             
-            # 2. 모멘텀 신호 분석 (RSI, 볼린저밴드 기반)
+            # 2. 모멘텀 신호 분석 (RSI, 변동성 기반)
             momentum_signal: MomentumType = "중립"
             
-            # RSI 1분봉 기준
-            if market_data.rsi_1 < 30:
-                momentum_signal = "강세"
-            elif market_data.rsi_1 > 70:
-                momentum_signal = "약세"
+            # RSI 멀티 타임프레임 분석
+            rsi_signals = [
+                30 < market_data.rsi_1 < 70,  # 1분
+                30 < market_data.rsi_3 < 70,  # 3분
+                30 < market_data.rsi_7 < 70,  # 7분
+                30 < market_data.rsi_14 < 70  # 14분
+            ]
             
-            # RSI 방향성 확인
-            if market_data.rsi_1 > market_data.rsi_3:
-                momentum_signal = "강세" if momentum_signal != "약세" else "중립"
-            elif market_data.rsi_1 < market_data.rsi_3:
-                momentum_signal = "약세" if momentum_signal != "강세" else "중립"
+            if all(rsi_signals):  # 모든 타임프레임이 중립 구간
+                if market_data.rsi_1 > market_data.rsi_3 > market_data.rsi_7:
+                    momentum_signal = "강세"
+                elif market_data.rsi_1 < market_data.rsi_3 < market_data.rsi_7:
+                    momentum_signal = "약세"
+            else:
+                # RSI 과매수/과매도 체크
+                if market_data.rsi_1 < 30 and market_data.rsi_3 < 35:
+                    momentum_signal = "강세"
+                elif market_data.rsi_1 > 70 and market_data.rsi_3 > 65:
+                    momentum_signal = "약세"
+            
+            # 변동성 체크
+            volatility_trend = [
+                market_data.volatility_3m,
+                market_data.volatility_5m,
+                market_data.volatility_10m,
+                market_data.volatility_15m
+            ]
+            avg_volatility = sum(volatility_trend) / len(volatility_trend)
+            
+            if avg_volatility > 0.3:  # 변동성이 높을 때
+                momentum_signal = "중립"  # 안전 장치
             
             # 3. 거래량 신호 분석
             volume_signal: VolumeSignalType = "중립"
+            
+            # 거래량 추세 확인
             if market_data.volume_trend_1m == "상승":
                 volume_signal = "활발"
+                if market_data.price_trend_1m == "상승":  # 가격과 거래량 동반 상승
+                    volume_signal = "활발"
             elif market_data.volume_trend_1m == "하락":
-                volume_signal = "침체"
+                if market_data.price_trend_1m == "하락":  # 가격과 거래량 동반 하락
+                    volume_signal = "침체"
             
             # 4. 호가창 신호 분석
             orderbook_signal: OrderbookType = "중립"
-            if market_data.order_book_ratio > 1.1:  # 매수세 10% 이상 우위
+            
+            # 호가 비율 체크 (더 엄격한 기준 적용)
+            if market_data.order_book_ratio > 1.15:  # 매수세 15% 이상 우위
                 orderbook_signal = "매수세"
-            elif market_data.order_book_ratio < 0.9:  # 매도세 10% 이상 우위
+            elif market_data.order_book_ratio < 0.85:  # 매도세 15% 이상 우위
                 orderbook_signal = "매도세"
+            
+            # 스프레드 체크
+            if market_data.spread > 0.15:  # 스프레드가 0.15% 이상이면
+                orderbook_signal = "중립"  # 스프레드가 넓으면 중립 유지
             
             # 5. 선물 신호 분석 (프리미엄/펀딩비율 기반)
             futures_signal: SignalType = "중립"
-            if market_data.premium_rate < -0.2 and market_data.funding_rate < -0.008:
+            
+            # 프리미엄과 펀딩비율의 방향성 일치 여부 확인
+            if market_data.premium_rate < -0.15 and market_data.funding_rate < -0.005:
                 futures_signal = "매수"
-            elif market_data.premium_rate > 0.2 and market_data.funding_rate > 0.008:
+            elif market_data.premium_rate > 0.15 and market_data.funding_rate > 0.005:
                 futures_signal = "매도"
             
-            # 6. 시장 상태 판단
+            # 6. 시장 상태 판단 (스캘핑에 더 엄격한 기준 적용)
             market_state: MarketStateType = "안정"
-            if (market_data.volatility_3m > 0.5 or  # 변동성 0.5% 초과
-                market_data.bb_width > 0.8 or       # 볼린저밴드 폭 0.8% 초과
-                market_data.spread > 0.1):          # 스프레드 0.1% 초과
+            
+            # 변동성 체크
+            if (market_data.volatility_3m > 0.3 or    # 3분 변동성 0.3% 초과
+                market_data.volatility_5m > 0.4 or    # 5분 변동성 0.4% 초과
+                market_data.bb_width > 0.6 or         # BB 폭 0.6% 초과
+                market_data.spread > 0.1 or           # 스프레드 0.1% 초과
+                not (30 < market_data.rsi_1 < 70)):   # RSI 1분봉 과매수/과매도
                 market_state = "불안정"
             
-            # 7. 종합 신호 계산
+            # 7. 종합 신호 계산 (스캘핑용 가중치 조정)
             signal_points = 0
             total_points = 0
             
-            # 가격 신호 (2.0)
+            # 가격 신호 (2.5) - 단기 이동평균 중요도 증가
             if price_signal == "매수":
-                signal_points += 2.0
+                signal_points += 2.5
             elif price_signal == "매도":
+                signal_points -= 2.5
+            total_points += 2.5
+            
+            # 모멘텀 신호 (2.0) - RSI 중요도 증가
+            if momentum_signal == "강세":
+                signal_points += 2.0
+            elif momentum_signal == "약세":
                 signal_points -= 2.0
             total_points += 2.0
             
-            # 모멘텀 신호 (1.5)
-            if momentum_signal == "강세":
+            # 거래량 신호 (1.5) - 거래량 중요도 증가
+            if volume_signal == "활발":
                 signal_points += 1.5
-            elif momentum_signal == "약세":
+            elif volume_signal == "침체":
                 signal_points -= 1.5
             total_points += 1.5
             
-            # 거래량 신호 (1.0)
-            if volume_signal == "활발":
-                signal_points += 1.0
-            elif volume_signal == "침체":
-                signal_points -= 1.0
-            total_points += 1.0
-            
-            # 호가창 신호 (2.0)
+            # 호가창 신호 (2.5) - 호가창 중요도 최상위
             if orderbook_signal == "매수세":
-                signal_points += 2.0
+                signal_points += 2.5
             elif orderbook_signal == "매도세":
-                signal_points -= 2.0
-            total_points += 2.0
+                signal_points -= 2.5
+            total_points += 2.5
             
-            # 선물 신호 (1.5)
+            # 선물 신호 (1.5) - 선물 중요도 유지
             if futures_signal == "매수":
                 signal_points += 1.5
             elif futures_signal == "매도":
@@ -344,22 +410,28 @@ class TradingAnalyzer:
             # 신호 강도 계산 (-1.0 ~ 1.0)
             signal_strength = signal_points / total_points
             
-            # 8. 종합 신호 및 진입 타이밍 결정
+            # 8. 종합 신호 및 진입 타이밍 결정 (스캘핑용 임계값 조정)
             overall_signal: OverallSignalType
             entry_timing: EntryTimingType
             
-            if market_state == "불안정" and abs(signal_strength) < 0.5:
+            if market_state == "불안정":
                 overall_signal = "관망"
                 entry_timing = "대기"
-            elif signal_strength > 0.2:  # 매수 임계값 0.2
+            elif signal_strength > 0.25:  # 매수 임계값 상향 (0.25)
                 overall_signal = "매수"
-                entry_timing = "즉시" if signal_strength > 0.4 else "대기"
-            elif signal_strength < -0.2:  # 매도 임계값 -0.2
+                entry_timing = "즉시" if signal_strength > 0.45 else "대기"
+            elif signal_strength < -0.25:  # 매도 임계값 상향 (-0.25)
                 overall_signal = "매도"
-                entry_timing = "즉시" if signal_strength < -0.4 else "대기"
+                entry_timing = "즉시" if signal_strength < -0.45 else "대기"
             else:
                 overall_signal = "관망"
                 entry_timing = "대기"
+            
+            # 신규 고가/저가 확인
+            if market_data.new_high_5m and overall_signal == "매수":
+                entry_timing = "즉시"  # 신규 고가 돌파 시 즉시 매수
+            elif market_data.new_low_5m and overall_signal == "매도":
+                entry_timing = "즉시"  # 신규 저가 돌파 시 즉시 매도
             
             result = TradingSignals(
                 price_signal=price_signal,

@@ -6,12 +6,14 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from src.utils.log_manager import LogManager, LogCategory
 from src.models.market_data import TradeExecutionResult
+from src.trading_order import OrderResponse, Trade
+
 import uuid
 
 class TradingLogger:
     """Google Sheets를 이용한 트레이딩 로거"""
     
-    def __init__(self, log_manager: LogManager):
+    def __init__(self, log_manager: Optional[LogManager] = None):
         """
         Args:
             log_manager (LogManager): 로깅을 담당할 LogManager 인스턴스
@@ -40,7 +42,9 @@ class TradingLogger:
             'performance': 'Performance',    # 성과 지표
             'decisions': 'Trading Decisions', # 매매 판단
             'market': 'Market Data',         # 시장 데이터
-            'order_request': 'Order Request'  # 주문 기록
+            'order_request': 'Order Request',  # 주문 기록
+            'order_response': 'Order Response',  # 주문 응답 데이터
+            'trade_response': 'Trade Response'   # 체결 응답 데이터
         }
         
         # 시트 초기화
@@ -55,11 +59,12 @@ class TradingLogger:
             )
             return build('sheets', 'v4', credentials=credentials)
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message="Google Sheets API 서비스 생성 실패",
-                data={"error": str(e)}
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="Google Sheets API 서비스 생성 실패",
+                    data={"error": str(e)}
+                )
             raise
     
     def _initialize_sheets(self):
@@ -78,17 +83,19 @@ class TradingLogger:
                     self._create_sheet(sheet_name)
                     self._initialize_headers(sheet_name)
             
-            self.log_manager.log(
-                category=LogCategory.SYSTEM,
-                message="시트 초기화 완료"
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message="시트 초기화 완료"
+                )
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message="시트 초기화 실패",
-                data={"error": str(e)}
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="시트 초기화 실패",
+                    data={"error": str(e)}
+                )
             raise
     
     def _create_sheet(self, sheet_name: str):
@@ -107,17 +114,19 @@ class TradingLogger:
                 body={'requests': [request]}
             ).execute()
             
-            self.log_manager.log(
-                category=LogCategory.SYSTEM,
-                message=f"시트 생성 완료: {sheet_name}"
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message=f"시트 생성 완료: {sheet_name}"
+                )
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message="시트 생성 실패",
-                data={"sheet_name": sheet_name, "error": str(e)}
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="시트 생성 실패",
+                    data={"sheet_name": sheet_name, "error": str(e)}
+                )
             raise
     
     def _initialize_headers(self, sheet_name: str):
@@ -208,16 +217,48 @@ class TradingLogger:
                 'Candle Strength',                # 캔들 강도
                 'New High 5m',                    # 5분 신고가 갱신
                 'New Low 5m'                      # 5분 신저가 갱신
+            ],
+            'Order Response': [
+                'Order UUID',                      # 주문 ID
+                'Timestamp',                       # 타임스탬프
+                'Symbol',                          # 심볼
+                'Order Side',                      # 주문 방향 (bid/ask)
+                'Order Type',                      # 주문 타입
+                'Price',                           # 주문 가격
+                'Order State',                     # 주문 상태
+                'Market',                          # 마켓 정보
+                'Created At',                      # 주문 생성 시각
+                'Volume',                          # 주문 수량
+                'Remaining Volume',                # 남은 수량
+                'Reserved Fee',                    # 예약된 수수료
+                'Remaining Fee',                   # 남은 수수료
+                'Paid Fee',                        # 지불된 수수료
+                'Locked',                          # 잠긴 금액
+                'Executed Volume',                 # 체결된 수량
+                'Trades Count'                     # 체결 횟수
+            ],
+            'Trade Response': [
+                'Trade UUID',                # 체결 고유 ID
+                'Order UUID',                # 주문 ID
+                'Timestamp',                 # 타임스탬프
+                'Symbol',                    # 심볼
+                'Market',                    # 마켓
+                'Price',                     # 체결 가격
+                'Volume',                    # 체결 수량
+                'Funds',                     # 체결 금액
+                'Side',                      # 매수/매도
+                'Created At'                 # 체결 시각
             ]
         }
         
         if sheet_name in headers:
             values = [headers[sheet_name]]
             self._update_values(sheet_name, 'A1', values)
-            self.log_manager.log(
-                category=LogCategory.SYSTEM,
-                message=f"{sheet_name} 헤더 초기화 완료"
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message=f"{sheet_name} 헤더 초기화 완료"
+                )
     
     def _update_values(self, sheet_name: str, range_: str, values: List[List]):
         """시트의 값을 업데이트합니다."""
@@ -235,11 +276,12 @@ class TradingLogger:
             ).execute()
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message="값 업데이트 실패",
-                data={"error": str(e)}
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="값 업데이트 실패",
+                    data={"error": str(e)}
+                )
             raise
     
     def _append_values(self, sheet_name: str, values: List[List]):
@@ -259,11 +301,12 @@ class TradingLogger:
             ).execute()
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message="행 추가 실패",
-                data={"error": str(e)}
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="행 추가 실패",
+                    data={"error": str(e)}
+                )
             raise
     
     def log_trade(self, id: str, order_result: Dict):
@@ -350,10 +393,11 @@ class TradingLogger:
             ]]
             
             self._append_values(self.SHEETS['trades'], values)
-            self.log_manager.log(
-                category=LogCategory.TRADING,
-                message=f"매매 기록 저장 완료: {symbol}",
-                data={
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.TRADING,
+                    message=f"매매 기록 저장 완료: {symbol}",
+                    data={
                     "id": id,
                     "order_id": order_result['uuid'],
                     "symbol": symbol,
@@ -365,11 +409,12 @@ class TradingLogger:
             )
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message="매매 기록 저장 실패",
-                data={"error": str(e)}
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="매매 기록 저장 실패",
+                    data={"error": str(e)}
+                )
             raise
     
     def log_asset_status(self, id: str, symbol: str, asset_data: Dict):
@@ -416,10 +461,11 @@ class TradingLogger:
             ]]
             
             self._append_values(self.SHEETS['assets'], values)
-            self.log_manager.log(
-                category=LogCategory.ASSET,
-                message=f"자산 현황 저장 완료: {symbol}",
-                data={
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ASSET,
+                    message=f"자산 현황 저장 완료: {symbol}",
+                    data={
                     "id": id,
                     "symbol": symbol,
                     "balance": asset_data['balance'],
@@ -433,10 +479,11 @@ class TradingLogger:
             )
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message="자산 현황 저장 실패",
-                data={
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="자산 현황 저장 실패",
+                    data={
                     "id": id,
                     "symbol": symbol,
                     "error": str(e)
@@ -460,17 +507,19 @@ class TradingLogger:
             ]]
             
             self._append_values(self.SHEETS['performance'], values)
-            self.log_manager.log(
-                category=LogCategory.SYSTEM,
-                message=f"성과 지표 저장 완료: {performance_data['symbol']}"
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message=f"성과 지표 저장 완료: {performance_data['symbol']}"
+                )
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message="성과 지표 저장 실패",
-                data={"error": str(e)}
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="성과 지표 저장 실패",
+                    data={"error": str(e)}
+                )
             raise
     
     def log_decision(self, id: str, symbol: str, decision_data: Dict):
@@ -505,10 +554,11 @@ class TradingLogger:
                     timedelta(minutes=interval_minutes)
                 ).strftime("%Y-%m-%d %H:%M:%S")
             except (ValueError, TypeError) as e:
-                self.log_manager.log(
-                    category=LogCategory.ERROR,
-                    message="다음 판단 시각 계산 실패",
-                    data={
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.ERROR,
+                        message="다음 판단 시각 계산 실패",
+                        data={
                         "error": str(e),
                         "interval_minutes": decision_data['next_decision'].get('interval_minutes')
                     }
@@ -692,10 +742,11 @@ class TradingLogger:
             )
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message="시장 데이터 저장 실패",
-                data={
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="시장 데이터 저장 실패",
+                    data={
                     "id": id,
                     "symbol": symbol,
                     "error": str(e)
@@ -742,11 +793,12 @@ class TradingLogger:
             return ", ".join(descriptions) if descriptions else "안정적인 시장"
             
         except (ValueError, KeyError) as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message="시장 상태 설명 생성 실패",
-                data={"error": str(e)}
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="시장 상태 설명 생성 실패",
+                    data={"error": str(e)}
+                )
             return "상태 분석 불가"
 
     def log_order_record(self, symbol: str, result: TradeExecutionResult):
@@ -828,10 +880,11 @@ class TradingLogger:
             
             self._append_values(self.SHEETS['order_request'], values)
             
-            self.log_manager.log(
-                category=LogCategory.TRADING,
-                message=f"주문 기록 저장 완료: {symbol}",
-                data={
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.TRADING,
+                    message=f"주문 기록 저장 완료: {symbol}",
+                    data={
                     "symbol": symbol,
                     "action": decision.action,
                     "entry_price": decision.entry_price,
@@ -840,11 +893,12 @@ class TradingLogger:
             )
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message=f"주문 기록 저장 실패: {str(e)}",
-                data={"symbol": result.symbol if result else "Unknown"}
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=f"주문 기록 저장 실패: {str(e)}",
+                    data={"symbol": result.symbol if result else "Unknown"}
+                )
             raise
 
     def log_trade_record(
@@ -908,20 +962,22 @@ class TradingLogger:
             
             self._append_values(self.SHEETS['trades'], values)
             
-            self.log_manager.log(
-                category=LogCategory.TRADING,
-                message=f"{symbol} 매매 기록 저장 완료",
-                data=result.to_dict()
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.TRADING,
+                    message=f"{symbol} 매매 기록 저장 완료",
+                    data=result.to_dict()
+                )
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message=f"{symbol} 매매 기록 저장 실패: {str(e)}"
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=f"{symbol} 매매 기록 저장 실패: {str(e)}"
+                )
             raise
 
-    def query_trades(
+    def query_many(
         self,
         conditions: Dict[str, Any],
         sheet_name: str
@@ -965,26 +1021,28 @@ class TradingLogger:
                 if matches_all:
                     filtered_records.append(record)
             
-            self.log_manager.log(
-                category=LogCategory.SYSTEM,
-                message=f"조건부 데이터 조회 완료: {len(filtered_records)}건",
-                data={"conditions": conditions}
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.SYSTEM,
+                    message=f"조건부 데이터 조회 완료: {len(filtered_records)}건",
+                    data={"conditions": conditions}
+                )
             
             return filtered_records
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message="조건부 데이터 조회 실패",
-                data={
-                    "conditions": conditions,
-                    "error": str(e)
-                }
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="조건부 데이터 조회 실패",
+                    data={
+                        "conditions": conditions,
+                        "error": str(e)
+                    }
+                )
             raise 
 
-    def update_trade_record(
+    def update_data(
         self,
         conditions: Dict[str, Any],
         updates: Dict[str, Any],
@@ -1030,11 +1088,12 @@ class TradingLogger:
                 raise ValueError(f"조건에 맞는 기록을 찾을 수 없습니다: {conditions}")
             
             if len(target_rows) > 1:
-                self.log_manager.log(
-                    category=LogCategory.WARNING,
-                    message=f"여러 개의 레코드가 조건과 일치합니다: {len(target_rows)}개",
-                    data={"conditions": conditions}
-                )
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.WARNING,
+                        message=f"여러 개의 레코드가 조건과 일치합니다: {len(target_rows)}개",
+                        data={"conditions": conditions}
+                    )
             
             # 업데이트할 값 준비
             updates_list = []
@@ -1047,11 +1106,12 @@ class TradingLogger:
                             'values': [[str(value)]]
                         })
                     except ValueError:
-                        self.log_manager.log(
-                            category=LogCategory.WARNING,
-                            message=f"필드 '{field}'를 찾을 수 없습니다.",
-                            data={"conditions": conditions}
-                        )
+                        if self.log_manager:
+                            self.log_manager.log(
+                                category=LogCategory.WARNING,
+                                message=f"필드 '{field}'를 찾을 수 없습니다.",
+                                data={"conditions": conditions}
+                            )
                         continue
             
             if not updates_list:
@@ -1071,13 +1131,124 @@ class TradingLogger:
             print(response)
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message="매매 기록 수정 실패",
-                data={
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="매매 기록 수정 실패",
+                    data={
                     "conditions": conditions,
                     "updates": updates,
                     "error": str(e)
                 }
             )
+            raise 
+
+    def log_order_response(self, order_response: OrderResponse):
+        """주문 응답 데이터를 저장합니다.
+        
+        Args:
+            order_response (Dict): 주문 응답 데이터
+            {
+                "uuid": str,           # 주문 ID
+                "side": str,           # 주문 방향 ("bid" 또는 "ask")
+                "ord_type": str,       # 주문 타입
+                "state": str,          # 주문 상태
+                "market": str,         # 마켓 정보
+                "created_at": str,     # 주문 생성 시각
+                "volume": str,         # 주문 수량
+                "remaining_volume": str, # 남은 수량
+                "reserved_fee": str,   # 예약된 수수료
+                "remaining_fee": str,  # 남은 수수료
+                "paid_fee": str,       # 지불된 수수료
+                "locked": str,         # 잠긴 금액
+                "executed_volume": str, # 체결된 수량
+                "trades": List[Dict]   # 체결 내역 리스트
+            }
+        """
+        try:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            symbol = order_response.market.split('-')[1]  # KRW-BTC에서 BTC 추출
+            
+            # 체결 내역이 있는 경우 각 체결에 대해 기록
+
+            values = [[
+                    order_response.uuid,                 # Order UUID
+                    now,                                    # Timestamp
+                    symbol,                                 # Symbol
+                    order_response.side,                 # Order Side
+                    order_response.ord_type,            # Order Type
+                    order_response.price,
+                    order_response.state,               # Order State
+                    order_response.market,              # Market
+                    order_response.created_at,          # Created At
+                    order_response.volume,              # Volume
+                    order_response.remaining_volume,    # Remaining Volume
+                    order_response.reserved_fee,        # Reserved Fee
+                    order_response.remaining_fee,       # Remaining Fee
+                    order_response.paid_fee,            # Paid Fee
+                    order_response.locked,              # Locked
+                    order_response.executed_volume,     # Executed Volume
+                    order_response.trades_count        # Trades Count
+                ]]
+                    
+            self._append_values(self.SHEETS['order_response'], values)
+
+            trades = order_response.trades            
+            for trade in trades:
+                self.log_trade_response(trade, order_response.uuid)
+            
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.TRADING,
+                    message=f"주문 응답 저장 완료: {symbol}",
+                    data={
+                    "symbol": symbol,
+                    "order_id": order_response['uuid'],
+                    "state": order_response['state'],
+                    "trades_count": len(trades)
+                }
+            )
+            
+        except Exception as e:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="주문 응답 저장 실패",
+                    data={"error": str(e)}
+                )
+            raise 
+        
+    def log_trade_response(self, trade: Trade, order_id: str):
+        """체결 응답 데이터를 저장합니다.
+        
+        Args:
+            trade (Trade): 체결 응답 데이터
+            order_id (str): 주문 ID
+        """
+        try:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            symbol = trade.market.split('-')[1]  # KRW-BTC에서 BTC 추출
+            
+            values = [[
+                trade.uuid,                 # Trade UUID    
+                order_id,                   # Order ID
+                now,                        # Timestamp
+                symbol,                     # Symbol
+                trade.market,               # Trade Market
+                trade.price,                # Trade Price
+                trade.volume,               # Trade Volume
+                trade.funds,                # Trade Funds
+                trade.side,                 # Trade Side
+                trade.created_at            # Trade Created At
+            ]]
+            
+            self._append_values(self.SHEETS['trade_response'], values)
+            
+        except Exception as e:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="체결 응답 저장 실패",
+                    data={"error": str(e)}
+                )
             raise 

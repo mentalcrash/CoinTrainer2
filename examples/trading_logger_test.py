@@ -93,7 +93,7 @@ def test_query_trades():
     try:
         # 1. 대기 중인 주문 조회
         print("\n=== 대기 중인 주문 조회 ===")
-        wait_orders = trading_logger.query_trades(
+        wait_orders = trading_logger.query_many(
             conditions={"ID": "exec_20250410_234431_4da4957f"},
             sheet_name="decisions"
         )
@@ -105,7 +105,7 @@ def test_query_trades():
             
             # 2. 주문 상태 업데이트
             print(f"\n=== 주문 상태 업데이트 (ID: {order_id}) ===")
-            trading_logger.update_trade_record(
+            trading_logger.update_data(
                 conditions={'ID': order_id},
                 updates={
                     "긴급도": "높음",  # 상태를 완료로 변경

@@ -29,15 +29,15 @@ class LogEntry:
         return asdict(self)
 
 class LogCategory:
-    """로그 카테고리 정의"""
-    SYSTEM = "SYSTEM"      # 시스템 상태, 시작/종료
-    TRADING = "TRADING"    # 매매 실행 관련
-    DECISION = "DECISION"  # 매매 판단 관련
-    ASSET = "ASSET"       # 자산 상태 관련
-    DISCORD = "DISCORD"   # Discord 알림 관련
-    ERROR = "ERROR"       # 에러/예외 상황
-    API = "API"           # API 호출 관련
-    MARKET = "MARKET"     # 시장 데이터 관련
+    """로그 카테고리"""
+    SYSTEM = "SYSTEM"         # 시스템 관련
+    ERROR = "ERROR"          # 오류
+    API = "API"              # API 호출
+    TRADE = "TRADE"          # 거래 실행
+    MARKET = "MARKET"        # 시장 데이터
+    MONITOR = "MONITOR"      # 주문 모니터링
+    MONITOR_STATE = "MONITOR_STATE"    # 모니터링 상태 변경
+    MONITOR_ERROR = "MONITOR_ERROR"    # 모니터링 오류
 
 class LogManager:
     """로깅 관리자"""
