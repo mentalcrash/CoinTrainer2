@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any, Callable
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
-from src.models.order import OrderResult
+from src.models.order import OrderResponse
 from src.trading_logger import LogManager, LogCategory
 from src.trading_logger import TradingLogger
 from src.trading_executor import TradeExecutionResult
@@ -21,7 +21,7 @@ class OrderMonitor:
     
     def __init__(
         self,
-        trading_order: OrderResult,
+        trading_order: OrderResponse,
         trading_logger: TradingLogger,
         log_manager: Optional[LogManager] = None,
         config: Optional[OrderMonitorConfig] = None
@@ -136,8 +136,8 @@ class OrderMonitor:
             
     async def _handle_order_filled(
         self,
-        order: OrderResult,
-        on_filled: Optional[Callable[[OrderResult], None]]
+        order: OrderResponse,
+        on_filled: Optional[Callable[[OrderResponse], None]]
     ) -> None:
         """주문 체결 완료 처리"""
         if self.log_manager:
@@ -169,7 +169,7 @@ class OrderMonitor:
         if on_filled:
             on_filled(order)
             
-    async def _handle_order_cancelled(self, order: OrderResult) -> None:
+    async def _handle_order_cancelled(self, order: OrderResponse) -> None:
         """주문 취소 처리"""
         if self.log_manager:
             self.log_manager.log(
@@ -184,7 +184,7 @@ class OrderMonitor:
             
     async def _handle_order_timeout(
         self,
-        order: OrderResult,
+        order: OrderResponse,
         on_timeout: Optional[Callable[[str], None]]
     ) -> None:
         """주문 타임아웃 처리"""
@@ -203,7 +203,7 @@ class OrderMonitor:
         if on_timeout:
             on_timeout(order.uuid)
             
-    async def _handle_partial_fill_timeout(self, order: OrderResult) -> None:
+    async def _handle_partial_fill_timeout(self, order: OrderResponse) -> None:
         """부분 체결 타임아웃 처리"""
         if self.log_manager:
             self.log_manager.log(

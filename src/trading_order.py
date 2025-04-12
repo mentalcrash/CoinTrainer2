@@ -12,6 +12,7 @@ from typing import Dict, Optional, Union, Literal, List
 from src.utils.log_manager import LogManager, LogCategory
 from src.models.market_data import OrderResult, OrderSideType, OrderType, OrderInfo
 from src.models.order import Trade
+from src.round.manager import OrderRequest, OrderResponse
 
 class TradingOrder:
     """주문 처리를 담당하는 클래스"""
@@ -161,6 +162,149 @@ class TradingOrder:
                     }
                 )
             raise
+        
+    def create_order_v2(
+        self,
+        order_request: OrderRequest
+    ) -> OrderResponse:
+        """주문을 생성합니다.
+        
+        Args:
+            symbol: 거래 심볼 (예: 'BTC')
+            order_info: 주문 정보 객체
+            
+        Returns:
+            OrderResult: 주문 실행 결과
+            
+        Raises:
+            Exception: API 호출 실패 시 발생
+        """
+        try:
+            # API 요청 준비
+            endpoint = f"{self.base_url}/v1/orders"
+            params = {
+                'market': order_request.market,
+                'side': order_request.side,
+                'ord_type': order_request.order_type
+            }
+            
+            if order_request.price:
+                params['price'] = order_request.price
+            if order_request.volume:
+                params['volume'] = order_request.volume
+            
+            # API 호출
+            headers = {
+                'Authorization': self._create_auth_token(params),
+                'Content-Type': 'application/json'
+            }
+            
+            response = requests.post(endpoint, data=json.dumps(params), headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data or 'error' in data:
+                raise Exception(f"API Error: {data.get('error', {}).get('message', 'Unknown error')}")
+            
+            # 주문 결과 생성
+            order_res = OrderResponse.from_dict(data)
+            
+            # 주문 결과 로깅
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.TRADING,
+                    message=f"{order_request.market} {order_request.side} 주문 {'완료' if order_res.state == 'done' else '접수'}",
+                    data={
+                        "symbol": order_request.market,
+                        "order_result": order_res.to_dict()
+                    }
+                )
+            
+            return order_res
+            
+        except Exception as e:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=f"{order_request.market} {order_request.side} 주문 실패",
+                    data={
+                        "symbol": order_request.market,
+                        "error": str(e)
+                    }
+                )
+            raise
+     
+    def get_order_v2(self, order_id: str) -> OrderResponse:
+        """개별 주문 조회
+        
+        Args:
+            symbol (str): 심볼 (예: 'BTC')
+            order_id (str): 주문 ID
+            
+        Returns:
+            Optional[OrderResponse]: 주문 정보를 담은 OrderResponse 객체 또는 None
+        """
+        endpoint = f"{self.base_url}/v1/order"
+        params = {
+            'uuid': order_id
+        }
+        
+        headers = {
+            'Authorization': self._create_auth_token(params)
+        }
+        
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.API,
+                message="빗썸 API: 주문 조회 요청",
+                data={
+                    "order_id": order_id,
+                    "endpoint": endpoint
+                }
+            )
+        
+        try:
+            response = requests.get(endpoint, params=params, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            order_res = OrderResponse.from_dict(data)
+                
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.API,
+                    message="빗썸 API: 주문 조회 성공",
+                    data={
+                        "order_id": order_id,
+                        "response_status": response.status_code,
+                        "order_result": order_res
+                    }
+                )
+            return order_res
+        except requests.exceptions.RequestException as e:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="빗썸 API: 주문 조회 네트워크 오류",
+                    data={
+                        "order_id": order_id,
+                        "error_type": type(e).__name__,
+                        "error_message": str(e)
+                    }
+                )
+            raise
+        except Exception as e:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="빗썸 API: 주문 조회 중 예외 발생",
+                    data={
+                        "order_id": order_id,
+                        "error_type": type(e).__name__,
+                        "error_message": str(e)
+                    }
+                )
+            raise
+     
             
     def get_order(self, order_id: str) -> OrderResult:
         """개별 주문 조회

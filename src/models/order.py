@@ -31,8 +31,27 @@ class Trade:
         except Exception:
             return None
 
+
 @dataclass
-class OrderResult:
+class OrderRequest:
+    """주문 요청 정보"""
+    market: str                  # KRW-BTC
+    side: OrderSideType          # 매수/매도 구분
+    order_type: OrderType        # 주문 타입
+    price: Optional[float]       # 주문 가격
+    volume: Optional[float]      # 주문 수량
+
+    def to_dict(self) -> Dict:
+        """OrderRequest 객체를 딕셔너리로 변환
+
+        Returns:
+            Dict: 변환된 딕셔너리
+        """
+        return asdict(self)
+
+
+@dataclass
+class OrderResponse:
     """주문 실행 결과"""
     # 공통 필드
     uuid: str                        # 주문 ID
@@ -63,14 +82,14 @@ class OrderResult:
     trades: List[Trade] = None
 
     @classmethod
-    def from_dict(cls, data: Dict) -> Optional['OrderResult']:
-        """딕셔너리로부터 OrderResult 객체 생성
+    def from_dict(cls, data: Dict) -> Optional['OrderResponse']:
+        """딕셔너리로부터 OrderResponse 객체 생성
 
         Args:
             data (Dict): 주문 결과 데이터 딕셔너리
 
         Returns:
-            Optional[OrderResult]: 생성된 OrderResult 객체
+            Optional[OrderResponse]: 생성된 OrderResponse 객체
         """
         try:
             # 필수 필드가 없는 경우 기본값 설정
@@ -116,14 +135,14 @@ class OrderResult:
             return None
 
     @classmethod
-    def from_json(cls, json_str: str) -> Optional['OrderResult']:
-        """JSON 문자열로부터 OrderResult 객체 생성
+    def from_json(cls, json_str: str) -> Optional['OrderResponse']:
+        """JSON 문자열로부터 OrderResponse 객체 생성
 
         Args:
             json_str (str): 주문 결과 JSON 문자열
 
         Returns:
-            Optional[OrderResult]: 생성된 OrderResult 객체
+            Optional[OrderResponse]: 생성된 OrderResponse 객체
         """
         try:
             data = json.loads(json_str)
@@ -132,7 +151,7 @@ class OrderResult:
             return None
 
     def to_dict(self) -> Dict:
-        """OrderResult 객체를 딕셔너리로 변환
+        """OrderResponse 객체를 딕셔너리로 변환
 
         Returns:
             Dict: 변환된 딕셔너리
@@ -140,7 +159,7 @@ class OrderResult:
         return asdict(self)
 
     def to_json(self) -> str:
-        """OrderResult 객체를 JSON 문자열로 변환
+        """OrderResponse 객체를 JSON 문자열로 변환
 
         Returns:
             str: 변환된 JSON 문자열

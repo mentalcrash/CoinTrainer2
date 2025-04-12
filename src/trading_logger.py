@@ -6,7 +6,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from src.utils.log_manager import LogManager, LogCategory
 from src.models.market_data import TradeExecutionResult
-from src.models.order import OrderResult, Trade
+from src.models.order import OrderResponse, Trade
 
 import uuid
 
@@ -546,7 +546,7 @@ class TradingLogger:
             )
             raise 
 
-    def log_order_response(self, order_result: OrderResult):
+    def log_order_response(self, order_result: OrderResponse):
         """주문 응답 데이터를 저장합니다.
         
         Args:

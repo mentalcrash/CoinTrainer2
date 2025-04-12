@@ -28,6 +28,20 @@
             },
             "envFile": "${workspaceFolder}/.env",
             "preLaunchTask": "install-dependencies"
+        },
+        {
+            "name": "라운드 매니저 테스트",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/round_manager_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "DEV_MODE": "true"
+            },
+            "envFile": "${workspaceFolder}/.env",
+            "preLaunchTask": "install-dependencies"
         }
     ]
 } 

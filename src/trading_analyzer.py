@@ -46,13 +46,12 @@ class TradingAnalyzer:
         self.run_dir = base_dir / run_id
         self.run_dir.mkdir(exist_ok=True)
         
-    def get_market_overview(self, symbol: str, current_price: CurrentPrice) -> MarketOverview:
+    def get_market_overview(self, symbol: str) -> MarketOverview:
         """
         분봉 기준 시장 개요 조회 (스캘핑 트레이딩용)
 
         Args:
             symbol: 심볼 (예: BTC, ETH)
-            current_price: 현재가 정보 (선택사항, 없으면 조회)
 
         Returns:
             MarketOverview: 시장 개요 데이터
@@ -209,7 +208,7 @@ class TradingAnalyzer:
             
             # MarketOverview 객체 생성
             result = MarketOverview(
-                current_price=current_price.trade_price,
+                current_price=ma1,
                 ma1=ma1,
                 ma3=ma3,
                 ma5=ma5,
@@ -574,7 +573,7 @@ class TradingAnalyzer:
             current_price = self.ticker.get_current_price(symbol)
         
             # 1. 시장 데이터 수집
-            market_data = self.get_market_overview(symbol, current_price)
+            market_data = self.get_market_overview(symbol)
 
             # 2. 매매 신호 분석
             signals = self.get_trading_signals(market_data)
