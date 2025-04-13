@@ -243,18 +243,18 @@ def test_monitoring_process():
         
         # 4. 모니터링 시작
         print("\n[모니터링 시작]")
-        monitoring_thread = threading.Thread(
-            target=round_manager.start_monitoring,
-            args=(trading_round.id,),
-            daemon=True
-        )
-        monitoring_thread.start()
         
         # 5. 모니터링 상태 출력 (30초 동안)
         start_time = time.time()
         monitoring_duration = 30  # seconds
         
         while time.time() - start_time < monitoring_duration:
+            # 모니터링 프로세스 실행
+            monitoring_result = round_manager.start_monitoring(trading_round.id)
+            if monitoring_result:
+                print("\n✅ 모니터링 프로세스 완료")
+                break
+                
             current_info = round_manager.get_round_summary(trading_round.id)
             if not current_info:
                 print("❌ 라운드 정보 조회 실패")

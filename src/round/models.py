@@ -183,6 +183,7 @@ class GPTEntryDecision:
     stop_loss_price: float      # 손절가
     timestamp: datetime         # 결정 시간
 
+@dataclass
 class GPTExitDecision:
     """GPT의 매도 청산 결정 데이터"""
     should_exit: bool           # 매도 청산 여부

@@ -52,6 +52,36 @@ class RoundManager:
             secret_key=os.getenv("BITHUMB_SECRET_KEY"),
             log_manager=self.log_manager
         )
+     
+    def run(self, symbol: str):
+        round = self.create_round(symbol)
+        if not round:
+            return
+        was_watching = self.start_watching(round.id)
+        if not was_watching:
+            self.log_manager.log(
+                category=LogCategory.ROUND_ERROR,
+                message=f"라운드 실패: {round.id}",
+                data={"symbol": symbol}
+            )
+            return
+        
+        was_monitoring = self.start_monitoring(round.id)
+        if not was_monitoring:
+            self.log_manager.log(
+                category=LogCategory.ROUND_ERROR,
+                message=f"라운드 시작 실패: {round.id}",
+                data={"symbol": symbol}
+            )
+            return
+        
+        summary = self.get_round(round.id)
+        
+        self.log_manager.log(
+            category=LogCategory.ROUND,
+            message=f"라운드 시작 성공: {round.id}",
+            data=summary
+        )   
         
     def create_round(
         self,
@@ -402,18 +432,32 @@ class RoundManager:
             if not trading_round:
                 return None
                 
-            return {
+            # 기본 정보
+            summary = {
                 "id": trading_round.id,
                 "symbol": trading_round.symbol,
                 "status": trading_round.status,
                 "duration": trading_round.duration,
                 "entry_price": trading_round.entry_order.price if trading_round.entry_order else None,
-                "current_metrics": trading_round.metrics._asdict() if trading_round.metrics else None,
+                "current_metrics": trading_round.metrics if trading_round.metrics else None,
                 "take_profit": trading_round.take_profit,
                 "stop_loss": trading_round.stop_loss,
                 "exit_reason": trading_round.exit_reason,
                 "decision_count": len(trading_round.decision_history)
             }
+            
+            # 모니터링 관련 정보 추가
+            if trading_round.status == RoundStatus.HOLDING:
+                summary.update({
+                    "monitoring_status": {
+                        "last_check_time": trading_round.last_check_time.isoformat() if hasattr(trading_round, 'last_check_time') else None,
+                        "current_price": trading_round.current_price if hasattr(trading_round, 'current_price') else None,
+                        "profit_loss_rate": trading_round.metrics.profit_loss_rate if trading_round.metrics else None,
+                        "holding_time": trading_round.holding_time if hasattr(trading_round, 'holding_time') else None
+                    }
+                })
+            
+            return summary
             
         except Exception as e:
             self.log_manager.log(
@@ -672,31 +716,7 @@ class RoundManager:
                     )
                     
                     # GPT 매수 진입 결정 요청
-                    # TODO: 테스트 종료 이부분 수정 요망
-                    #entry_decision = self.get_entry_decision(round_id, market_data)
-                    
-                    ## 테스트용 더미 entry_decision 생성
-                    entry_decision = GPTEntryDecision(
-                        should_enter=True,
-                        target_price=market_data.current_price * 1.05,
-                        stop_loss_price=market_data.current_price * 0.95,
-                        reasons=["테스트 이유 1", "테스트 이유 2", "테스트 이유 3"],
-                        current_price=market_data.current_price,
-                        # target_price=market_data.current_price * 1.05,
-                        # stop_loss_price=market_data.current_price * 0.95,
-                        timestamp=datetime.now(),
-                        
-                        # should_enter=True,
-                        # target_profit_rate=10,
-                        # stop_loss_rate=5,
-                        # reasons=["테스트 이유 1", "테스트 이유 2", "테스트 이유 3"],
-                        # current_price: float        # 현재가
-                        # target_price: float         # 목표가
-                        # stop_loss_price: float      # 손절가
-                        # timestamp: datetime         # 결정 시간 
-                        target_profit_rate=10,
-                        stop_loss_rate=5,
-                    )
+                    entry_decision = self.get_entry_decision(round_id, market_data)
                     
                     if not entry_decision:
                         self.log_manager.log(
@@ -822,15 +842,38 @@ class RoundManager:
         """매도 시그널이 발생하여 청산 준비 상태로 변경합니다."""
         return self.update_round_status(round_id, RoundStatus.EXIT_READY, reason)
 
-    def confirm_exit_order(self, round_id: str, order_result: OrderResponse) -> bool:
-        """매도 주문이 발생했음을 기록합니다."""
-        if self.add_order_to_round(round_id, order_result, 'exit'):
-            return self.update_round_status(
-                round_id, 
-                RoundStatus.EXIT_ORDERED,
-                f"매도 주문 발생: {order_result.uuid}"
+    def confirm_exit_order(self, round_id: str, order_response: OrderResponse) -> bool:
+        """매도 주문 결과를 라운드에 기록합니다.
+        
+        Args:
+            round_id (str): 라운드 ID
+            order_response (OrderResponse): 주문 응답 객체
+            
+        Returns:
+            bool: 성공 여부
+        """
+        try:
+            # 주문 정보를 라운드에 추가
+            if self.add_order_to_round(round_id, order_response, 'exit'):
+                # 상태 업데이트
+                return self.update_round_status(
+                    round_id=round_id,
+                    new_status=RoundStatus.EXIT_ORDERED,
+                    reason=f"매도 주문 완료 (주문번호: {order_response.uuid})"
+                )
+            
+            return False
+            
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ROUND_ERROR,
+                message=f"매도 주문 확인 중 오류 발생: {str(e)}",
+                data={
+                    "round_id": round_id,
+                    "order_response": order_response.to_dict() if order_response else None
+                }
             )
-        return False
+            return False
 
     def revert_to_watching(self, round_id: str, reason: str) -> bool:
         """진입/청산 시도를 취소하고 관찰 상태로 되돌립니다."""
@@ -840,16 +883,6 @@ class RoundManager:
             
         if trading_round.status in [RoundStatus.ENTRY_READY, RoundStatus.ENTRY_ORDERED]:
             return self.update_round_status(round_id, RoundStatus.WATCHING, reason)
-        return False
-
-    def revert_to_holding(self, round_id: str, reason: str) -> bool:
-        """청산 시도를 취소하고 보유 상태로 되돌립니다."""
-        trading_round = self.active_rounds.get(round_id)
-        if not trading_round:
-            return False
-            
-        if trading_round.status in [RoundStatus.EXIT_READY, RoundStatus.EXIT_ORDERED]:
-            return self.update_round_status(round_id, RoundStatus.HOLDING, reason)
         return False
 
     def _generate_market_prompt(self, round_id: str, market_data) -> Tuple[str, str]:
@@ -946,7 +979,7 @@ class RoundManager:
     def _parse_gpt_entry_response(
         self,
         round_id: str,
-        response: str,
+        response: dict,
         current_price: float
     ) -> Optional[GPTEntryDecision]:
         """GPT의 매수 진입 응답을 파싱하여 결정 객체를 생성합니다.
@@ -961,28 +994,7 @@ class RoundManager:
         """
         try:
             # 1. 응답 검증
-            if not response or len(response) > 2000:  # 응답이 너무 길면 거부
-                raise ValueError("응답이 비어있거나 너무 깁니다")
-
-            # 2. JSON 파싱 전 응답 정리
-            response = response.strip()
-            if response.startswith('```json'):
-                response = response[7:]
-            if response.endswith('```'):
-                response = response[:-3]
-            response = response.strip()
-
-            # 3. 중복 필드 검사
-            field_counts = {}
-            for line in response.split('\n'):
-                if ':' in line:
-                    field = line.split(':')[0].strip().strip('"')
-                    field_counts[field] = field_counts.get(field, 0) + 1
-                    if field_counts[field] > 1:
-                        raise ValueError(f"중복된 필드 발견: {field}")
-
-            # 4. JSON 파싱
-            data = json.loads(response)
+            data = response
             
             # 5. 필수 필드 검증
             required_fields = ['should_enter', 'target_price', 'stop_loss_price', 'reasons']
@@ -1045,7 +1057,7 @@ class RoundManager:
     def _parse_gpt_exit_response(
         self,
         round_id: str,
-        response: str,
+        response: dict,
         current_price: float
     ) -> Optional[GPTExitDecision]:
         """GPT의 매도 청산 응답을 파싱합니다.
@@ -1059,29 +1071,8 @@ class RoundManager:
             Optional[GPTExitDecision]: 파싱된 결정 객체 또는 None
         """
         try:
-            # 1. 응답 검증
-            if not response or len(response) > 2000:
-                raise ValueError("응답이 비어있거나 너무 깁니다")
-
-            # 2. JSON 파싱 전 응답 정리
-            response = response.strip()
-            if response.startswith('```json'):
-                response = response[7:]
-            if response.endswith('```'):
-                response = response[:-3]
-            response = response.strip()
-
-            # 3. 중복 필드 검사
-            field_counts = {}
-            for line in response.split('\n'):
-                if ':' in line:
-                    field = line.split(':')[0].strip().strip('"')
-                    field_counts[field] = field_counts.get(field, 0) + 1
-                    if field_counts[field] > 1:
-                        raise ValueError(f"중복된 필드 발견: {field}")
-
             # 4. JSON 파싱
-            data = json.loads(response)
+            data = response
             
             # 5. 필수 필드 검증
             required_fields = ['should_exit', 'reasons']
@@ -1100,7 +1091,7 @@ class RoundManager:
                 raise ValueError("라운드를 찾을 수 없음")
                 
             # 현재 수익률 계산
-            profit_loss_rate = ((current_price - trading_round.entry_price) / trading_round.entry_price) * 100
+            profit_loss_rate = ((current_price - trading_round.entry_order.price) / trading_round.entry_order.price) * 100
             
             decision = GPTExitDecision(
                 should_exit=data['should_exit'],
@@ -1269,11 +1260,9 @@ class RoundManager:
                 
             # GPT 호출
             response = self._call_gpt(system_prompt, user_prompt)
-            if not response:
-                return None
                 
             # 응답 파싱
-            return self._parse_gpt_entry_response(round_id, json.dumps(response), market_data.current_price)
+            return self._parse_gpt_entry_response(round_id, response, market_data.current_price)
             
         except Exception as e:
             self.log_manager.log(
@@ -1324,9 +1313,8 @@ class RoundManager:
                 return None
             
             # 주문 금액 계산 (총 잔고의 10%)
-            RATIO = 0.1
-            # order_amount = available_balance * RATIO
-            order_amount = 5000 # for test
+            RATIO = 0.2
+            order_amount = available_balance * RATIO
             
             # 주문 생성
             order_request = OrderRequest(
@@ -1563,121 +1551,183 @@ class RoundManager:
             
         Returns:
             Optional[OrderRequest]: 생성된 주문 요청 객체
+            
+        Note:
+            1. 라운드 상태 검증
+            2. 진입 주문 정보 확인
+            3. 잔고 조회
+            4. 매도 주문 생성
         """
         try:
+            # 1. 라운드 상태 검증
             trading_round = self.active_rounds.get(round_id)
-            if not trading_round or trading_round.status != RoundStatus.EXIT_READY:
+            if not trading_round:
+                self._log_exit_error(round_id, "라운드를 찾을 수 없음")
+                return None
+                
+            if trading_round.status != RoundStatus.EXIT_READY:
+                self._log_exit_error(
+                    round_id,
+                    "부적절한 라운드 상태",
+                    {
+                        "current_status": trading_round.status,
+                        "required_status": RoundStatus.EXIT_READY
+                    }
+                )
                 return None
             
+            # 2. 진입 주문 정보 확인
             if not trading_round.entry_order:
-                self.log_manager.log(
-                    category=LogCategory.ROUND_ERROR,
-                    message="진입 주문 정보 없음",
-                    data={"round_id": round_id}
+                self._log_exit_error(
+                    round_id,
+                    "진입 주문 정보 없음",
+                    {"symbol": trading_round.symbol}
                 )
                 return None
             
-            # 시장 데이터 조회
-            market_data = self.analyzer.get_market_overview(trading_round.symbol)
-            if not market_data:
-                self.log_manager.log(
-                    category=LogCategory.ROUND_ERROR,
-                    message="시장 데이터 조회 실패",
-                    data={"round_id": round_id}
+            # 3. 잔고 조회
+            balance = self.account.get_balance(trading_round.symbol)
+            if not balance or float(balance['balance']) <= 0:
+                self._log_exit_error(
+                    round_id,
+                    "매도 가능 잔고 없음",
+                    {
+                        "symbol": trading_round.symbol,
+                        "balance": balance
+                    }
                 )
                 return None
             
-            # 주문 생성
+            # 4. 매도 주문 생성
             order_request = OrderRequest(
-                symbol=trading_round.symbol,
-                side="sell",
-                price=market_data.current_price,  # 시장가 주문
-                quantity=trading_round.entry_order.quantity,  # 진입 수량과 동일
+                market=f"KRW-{trading_round.symbol}",
+                side="ask",
                 order_type="market",
-                time_in_force="IOC",  # Immediate Or Cancel
-                client_order_id=f"exit_{round_id}"
+                price=None,
+                volume=float(balance['balance'])
             )
             
+            # 5. 로깅
             self.log_manager.log(
                 category=LogCategory.ROUND_EXIT,
-                message="매도 주문 생성",
+                message="매도 주문 생성 완료",
                 data={
                     "round_id": round_id,
-                    "symbol": order_request.symbol,
-                    "price": order_request.price,
-                    "quantity": order_request.quantity
+                    "symbol": trading_round.symbol,
+                    "volume": order_request.volume,
+                    "order_type": order_request.order_type
                 }
             )
             
             return order_request
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ROUND_ERROR,
-                message=f"매도 주문 생성 실패: {str(e)}",
-                data={"round_id": round_id}
+            self._log_exit_error(
+                round_id,
+                f"매도 주문 생성 실패: {str(e)}",
+                {"error": str(e)}
             )
             return None
 
-    def execute_exit_order(self, round_id: str, order_request: OrderRequest) -> bool:
-        """매도 주문을 실행합니다.
+    def execute_exit_order(self, round_id: str, order_request: OrderRequest) -> Optional[OrderResponse]:
+        """매도 주문을 실행하고 결과를 반환합니다.
         
         Args:
             round_id (str): 라운드 ID
             order_request (OrderRequest): 주문 요청 객체
             
         Returns:
-            bool: 실행 성공 여부
+            Optional[OrderResponse]: 주문 응답 객체 또는 None
+            
+        Note:
+            - 주문 실행 전 라운드 상태 검증
+            - 실제 거래소 API를 통한 주문 실행
+            - 주문 실행 결과에 대한 상세 로깅
         """
         try:
+            # 1. 라운드 상태 검증
             trading_round = self.active_rounds.get(round_id)
-            if not trading_round or trading_round.status != RoundStatus.EXIT_READY:
-                return False
+            if not trading_round:
+                self._log_exit_error(
+                    round_id,
+                    "매도 주문 실행 실패: 라운드를 찾을 수 없음"
+                )
+                return None
+                
+            if trading_round.status != RoundStatus.EXIT_READY:
+                self._log_exit_error(
+                    round_id,
+                    "매도 주문 실행 실패: 부적절한 라운드 상태",
+                    {
+                        "current_status": trading_round.status,
+                        "required_status": RoundStatus.EXIT_READY
+                    }
+                )
+                return None
             
-            # TODO: 거래소 API를 통한 실제 주문 실행
-            # order_result = exchange_api.create_order(order_request)
+            # 2. 주문 요청 검증
+            if not order_request.market or not order_request.volume:
+                self._log_exit_error(
+                    round_id,
+                    "매도 주문 실행 실패: 잘못된 주문 정보",
+                    {
+                        "market": order_request.market,
+                        "volume": order_request.volume
+                    }
+                )
+                return None
             
-            # 임시 테스트용 주문 결과
-            order_result = OrderResult(
-                order_id=str(uuid.uuid4()),
-                symbol=order_request.symbol,
-                side=order_request.side,
-                price=order_request.price,
-                quantity=order_request.quantity,
-                status="FILLED",
-                transaction_time=datetime.now(),
-                client_order_id=order_request.client_order_id
+            # 3. 주문 실행 전 로깅
+            self.log_manager.log(
+                category=LogCategory.ROUND_EXIT,
+                message="매도 주문 실행 시작",
+                data={
+                    "round_id": round_id,
+                    "symbol": trading_round.symbol,
+                    "order_request": {
+                        "market": order_request.market,
+                        "side": order_request.side,
+                        "volume": order_request.volume,
+                        "order_type": order_request.order_type
+                    }
+                }
             )
             
-            # 주문 결과 처리
-            if order_result.status in ["FILLED", "PARTIALLY_FILLED"]:
-                if self.confirm_exit_order(round_id, order_result):
-                    # 최종 성과 지표 업데이트
-                    self.update_round_metrics(round_id, order_result.price)
-                    
-                    self.log_manager.log(
-                        category=LogCategory.ROUND_EXIT,
-                        message="매도 주문 실행 성공",
-                        data={
-                            "round_id": round_id,
-                            "order_id": order_result.order_id,
-                            "price": order_result.price,
-                            "quantity": order_result.quantity,
-                            "profit_loss": trading_round.metrics.profit_loss if trading_round.metrics else None,
-                            "profit_loss_rate": trading_round.metrics.profit_loss_rate if trading_round.metrics else None
-                        }
-                    )
-                    return True
+            # 4. 주문 실행
+            order_response = self.order.create_order_v2(order_request)
+            if not order_response:
+                self._log_exit_error(
+                    round_id,
+                    "매도 주문 실행 실패: API 응답 없음",
+                    {"order_request": order_request.to_dict()}
+                )
+                return None
             
-            return False
+            # 5. 주문 실행 결과 로깅
+            self.log_manager.log(
+                category=LogCategory.ROUND_EXIT,
+                message="매도 주문 실행 완료",
+                data={
+                    "round_id": round_id,
+                    "order_id": order_response.uuid,
+                    "initial_state": order_response.state,
+                    "price": order_response.price,
+                    "volume": order_response.volume
+                }
+            )
+            
+            return order_response
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ROUND_ERROR,
-                message=f"매도 주문 실행 실패: {str(e)}",
-                data={"round_id": round_id}
+            self._log_exit_error(
+                round_id,
+                f"매도 주문 실행 중 예외 발생: {str(e)}",
+                {
+                    "error": str(e),
+                    "order_request": order_request.to_dict() if order_request else None
+                }
             )
-            return False 
+            return None
 
     def start_monitoring(self, round_id: str) -> bool:
         """포지션 모니터링을 시작합니다.
@@ -1725,46 +1775,13 @@ class RoundManager:
                 data={
                     "round_id": round_id,
                     "symbol": trading_round.symbol,
-                    "entry_price": trading_round.entry_price,
+                    "entry_price": trading_round.entry_order.price,
                     "target_price": trading_round.take_profit,
                     "stop_loss_price": trading_round.stop_loss,
                     "current_status": trading_round.status,
                     "monitoring_interval": MONITORING_INTERVAL
                 }
             )
-            
-        def _handle_exit_process(trading_round: TradingRound, decision: GPTExitDecision) -> bool:
-            """매도 프로세스를 처리합니다."""
-            try:
-                if self.prepare_exit(round_id, decision.reasons):
-                    if self.execute_exit(round_id, decision.reasons):
-                        self.update_round_status(round_id, RoundStatus.COMPLETED)
-                        
-                        self.log_manager.log(
-                            category=LogCategory.ROUND,
-                            message="매도 프로세스 완료",
-                            data={
-                                "round_id": round_id,
-                                "final_status": RoundStatus.COMPLETED,
-                                "exit_price": decision.current_price,
-                                "profit_loss_rate": decision.profit_loss_rate
-                            }
-                        )
-                        return True
-                        
-                return False
-                
-            except Exception as e:
-                self.log_manager.log(
-                    category=LogCategory.ROUND_ERROR,
-                    message="매도 프로세스 실패",
-                    data={
-                        "round_id": round_id,
-                        "error": str(e),
-                        "exit_price": decision.current_price
-                    }
-                )
-                return False
         
         try:
             # 1. 라운드 검증
@@ -1794,7 +1811,8 @@ class RoundManager:
                     
                     # 매도 결정 처리
                     if decision and decision.should_exit:
-                        return _handle_exit_process(trading_round, decision)
+                        if self.update_round_status(round_id, RoundStatus.EXIT_READY):
+                            return self.execute_exit_process(round_id, decision.reasons)
                     
                     # 재시도 카운터 초기화 (성공적인 모니터링)
                     retry_count = 0
@@ -1829,56 +1847,193 @@ class RoundManager:
             )
             return False
 
-    def _analyze_exit_condition(self, round_id: str, current_price: float) -> None:
-        """GPT를 통해 청산 조건을 분석합니다."""
+    def execute_exit_process(self, round_id: str, reasons: List[str]) -> bool:
+        """매도 청산 프로세스를 실행합니다.
+        
+        Args:
+            round_id (str): 라운드 ID
+            reasons (List[str]): 청산 이유 목록
+            
+        Returns:
+            bool: 성공 여부
+            
+        Note:
+            전체 매도 청산 프로세스를 관리합니다:
+            1. 라운드 상태 검증
+            2. 주문 생성 및 실행
+            3. 주문 체결 대기 및 확인
+            4. 라운드 종료 처리
+        """
         try:
-            trading_round = self.get_round(round_id)
+            # 1. 라운드 상태 검증
+            trading_round = self.active_rounds.get(round_id)
             if not trading_round:
-                return
+                self._log_exit_error(round_id, "라운드를 찾을 수 없음")
+                return False
                 
-            # 시장 데이터 수집
-            market_data = self._collect_market_data(trading_round.symbol)
-            
-            # GPT 분석 요청
-            response = self.gpt_manager.analyze_exit_condition(
-                symbol=trading_round.symbol,
-                entry_price=trading_round.entry_price,
-                current_price=current_price,
-                target_price=trading_round.take_profit,
-                stop_loss_price=trading_round.stop_loss,
-                market_data=market_data
-            )
-            
-            # 응답 파싱
-            decision = self._parse_gpt_exit_response(round_id, response, current_price)
-            if decision and decision['should_exit']:
-                self.log_manager.log(
-                    category=LogCategory.ROUND,
-                    message="GPT 청산 시그널 발생",
-                    data={
-                        "round_id": round_id,
-                        "reasons": decision['reasons']
+            if trading_round.status != RoundStatus.EXIT_READY:
+                self._log_exit_error(
+                    round_id,
+                    "부적절한 라운드 상태",
+                    {
+                        "current_status": trading_round.status,
+                        "required_status": RoundStatus.EXIT_READY
                     }
                 )
-                self.execute_exit_process(round_id, "GPT 청산 시그널")
+                return False
+            
+            # 2. 주문 생성 및 실행
+            try:
+                # 2-1. 프로세스 시작 로깅
+                self.log_manager.log(
+                    category=LogCategory.ROUND_EXIT,
+                    message="매도 청산 프로세스 시작",
+                    data={
+                        "round_id": round_id,
+                        "symbol": trading_round.symbol,
+                        "reasons": reasons
+                    }
+                )
                 
+                # 2-2. 주문 생성
+                order_request = self.create_exit_order(round_id)
+                if not order_request:
+                    self._log_exit_error(round_id, "주문 생성 실패")
+                    return False
+                
+                # 2-3. 주문 실행
+                order_response = self.execute_exit_order(round_id, order_request)
+                if not order_response:
+                    self._log_exit_error(
+                        round_id,
+                        "주문 실행 실패",
+                        {"order_request": order_request.to_dict()}
+                    )
+                    return False
+                
+                # 2-4. 주문 상태 기록
+                if not self.confirm_exit_order(round_id, order_response):
+                    self._log_exit_error(
+                        round_id,
+                        "주문 상태 기록 실패",
+                        {"order_response": order_response.to_dict()}
+                    )
+                    return False
+                
+            except Exception as e:
+                self._log_exit_error(
+                    round_id,
+                    f"주문 생성/실행 중 오류: {str(e)}",
+                    {"error": str(e)}
+                )
+                return self._revert_to_holding(round_id, "주문 생성/실행 실패")
+            
+            # 3. 주문 체결 대기 및 확인
+            try:
+                completed_order = self.wait_order_completion(order_response)
+                if not completed_order:
+                    self._log_exit_error(
+                        round_id,
+                        "주문 체결 실패",
+                        {"order_id": order_response.uuid}
+                    )
+                    return self._revert_to_holding(round_id, "주문 체결 실패")
+                
+                # 주문 정보 라운드에 추가
+                if not self.add_order_to_round(round_id, completed_order, 'exit'):
+                    self._log_exit_error(
+                        round_id,
+                        "주문 정보 추가 실패",
+                        {"completed_order": completed_order.to_dict()}
+                    )
+                    return self._revert_to_holding(round_id, "주문 정보 추가 실패")
+                
+            except Exception as e:
+                self._log_exit_error(
+                    round_id,
+                    f"주문 체결 확인 중 오류: {str(e)}",
+                    {"error": str(e)}
+                )
+                return self._revert_to_holding(round_id, "주문 체결 확인 실패")
+            
+            # 4. 라운드 종료 처리
+            try:
+                # 최종 성과 지표 업데이트
+                self.update_round_metrics(round_id, trading_round.exit_order.price)
+                
+                # 라운드 완료 상태로 전환
+                if not self.update_round_status(
+                    round_id=round_id,
+                    new_status=RoundStatus.COMPLETED,
+                    reason=self._get_exit_completion_message(completed_order, reasons)
+                ):
+                    self._log_exit_error(
+                        round_id,
+                        "상태 전환 실패",
+                        {"completed_order": completed_order.to_dict()}
+                    )
+                    return False
+                
+                # 성공 로깅
+                self.log_manager.log(
+                    category=LogCategory.ROUND_EXIT,
+                    message="매도 청산 프로세스 완료",
+                    data={
+                        "round_id": round_id,
+                        "symbol": trading_round.symbol,
+                        "exit_price": completed_order.price,
+                        "exit_volume": completed_order.volume,
+                        "profit_loss": trading_round.metrics.profit_loss if trading_round.metrics else None,
+                        "profit_loss_rate": trading_round.metrics.profit_loss_rate if trading_round.metrics else None,
+                        "trades_count": len(completed_order.trades) if completed_order.trades else 0,
+                        "reasons": reasons
+                    }
+                )
+                
+                return True
+                
+            except Exception as e:
+                self._log_exit_error(
+                    round_id,
+                    f"라운드 종료 처리 중 오류: {str(e)}",
+                    {"error": str(e)}
+                )
+                return False
+            
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ROUND_ERROR,
-                message=f"청산 조건 분석 중 오류 발생: {str(e)}",
-                data={
-                    "round_id": round_id,
-                    "error": str(e)
-                }
+            self._log_exit_error(
+                round_id,
+                f"매도 청산 프로세스 중 예외 발생: {str(e)}",
+                {"error": str(e)}
             )
-
-    def _collect_market_data(self, symbol: str):
-        # Implementation of _collect_market_data method
-        pass
-
-    def execute_exit_process(self, round_id: str, reason: str) -> bool:
-        # Implementation of execute_exit_process method
-        pass
+            return self._revert_to_holding(round_id, "예외 발생")
+    
+    def _log_exit_error(self, round_id: str, message: str, additional_data: dict = None) -> None:
+        """매도 청산 관련 에러를 로깅합니다."""
+        data = {"round_id": round_id}
+        if additional_data:
+            data.update(additional_data)
+            
+        self.log_manager.log(
+            category=LogCategory.ROUND_ERROR,
+            message=f"매도 청산 실패: {message}",
+            data=data
+        )
+    
+    def _get_exit_completion_message(self, completed_order, reasons: List[str]) -> str:
+        """매도 완료 메시지를 생성합니다."""
+        trades_info = ""
+        if completed_order.trades:
+            trades_count = len(completed_order.trades)
+            trades_info = f" ({trades_count}건 체결)"
+            
+        reasons_text = "\n- " + "\n- ".join(reasons)
+        
+        return (
+            f"매도 주문 체결 완료{trades_info} "
+            f"(체결가: {completed_order.price}, 수량: {completed_order.volume})\n"
+            f"청산 이유:{reasons_text}"
+        )
 
     def _generate_exit_prompt(
         self,
@@ -1917,16 +2072,17 @@ class RoundManager:
 
 응답은 반드시 지정된 JSON 형식을 따라야 합니다."""
         
+        profit_loss_rate = ((market_data.current_price - trading_round.entry_order.price) / trading_round.entry_order.price) * 100
         # 사용자 프롬프트 생성
         user_prompt = f"""
 현재 {trading_round.symbol} 포지션의 청산 여부를 분석해 주세요.
 
 [포지션 정보]
-- 진입가: {trading_round.entry_price:,.0f}원
+- 진입가: {trading_round.entry_order.price:,.0f}원
 - 현재가: {market_data.current_price:,.0f}원
 - 목표가: {trading_round.take_profit:,.0f}원
 - 손절가: {trading_round.stop_loss:,.0f}원
-- 현재 수익률: {balance['profit_loss_rate']:.2f}%
+- 현재 수익률: {profit_loss_rate:.2f}%
 - 보유수량: {balance['balance']}
 - 주문중수량: {balance['locked']}
 - 평균매수가: {balance['avg_buy_price']}
@@ -1973,7 +2129,7 @@ class RoundManager:
             data={
                 "round_id": round_id,
                 "symbol": trading_round.symbol,
-                "current_profit_rate": balance['profit_loss_rate'],
+                "current_profit_rate": f"{profit_loss_rate:.2f}%",
                 "system_prompt_length": len(system_prompt),
                 "user_prompt_length": len(user_prompt)
             }
@@ -1987,7 +2143,7 @@ class RoundManager:
         market_data: MarketOverview,
         balance: Dict,
         trading_round: TradingRound
-    ) -> Optional[Dict]:
+    ) -> Optional[GPTExitDecision]:
         """시장 데이터를 분석하여 매도 청산 결정을 얻습니다.
         
         Args:
@@ -2043,10 +2199,9 @@ class RoundManager:
                 data={
                     "round_id": round_id,
                     "symbol": trading_round.symbol,
-                    "should_exit": response['should_exit'],
-                    "reasons": response['reasons'],
+                    "should_exit": decision.should_exit,
+                    "reasons": decision.reasons,
                     "current_price": market_data.current_price,
-                    "profit_loss_rate": balance['profit_loss_rate']
                 }
             )
             
@@ -2062,3 +2217,18 @@ class RoundManager:
                 }
             )
             return None 
+
+    def _revert_to_holding(self, round_id: str, reason: str) -> bool:
+        """holding 상태로 복귀하고 False를 반환합니다."""
+        self.revert_to_holding(round_id, f"{reason}로 보유 상태로 복귀")
+        return False
+
+    def revert_to_holding(self, round_id: str, reason: str) -> bool:
+        """청산 시도를 취소하고 보유 상태로 되돌립니다."""
+        trading_round = self.active_rounds.get(round_id)
+        if not trading_round:
+            return False
+            
+        if trading_round.status in [RoundStatus.EXIT_READY, RoundStatus.EXIT_ORDERED]:
+            return self.update_round_status(round_id, RoundStatus.HOLDING, reason)
+        return False
