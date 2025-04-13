@@ -1117,8 +1117,8 @@ class RoundManager:
             data={
                 "round_id": round_id,
                 "symbol": trading_round.symbol,
-                "system_prompt_length": len(system_prompt),
-                "user_prompt_length": len(user_prompt)
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt
             }
         )
         

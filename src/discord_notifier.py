@@ -215,6 +215,9 @@ RSI 지표:
             target_profit_rate = ((round.take_profit - round.entry_order.price) / round.entry_order.price) * 100
             stop_loss_rate = ((round.stop_loss - round.entry_order.price) / round.entry_order.price) * 100
             
+            # 진입 근거 포맷팅
+            entry_reasons = "\n".join(f"  ▸ {reason}" for reason in round.entry_reason)
+            
             message = f"""```ini
 [🎯 새로운 트레이딩 라운드 시작]
 
@@ -231,7 +234,7 @@ RSI 지표:
 • 수량: {round.entry_order.volume}
 
 [진입 근거]
-{round.entry_reason}
+{entry_reasons}
 
 트레이딩 시그널 대기 중... 🔍
 ```"""
@@ -277,15 +280,15 @@ RSI 지표:
             # 홀딩 시간 계산
             try:
                 # 주문 시간 기준으로 계산
-                entry_time = round.entry_order.timestamp
-                exit_time = round.exit_order.timestamp
+                entry_time = round.entry_order.order_result.timestamp
+                exit_time = round.exit_order.order_result.timestamp
                 if entry_time and exit_time:
                     holding_time = exit_time - entry_time
                     hours = holding_time.total_seconds() // 3600
                     minutes = (holding_time.total_seconds() % 3600) // 60
                 else:
                     # 라운드 시간 기준으로 계산 (대체 로직)
-                    holding_time = exit_time - entry_time
+                    holding_time = round.exit_time - round.entry_time
                     hours = holding_time.total_seconds() // 3600
                     minutes = (holding_time.total_seconds() % 3600) // 60
             except Exception as e:
@@ -299,6 +302,10 @@ RSI 지표:
                 )
                 hours = 0
                 minutes = 0
+                
+            # 진입/청산 근거 포맷팅
+            entry_reasons = "\n".join(f"  ▸ {reason}" for reason in round.entry_reason)
+            exit_reasons = "\n".join(f"  ▸ {reason}" for reason in round.exit_reason)
             
             message = f"""```ini
 [{result_emoji} 트레이딩 라운드 종료 {result_emoji}]
@@ -323,11 +330,11 @@ RSI 지표:
 • 최종 수익률: {profit_rate_with_fee:+.2f}%
 
 [매매 근거]
-• 진입 근거:
-{round.entry_reason}
+[진입]
+{entry_reasons}
 
-• 청산 근거:
-{round.exit_reason}
+[청산]
+{exit_reasons}
 ```"""
             self._send_message(message)
             return True

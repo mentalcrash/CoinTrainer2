@@ -108,9 +108,9 @@ class TradingAnalyzer:
                 avg_losses = first_avg_losses.copy()
 
                 # Wilder의 평활화 공식 적용
-                for i in range(period + 1, len(prices)):
-                    avg_gains[i] = (avg_gains[i-1] * (period-1) + gains[i]) / period
-                    avg_losses[i] = (avg_losses[i-1] * (period-1) + losses[i]) / period
+                for i in range(period, len(prices)):
+                    avg_gains[i] = (avg_gains[i - 1] * (period - 1) + gains[i]) / period
+                    avg_losses[i] = (avg_losses[i - 1] * (period - 1) + losses[i]) / period
 
                 # RS 계산 (0으로 나누기 방지)
                 rs = avg_gains / avg_losses.replace(0, float('inf'))
@@ -132,13 +132,14 @@ class TradingAnalyzer:
                 # 수익률 계산
                 returns = prices.pct_change()
                 
-                # 이상치 제거 (상하위 1% 제거)
-                lower_bound = returns.quantile(0.01)
-                upper_bound = returns.quantile(0.99)
-                returns = returns.clip(lower=lower_bound, upper=upper_bound)
-                
-                # 변동성 계산 (연율화하지 않은 표준편차)
-                volatility = returns.rolling(window=window, min_periods=1).std()
+                # 윈도별 이상치 제거 후 표준편차 계산
+                def windowed_std(x):
+                    lower = x.quantile(0.01)
+                    upper = x.quantile(0.99)
+                    clipped = x.clip(lower=lower, upper=upper)
+                    return clipped.std()
+
+                volatility = returns.rolling(window=window, min_periods=1).apply(windowed_std, raw=False)
                 
                 # 퍼센트로 변환
                 return float(volatility.iloc[-1] * 100)
@@ -153,10 +154,22 @@ class TradingAnalyzer:
             vwap_3m = df['vwap'].iloc[-1]
             
             # 볼린저 밴드 폭
-            bb_std = df['close'].rolling(window=3).std()
-            bb_upper = df['close'].rolling(window=3).mean() + (bb_std * 2)
-            bb_lower = df['close'].rolling(window=3).mean() - (bb_std * 2)
-            bb_width = ((bb_upper - bb_lower) / df['close'].rolling(window=3).mean() * 100).iloc[-1]
+            # 1) Middle Band (이동평균)
+            rolling_window = 3  # 일반적으로 20 사용, 스캘핑이라면 3,5로 조정
+            bb_mid = df['close'].rolling(window=rolling_window).mean()
+
+            # 2) 표준편차(rolling std)
+            bb_std = df['close'].rolling(window=rolling_window).std()
+
+            # 3) Upper / Lower Band
+            bb_upper = bb_mid + (bb_std * 2)
+            bb_lower = bb_mid - (bb_std * 2)
+
+            # 4) 볼린저 밴드 폭
+            df['bb_width'] = (bb_upper - bb_lower) / bb_mid * 100
+
+            # 최신값 추출
+            bb_width = df['bb_width'].iloc[-1]
             
             # 호가 데이터 분석
             bid_total = sum([float(bid['price']) * float(bid['quantity']) for bid in orderbook['bids']])
