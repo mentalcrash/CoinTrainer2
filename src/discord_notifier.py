@@ -211,54 +211,135 @@ RSI 지표:
     def send_start_round_notification(self, round: TradingRound) -> bool:
         """라운드 시작 알림을 Discord로 전송합니다."""
         try:
-            message = f"라운드 시작: {round.id}"
+            # 수익률 계산
+            target_profit_rate = ((round.take_profit - round.entry_order.price) / round.entry_order.price) * 100
+            stop_loss_rate = ((round.stop_loss - round.entry_order.price) / round.entry_order.price) * 100
+            
+            message = f"""```ini
+[🎯 새로운 트레이딩 라운드 시작]
+
+[기본 정보]
+• 라운드 ID: {round.id}
+• 심볼: {round.symbol}
+• 시작 시간: {round.start_time.strftime('%Y-%m-%d %H:%M:%S')}
+• 상태: {round.status}
+
+[매매 정보]
+• 매수가: {round.entry_order.price:,.0f} KRW
+• 목표가: {round.take_profit:,.0f} KRW (수익률: {target_profit_rate:+.2f}%)
+• 손절가: {round.stop_loss:,.0f} KRW (손실률: {stop_loss_rate:+.2f}%)
+• 수량: {round.entry_order.volume}
+
+[진입 근거]
+{round.entry_reason}
+
+트레이딩 시그널 대기 중... 🔍
+```"""
             self._send_message(message)
             return True
+            
         except Exception as e:
             self.log_manager.log(
                 category=LogCategory.ERROR,
                 message=f"라운드 시작 알림 전송 실패: {str(e)}",
-                data={"error": str(e)}
+                data={
+                    "round_id": round.id,
+                    "symbol": round.symbol,
+                    "error": str(e)
+                }
             )
             return False
     
     def send_end_round_notification(self, round: TradingRound) -> bool:
         """라운드 종료 알림을 Discord로 전송합니다."""
         try:
+            # 수익률 계산
             entry_price = float(round.entry_order.price)
             exit_price = float(round.exit_order.price)
             profit = exit_price - entry_price
             profit_rate = profit / entry_price * 100
             volume = float(round.exit_order.volume)
-            #수수료
-            fee = float(round.entry_order.order_result.paid_fee) + float(round.exit_order.order_result.paid_fee)
-            #수수료를 포함한 수익률
-            profit_rate_with_fee = ((profit * volume) - fee) / (entry_price * volume) * 100
-            #승리 or 패배
-            was_victorious = profit_rate_with_fee > 0
             
-            message = f"""
-라운드 종료: {round.id}
-결과: {"승리" if was_victorious else "패배"}
+            # 수수료 계산
+            entry_fee = float(round.entry_order.order_result.paid_fee)
+            exit_fee = float(round.exit_order.order_result.paid_fee)
+            total_fee = entry_fee + exit_fee
+            
+            # 순수익 계산
+            total_profit = (profit * volume) - total_fee
+            profit_rate_with_fee = total_profit / (entry_price * volume) * 100
+            
+            # 승패 결정 및 이모지 선택
+            was_victorious = profit_rate_with_fee > 0
+            result_emoji = "🔥" if was_victorious else "💧"
+            result_text = "승리" if was_victorious else "패배"
+            
+            # 홀딩 시간 계산
+            try:
+                # 주문 시간 기준으로 계산
+                entry_time = round.entry_order.timestamp
+                exit_time = round.exit_order.timestamp
+                if entry_time and exit_time:
+                    holding_time = exit_time - entry_time
+                    hours = holding_time.total_seconds() // 3600
+                    minutes = (holding_time.total_seconds() % 3600) // 60
+                else:
+                    # 라운드 시간 기준으로 계산 (대체 로직)
+                    holding_time = exit_time - entry_time
+                    hours = holding_time.total_seconds() // 3600
+                    minutes = (holding_time.total_seconds() % 3600) // 60
+            except Exception as e:
+                self.log_manager.log(
+                    category=LogCategory.WARNING,
+                    message="홀딩 시간 계산 실패",
+                    data={
+                        "round_id": round.id,
+                        "error": str(e)
+                    }
+                )
+                hours = 0
+                minutes = 0
+            
+            message = f"""```ini
+[{result_emoji} 트레이딩 라운드 종료 {result_emoji}]
 
-매수가: {entry_price:,.0f}
-매도가: {exit_price:,.0f}
-수익률: {profit_rate:.2f}%
+[기본 정보]
+• 라운드 ID: {round.id}
+• 심볼: {round.symbol}
+• 결과: {result_text}
+• 홀딩 시간: {int(hours)}시간 {int(minutes)}분
 
-수수료: {fee:,.0f}
-수수료 포함 수익률: {profit_rate_with_fee:.2f}%
+[매매 정보]
+• 매수가: {entry_price:,.0f} KRW
+• 매도가: {exit_price:,.0f} KRW
+• 거래량: {volume} {round.symbol}
+• 순수익: {total_profit:,.0f} KRW
 
-진입 이유: 
+[수익률 분석]
+• 단순 수익률: {profit_rate:+.2f}%
+• 수수료 합계: {total_fee:,.0f} KRW
+  ⤷ 매수 수수료: {entry_fee:,.0f} KRW
+  ⤷ 매도 수수료: {exit_fee:,.0f} KRW
+• 최종 수익률: {profit_rate_with_fee:+.2f}%
+
+[매매 근거]
+• 진입 근거:
 {round.entry_reason}
-청산 이유: 
+
+• 청산 근거:
 {round.exit_reason}
-"""
+```"""
             self._send_message(message)
             return True
+            
         except Exception as e:
             self.log_manager.log(
                 category=LogCategory.ERROR,
                 message=f"라운드 종료 알림 전송 실패: {str(e)}",
-                data={"error": str(e)}
+                data={
+                    "round_id": round.id,
+                    "symbol": round.symbol,
+                    "error": str(e)
+                }
             )
             return False

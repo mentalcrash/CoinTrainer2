@@ -1032,45 +1032,41 @@ class RoundManager:
             return "", ""
             
         # 시스템 프롬프트 정의
-        system_prompt = """당신은 암호화폐 스캘핑 트레이딩 전문가입니다. 
-1~5분 단위 초단기 전략을 사용하며, 기술 지표와 시장 데이터를 종합적으로 분석하여 
-신속하고 명확한 매매 판단을 합니다.
+        system_prompt = """당신은 암호화폐 스캘핑 트레이딩 전문가입니다.
+1~5분 단위 초단기 전략을 사용하며, 핵심 기술 지표와 시장 데이터를 종합 분석해
+매수 진입 여부를 신속하고 정확하게 판단합니다.
 
-당신의 주요 임무:
-1. 제공된 시장 데이터를 종합적으로 분석
-2. 현재 시점의 매수 진입 적절성 판단 (should_enter: true/false)
-3. 적정 목표가와 손절가를 실제 가격(정수)로 제시
-4. 판단의 근거를 정확히 3가지로 제시
+주요 임무:
+1. 제공된 시장 데이터를 종합적으로 해석
+2. 지금 시점에서 매수 진입을 할지 결정 (should_enter: true/false)
+3. 목표가(target_price), 손절가(stop_loss_price)를 현재가 대비 위/아래로 정수로 제시
+4. 판단 근거를 정확히 3가지 작성 (reasons)
 
 리스크 관리 원칙:
-- 수수료를 고려하여 실현 가능한 수익을 우선적으로 추구
-- 손실 위험을 줄이기 위한 적절한 손절가 제시
-- 기술적 지표(예: RSI, 거래량, 이동평균 등)는 서로 보완적으로 판단
-- 시장 변동성과 추세 지속성을 고려해, 단순한 단기 잡음에 휘둘리지 말 것
+- 수수료를 고려하여 실현 가능한 수익을 우선 추구
+- 손절가는 가능한 작은 손실 폭으로, 무분별한 노이즈 청산은 지양
+- 보조 지표(RSI, 거래량, 이동평균 등) 간 충돌 시 섣불리 진입하지 말고 관망
+- 최근 변동성이 극도로 낮거나 ±0.1% 이하 소폭 움직임만으로는 진입 결정 X
 
 추가 규칙 (무분별한 진입 방지):
-1. 현재가 대비 목표가는 반드시 높게, 손절가는 반드시 낮게 설정 (정수)
-2. (중요) should_enter를 true로 판단하려면 **다음 조건 중 최소 2가지 이상**이 충족되어야 한다:
+1. 현재가보다 목표가는 ‘반드시 높게’, 손절가는 ‘반드시 낮게’ 정수로 표기
+2. (중요) should_enter를 true로 주려면 **다음 조건 중 최소 2가지 이상** 충족:
    - (1) 기술 지표(예: RSI, 거래량, 추세 등)에서 뚜렷한 상승 신호가 2개 이상 나타남
-   - (2) 최근 가격 움직임이 상승 추세로 전환되었고, 적어도 0.3% 이상의 추가 상승 여지가 확인됨
-   - (3) 시장 변동성이 안정적이거나 오히려 증가하여 단기 스윙(0.3% 이상) 가능성이 높음
-   - (4) 매수/매도 비율 등 호가 흐름이 확실한 매수 우위(예: 비율 > 1.2)로 나타남
-3. 지표 간에 충돌이 있거나 애매하면, 사소한 근거만으로 true를 주지 말고 false 판단(관망) 
-4. 진입 직후 1분 이하(또는 극도로 짧은 텀)에서 발생한 아주 작은 변동(±0.1% 이내)만으로는 무조건 진입 결정을 내리지 않는다
-5. 응답은 반드시 다음 JSON 형식을 따르며, 모든 가격은 정수로 표기해야 한다:
-
+   - (2) 최근 가격 움직임이 상승 추세 전환 & 최소 0.3% 이상의 추가 상승 여지가 확인
+   - (3) 변동성(3~10분)이 충분히 높아 단기 스윙(0.3% 이상) 가능성이 높음
+   - (4) 호가창 매수우위가 확실(예: 매수/매도 비율 > 1.2)
+3. 지표 충돌 시 사소한 신호만으로 true 결론 X → false(관망)
+4. 응답 형식(반드시 JSON):
 {
-    "should_enter": true/false,
-    "target_price": 0,     
-    "stop_loss_price": 0,
-    "reasons": [
-        "첫 번째 근거",
-        "두 번째 근거",
-        "세 번째 근거"
-    ]
+  "should_enter": true/false,
+  "target_price": 0,     
+  "stop_loss_price": 0,
+  "reasons": [
+      "첫 번째 근거",
+      "두 번째 근거",
+      "세 번째 근거"
+  ]
 }
-
-목표가는 현재가보다 높고, 손절가는 현재가보다 낮게 제시해야 한다.
 """
             
         user_prompt = f"""
@@ -1078,12 +1074,12 @@ class RoundManager:
 
 [기본 시장 정보]
 - 현재가: {market_data.current_price:,.0f}원
-- 거래량 동향: {market_data.volume_trend_1m}
-- 가격 동향: {market_data.price_trend_1m}
+- 거래량 동향(1분): {market_data.volume_trend_1m}
+- 가격 동향(1분): {market_data.price_trend_1m}
 - 캔들 강도: {market_data.candle_strength} (실체비율: {market_data.candle_body_ratio:.1%})
 
 [기술적 지표]
-- RSI: 3분({market_data.rsi_3:.1f}), 7분({market_data.rsi_7:.1f}), 14분({market_data.rsi_14:.1f})
+- RSI: 3분({market_data.rsi_3:.1f}), 7분({market_data.rsi_7:.1f})
 - 이동평균: MA1({market_data.ma1:,.0f}), MA3({market_data.ma3:,.0f}), MA5({market_data.ma5:,.0f}), MA10({market_data.ma10:,.0f})
 - 변동성: 3분({market_data.volatility_3m:.2f}%), 5분({market_data.volatility_5m:.2f}%), 10분({market_data.volatility_10m:.2f}%)
 - VWAP(3분): {market_data.vwap_3m:,.0f}원
@@ -1093,22 +1089,16 @@ class RoundManager:
 - 매수/매도 비율: {market_data.order_book_ratio:.2f}
 - 스프레드: {market_data.spread:.3f}%
 
-[선물 시장]
-- 프리미엄률: {market_data.premium_rate:.2f}%
-- 펀딩비율: {market_data.funding_rate:.3f}%
-- 가격 안정성: {market_data.price_stability}
-
 [특이사항]
-- 5분 신규 고가 돌파: {'O' if market_data.new_high_5m else 'X'}
-- 5분 신규 저가 돌파: {'O' if market_data.new_low_5m else 'X'}
+- 5분 신고가 돌파: {'O' if market_data.new_high_5m else 'X'}
+- 5분 신저가 돌파: {'O' if market_data.new_low_5m else 'X'}
 
-위 데이터를 종합적으로 분석하여, 
-아래 JSON 형태로 응답해 주세요 (반드시 시스템 프롬프트의 추가 규칙을 준수):
+위 데이터를 종합적으로 판단해, 시스템 프롬프트에 명시된 규칙대로 JSON 형식으로 답변해 주세요:
 
 {{
-    "should_enter": true or false,
-    "target_price": 0,      // 반드시 현재가보다 높게, 정수
-    "stop_loss_price": 0,   // 반드시 현재가보다 낮게, 정수
+    "should_enter": true/false,
+    "target_price": 0,     
+    "stop_loss_price": 0,
     "reasons": [
         "첫 번째 근거",
         "두 번째 근거",
@@ -1116,8 +1106,9 @@ class RoundManager:
     ]
 }}
 
-- 반드시 세 가지 근거를 제시해야 하며, 
-- 미세 변동(±0.1% 이내)만으로는 진입을 권하지 않도록 주의해 주세요.
+- 목표가는 반드시 현재가보다 높게(정수), 손절가는 반드시 현재가보다 낮게(정수)  
+- 무분별하게 진입하지 않도록, 최소 2개 이상의 뚜렷한 상승 신호가 있어야 should_enter=true  
+- 사소한 ±0.1% 변동만으로 진입 결정은 지양
 """
         
         self.log_manager.log(
@@ -1897,8 +1888,8 @@ class RoundManager:
             bool: 모니터링 시작 성공 여부
         """
         MAX_RETRIES = 3
-        MONITORING_INTERVAL = 1  # seconds
-        ERROR_RETRY_INTERVAL = 5  # seconds
+        MONITORING_INTERVAL = 30  # seconds
+        ERROR_RETRY_INTERVAL = 30  # seconds
         
         def _validate_round() -> Optional[TradingRound]:
             """라운드 상태를 검증합니다."""
@@ -2212,49 +2203,45 @@ class RoundManager:
             Tuple[str, str]: (시스템 프롬프트, 사용자 프롬프트) 튜플
         """
         # 시스템 프롬프트 정의
-        system_prompt = """당신은 암호화폐 스캘핑 트레이딩의 청산 전문가입니다.
-현재 보유 중인 포지션에 대해 시장 상황을 실시간으로 분석하고,
-최적의 청산 시점을 결정하는 것이 당신의 주요 임무입니다.
+        system_prompt = """당신은 암호화폐 초단타(스캘핑) 트레이딩의 청산 전문가입니다.
+1~5분 단위로 시장을 파악하여, 현재 보유 중인 포지션을 유지할지 청산(매도)할지 빠르고 정확하게 결정합니다.
 
-당신의 목표:
+당신의 임무:
 1. 제공된 시장 데이터를 종합적으로 분석
-2. 현재 보유 중인 포지션의 수익/손실 상황 평가
-3. 청산 적절성 판단 (반드시 "should_exit" 키로 true/false를 결정)
-4. 판단의 근거를 정확히 3가지 제시 (reasons 배열)
+2. 현 시점에서 매도 청산 여부를 결정 (should_exit: true/false)
+3. 판단의 근거(reasons)를 정확히 3가지 작성
 
 리스크 관리 원칙:
-- 목표가를 정확히 돌파했으면 즉시 청산 권고
-- 손절가를 정확히 하회하면 즉시 청산 권고
-- 갑작스러운 급등/급락으로 손실 확대 위험이 높을 때만 선제적 청산 권고
-- 수익 실현이 1% 이상 가능하다고 확신하면 신속 청산 고려
+- 목표가(take_profit) 근접 또는 초과 시, 수익 실현 기회 확보
+- 손절가(stop_loss) 근접 또는 하회 시, 손실 최소화 우선
+- 사소한 변동(±0.1% 이하)만으로 성급하게 청산하지 말 것
+- 여러 지표 간 충돌 시, 확실한 하락 전환 신호가 없으면 관망(유지)
 
-추가 규칙 (지나친 조기 청산 방지):
-1. (목표가/손절가에 "근접"한 것만으론) 청산 결정을 내리지 말 것.
-   실제로 목표가 이상 / 손절가 이하가 되어야 강력한 청산 근거가 됨.
-2. 아래 네 가지 중 **최소 2가지** 이상이 충족될 때만 should_exit를 true로 판정:
-   - (1) 목표가/손절가 도달 (또는 초과)  
-   - (2) 주요 지표(RSI, 거래량, 추세 등)에서 뚜렷한 하락 전환 신호가 2개 이상 감지  
-   - (3) 이미 1% 이상 수익 발생 중이고 추가 상승 가능성이 극도로 낮다고 판단  
-   - (4) 최근 몇 분간 급락이 진행되어 손실 확대 위험이 확실히 커짐
-3. 지표들이 서로 충돌하면 즉시 청산을 자제하고 관망(보유 유지) 가능성을 우선 고려
-4. 근거 3가지 중 단순한 미세 변동이나 사소한 신호로만 구성되지 않도록 주의
-5. 진입 후 1분 이내에는 급격한 변동(±1% 이상) 외에는 청산 권고를 내리지 않음
-
-당신의 응답 형식(반드시 JSON 형식):
+추가 규칙 (무분별한 청산 방지):
+1. “should_exit”를 true로 결정하려면 **다음 조건 중 최소 2가지 이상**이 충족되어야 함:
+   - (1) 현재가가 목표가(또는 손절가)에 사실상 도달(±0.1% 이내)해 수익 실현 혹은 손실 제한이 필요
+   - (2) 주요 지표(RSI, 거래량, 호가 흐름 등)에서 **뚜렷한 하락 전환 신호**가 2개 이상 동시 발생
+   - (3) 이미 충분한 수익률(예: 0.5%~1% 이상)을 달성했고, 추가 상승 여력이 매우 낮다고 판단
+   - (4) 최근 가격 변동성이 높아지고 급락 위험이 확실해, 빠른 청산으로 손실 확대를 방지
+2. 지표가 애매하거나 일부만 부정적으로 보이면, 성급히 true 결론 내리지 말 것
+3. 응답 형식: 반드시 JSON 형태
 {
-    "should_exit": true/false,
-    "reasons": [
-        "첫 번째 근거",
-        "두 번째 근거",
-        "세 번째 근거"
-    ]
+  "should_exit": true/false,
+  "reasons": [
+      "첫 번째 근거",
+      "두 번째 근거",
+      "세 번째 근거"
+  ]
 }
-""" 
+
+목표: 지나친 조기 청산(소폭 이익/손실에 즉시 매도)을 피하고,
+확실한 하락 전환 신호 또는 손절/목표가 근접에만 청산을 결정한다.
+"""
         
         profit_loss_rate = ((market_data.current_price - trading_round.entry_order.price) / trading_round.entry_order.price) * 100
         # 사용자 프롬프트 생성
         user_prompt = f"""
-현재 {trading_round.symbol} 포지션에 대한 청산 여부를 분석해 주세요.
+현재 보유 중인 {trading_round.symbol} 포지션의 청산 여부를 분석해 주세요.
 
 [포지션 정보]
 - 진입가: {trading_round.entry_order.price:,.0f}원
@@ -2262,19 +2249,16 @@ class RoundManager:
 - 목표가: {trading_round.take_profit:,.0f}원
 - 손절가: {trading_round.stop_loss:,.0f}원
 - 현재 수익률: {profit_loss_rate:.2f}%
-- 보유수량: {balance['balance']}
-- 주문중수량: {balance['locked']}
-- 평균매수가: {balance['avg_buy_price']}
 
 [기본 시장 정보]
-- 거래량 동향: {market_data.volume_trend_1m}
-- 가격 동향: {market_data.price_trend_1m}
-- 캔들 강도: {market_data.candle_strength} (실체 비율: {market_data.candle_body_ratio:.1%})
+- 거래량 동향(1분): {market_data.volume_trend_1m}
+- 가격 동향(1분): {market_data.price_trend_1m}
+- 캔들 강도: {market_data.candle_strength} (실체비율: {market_data.candle_body_ratio:.1%})
 
 [기술적 지표]
-- RSI: 3분({market_data.rsi_3:.1f}), 7분({market_data.rsi_7:.1f}), 14분({market_data.rsi_14:.1f})
+- RSI: 3분({market_data.rsi_3:.1f}), 7분({market_data.rsi_7:.1f})
 - 이동평균: MA3({market_data.ma3:,.0f}), MA5({market_data.ma5:,.0f}), MA10({market_data.ma10:,.0f})
-- 변동성: 3분({market_data.volatility_3m:.2f}%), 5분({market_data.volatility_5m:.2f}%), 10분({market_data.volatility_10m:.2f}%)
+- 변동성: 3분({market_data.volatility_3m:.2f}%), 5분({market_data.volatility_5m:.2f}%)
 - VWAP(3분): {market_data.vwap_3m:,.0f}원
 - 볼린저밴드 폭: {market_data.bb_width:.2f}%
 
@@ -2282,18 +2266,16 @@ class RoundManager:
 - 매수/매도 비율: {market_data.order_book_ratio:.2f}
 - 스프레드: {market_data.spread:.3f}%
 
-[선물 시장]
-- 프리미엄률: {market_data.premium_rate:.2f}%
-- 펀딩비율: {market_data.funding_rate:.3f}%
-- 가격 안정성: {market_data.price_stability}
-
 [특이사항]
-- 5분 신규 고가 돌파: {'O' if market_data.new_high_5m else 'X'}
-- 5분 신규 저가 돌파: {'O' if market_data.new_low_5m else 'X'}
+- 5분 신고가 돌파: {'O' if market_data.new_high_5m else 'X'}
+- 5분 신저가 돌파: {'O' if market_data.new_low_5m else 'X'}
 
-위 데이터를 종합적으로 분석하여 **아래의 JSON 형식**으로 응답해 주세요:
+위 데이터를 종합적으로 판단하여,
+system_prompt에서 제시된 원칙(조건 중 2가지 이상 충족 시 청산)과
+아래 JSON 형식을 따라 응답해 주세요:
+
 {{
-    "should_exit": true or false,
+    "should_exit": true/false,
     "reasons": [
         "첫 번째 근거",
         "두 번째 근거",
@@ -2301,8 +2283,9 @@ class RoundManager:
     ]
 }}
 
-**반드시 system_prompt에서 정의된 추가 규칙을 고려하여,
-사소한 변동에 대해서는 즉시 매도 결정을 내리지 않도록 주의해 주세요.**
+- 사소한 변동(±0.1% 이하)만으로 청산 결정을 내리지 않도록 주의
+- 목표가 또는 손절가에 사실상 근접(±0.1% 이내)했는지 여부도 고려
+- 최소 세 가지 근거를 제시해 주세요.
 """
         
         self.log_manager.log(
