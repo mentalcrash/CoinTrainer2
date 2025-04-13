@@ -120,6 +120,7 @@ class RoundManager:
                 
                 # 4. 라운드 종료 처리
                 summary = self.get_round(round_id)
+                
                 if not self.discord_notifier.send_end_round_notification(round):
                     self.log_manager.log(
                         category=LogCategory.ROUND_ERROR,
@@ -138,6 +139,8 @@ class RoundManager:
                         "summary": summary
                     }
                 )
+                self.active_rounds.pop(round_id)
+                
                 return True
                 
             except Exception as e:
