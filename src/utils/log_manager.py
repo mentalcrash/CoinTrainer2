@@ -51,6 +51,8 @@ class LogCategory:
     ROUND_ERROR = 'ROUND_ERROR'        # 라운드 관련 오류
     
     ASSET = 'ASSET'                    # 자산 관련
+    
+    DISCORD = 'DISCORD'                # 디스코드 관련
 
 class LogManager:
     """로깅 관리자"""

@@ -6,6 +6,8 @@ import requests
 from requests import Response
 from src.models.market_data import TradeExecutionResult
 from src.utils.log_manager import LogManager, LogCategory
+from src.round.models import TradingRound
+
 
 class DiscordNotifier:
     def __init__(self, webhook_url: str, log_manager: LogManager):
@@ -204,4 +206,59 @@ RSI 지표:
             category=LogCategory.DISCORD,
             message="에러 알림 전송 완료",
             data={"error_message": error_message}
-        ) 
+        )
+        
+    def send_start_round_notification(self, round: TradingRound) -> bool:
+        """라운드 시작 알림을 Discord로 전송합니다."""
+        try:
+            message = f"라운드 시작: {round.id}"
+            self._send_message(message)
+            return True
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ERROR,
+                message=f"라운드 시작 알림 전송 실패: {str(e)}",
+                data={"error": str(e)}
+            )
+            return False
+    
+    def send_end_round_notification(self, round: TradingRound) -> bool:
+        """라운드 종료 알림을 Discord로 전송합니다."""
+        try:
+            entry_price = float(round.entry_order.price)
+            exit_price = float(round.exit_order.price)
+            profit = exit_price - entry_price
+            profit_rate = profit / entry_price * 100
+            volume = float(round.exit_order.volume)
+            #수수료
+            fee = float(round.entry_order.order_result.paid_fee) + float(round.exit_order.order_result.paid_fee)
+            #수수료를 포함한 수익률
+            profit_rate_with_fee = ((profit * volume) - fee) / (entry_price * volume) * 100
+            #승리 or 패배
+            was_victorious = profit_rate_with_fee > 0
+            
+            message = f"""
+라운드 종료: {round.id}
+결과: {"승리" if was_victorious else "패배"}
+
+매수가: {entry_price:,.0f}
+매도가: {exit_price:,.0f}
+수익률: {profit_rate:.2f}%
+
+수수료: {fee:,.0f}
+수수료 포함 수익률: {profit_rate_with_fee:.2f}%
+
+진입 이유: 
+{round.entry_reason}
+청산 이유: 
+{round.exit_reason}
+"""
+            self._send_message(message)
+            return True
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ERROR,
+                message=f"라운드 종료 알림 전송 실패: {str(e)}",
+                data={"error": str(e)}
+            )
+            return False

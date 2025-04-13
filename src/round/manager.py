@@ -15,6 +15,7 @@ from src.trading_order import TradingOrder
 import threading
 from src.models.market_data import MarketOverview
 import traceback
+from src.discord_notifier import DiscordNotifier
 
 class RoundManager:
     """매매 라운드 관리자"""
@@ -52,37 +53,166 @@ class RoundManager:
             secret_key=os.getenv("BITHUMB_SECRET_KEY"),
             log_manager=self.log_manager
         )
+        
+        self.discord_notifier = DiscordNotifier(os.getenv("DISCORD_WEBHOOK_URL"), log_manager)
      
     def run(self, symbol: str):
-        round = self.create_round(symbol)
-        if not round:
-            return
-        was_watching = self.start_watching(round.id)
-        if not was_watching:
+        """무한 라운딩을 실행합니다.
+        
+        Args:
+            symbol (str): 트레이딩 심볼
+        """
+        ROUND_INTERVAL = 60  # 라운드 간 대기 시간 (초)
+        MAX_RETRIES = 3  # 최대 재시도 횟수
+        
+        def _handle_round_error(round_id: str, error: Exception, retry_count: int) -> None:
+            """라운드 에러를 처리합니다."""
             self.log_manager.log(
                 category=LogCategory.ROUND_ERROR,
-                message=f"라운드 실패: {round.id}",
-                data={"symbol": symbol}
+                message=f"라운드 실패 (재시도 {retry_count}/{MAX_RETRIES})",
+                data={
+                    "round_id": round_id,
+                    "symbol": symbol,
+                    "error": str(error)
+                }
             )
-            return
-        
-        was_monitoring = self.start_monitoring(round.id)
-        if not was_monitoring:
-            self.log_manager.log(
-                category=LogCategory.ROUND_ERROR,
-                message=f"라운드 시작 실패: {round.id}",
-                data={"symbol": symbol}
+            self.discord_notifier.send_error_notification(
+                f"라운드 실패 (재시도 {retry_count}/{MAX_RETRIES})\n"
+                f"라운드: {round_id}\n"
+                f"에러: {error}"
             )
-            return
         
-        summary = self.get_round(round.id)
+        def _execute_single_round() -> bool:
+            """단일 라운드를 실행합니다."""
+            try:
+                # 1. 라운드 생성
+                round = self.create_round(symbol)
+                if not round:
+                    return False
+                    
+                round_id = round.id
+                
+                # 2. 관찰 시작
+                if not self.start_watching(round_id):
+                    self.log_manager.log(
+                        category=LogCategory.ROUND_ERROR,
+                        message="라운드 관찰 실패",
+                        data={"round_id": round_id, "symbol": symbol}
+                    )
+                    return False
+                
+                if not self.discord_notifier.send_start_round_notification(round):
+                    self.log_manager.log(
+                        category=LogCategory.ROUND_ERROR,
+                        message="라운드 시작 알림 전송 실패",
+                        data={"round_id": round_id, "symbol": symbol}
+                    )
+                    return False
+                
+                # 3. 모니터링 시작
+                if not self.start_monitoring(round_id):
+                    self.log_manager.log(
+                        category=LogCategory.ROUND_ERROR,
+                        message="라운드 모니터링 실패",
+                        data={"round_id": round_id, "symbol": symbol}
+                    )
+                    return False
+                
+                # 4. 라운드 종료 처리
+                summary = self.get_round(round_id)
+                if not self.discord_notifier.send_end_round_notification(round):
+                    self.log_manager.log(
+                        category=LogCategory.ROUND_ERROR,
+                        message="라운드 종료 알림 전송 실패",
+                        data={"round_id": round_id, "symbol": symbol}
+                    )
+                    return False
+                
+                # 5. 성공 로깅
+                self.log_manager.log(
+                    category=LogCategory.ROUND,
+                    message="라운드 완료",
+                    data={
+                        "round_id": round_id,
+                        "symbol": symbol,
+                        "summary": summary
+                    }
+                )
+                return True
+                
+            except Exception as e:
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ERROR,
+                    message="라운드 실행 중 오류 발생",
+                    data={
+                        "round_id": round_id if 'round_id' in locals() else None,
+                        "symbol": symbol,
+                        "error": str(e)
+                    }
+                )
+                return False
         
+        # 무한 라운딩 시작
         self.log_manager.log(
             category=LogCategory.ROUND,
-            message=f"라운드 시작 성공: {round.id}",
-            data=summary
-        )   
+            message="무한 라운딩 시작",
+            data={
+                "symbol": symbol,
+                "round_interval": ROUND_INTERVAL,
+                "max_retries": MAX_RETRIES
+            }
+        )
         
+        while True:
+            retry_count = 0
+            round_success = False
+            
+            # 재시도 로직
+            while retry_count < MAX_RETRIES and not round_success:
+                try:
+                    round_success = _execute_single_round()
+                    if round_success:
+                        retry_count = 0  # 성공 시 재시도 카운트 초기화
+                    else:
+                        retry_count += 1
+                        if retry_count < MAX_RETRIES:
+                            self.log_manager.log(
+                                category=LogCategory.ROUND_WARNING,
+                                message=f"라운드 재시도 ({retry_count}/{MAX_RETRIES})",
+                                data={"symbol": symbol}
+                            )
+                            time.sleep(ROUND_INTERVAL)  # 재시도 전 대기
+                            
+                except Exception as e:
+                    retry_count += 1
+                    _handle_round_error(
+                        round_id if 'round_id' in locals() else None,
+                        e,
+                        retry_count
+                    )
+                    if retry_count < MAX_RETRIES:
+                        time.sleep(ROUND_INTERVAL)  # 재시도 전 대기
+            
+            # 최대 재시도 횟수 초과 시 알림
+            if retry_count >= MAX_RETRIES:
+                self.discord_notifier.send_error_notification(
+                    f"라운드 최대 재시도 횟수 초과\n"
+                    f"심볼: {symbol}\n"
+                    f"다음 라운드 시작까지 {ROUND_INTERVAL}초 대기"
+                )
+            
+            # 다음 라운드 전 대기
+            self.log_manager.log(
+                category=LogCategory.ROUND,
+                message="다음 라운드 대기 중",
+                data={
+                    "symbol": symbol,
+                    "wait_time": ROUND_INTERVAL,
+                    "last_round_success": round_success
+                }
+            )
+            time.sleep(ROUND_INTERVAL)
+
     def create_round(
         self,
         symbol: str
@@ -406,7 +536,7 @@ class RoundManager:
                 data={
                     "round_id": round_id,
                     "current_price": current_price,
-                    "metrics": trading_round.metrics._asdict() if trading_round.metrics else None
+                    "metrics": trading_round.metrics.to_dict() if trading_round.metrics else None
                 }
             )
             
@@ -439,7 +569,7 @@ class RoundManager:
                 "status": trading_round.status,
                 "duration": trading_round.duration,
                 "entry_price": trading_round.entry_order.price if trading_round.entry_order else None,
-                "current_metrics": trading_round.metrics if trading_round.metrics else None,
+                "current_metrics": trading_round.metrics.to_dict() if trading_round.metrics else None,
                 "take_profit": trading_round.take_profit,
                 "stop_loss": trading_round.stop_loss,
                 "exit_reason": trading_round.exit_reason,
@@ -655,8 +785,8 @@ class RoundManager:
     def start_watching(
         self,
         round_id: str,
-        interval: float = 3.0,
-        max_watching_time: float = 120.0
+        interval: float = 60,
+        max_watching_time: float = 9999.0
     ) -> bool:
         """라운드를 시작하고 매수 기회를 지속적으로 탐색합니다."""
         try:
@@ -745,8 +875,7 @@ class RoundManager:
                             continue
                         
                         # 매수 준비 상태로 전환
-                        reasons = "\n".join([f"- {reason}" for reason in entry_decision.reasons])
-                        if self.prepare_entry(round_id, f"매수 시그널 발생:\n{reasons}"):
+                        if self.prepare_entry(round_id, f"매수 시그널 발생:\n{entry_decision.reasons}"):
                             # 매수 진입 프로세스 실행
                             if self.execute_entry_process(round_id):
                                 self.log_manager.log(
@@ -885,7 +1014,7 @@ class RoundManager:
             return self.update_round_status(round_id, RoundStatus.WATCHING, reason)
         return False
 
-    def _generate_market_prompt(self, round_id: str, market_data) -> Tuple[str, str]:
+    def _generate_market_prompt(self, round_id: str, market_data: MarketOverview) -> Tuple[str, str]:
         """시장 데이터를 기반으로 GPT에게 전달할 프롬프트를 생성합니다.
         
         Args:
@@ -902,25 +1031,45 @@ class RoundManager:
         # 시스템 프롬프트 정의
         system_prompt = """당신은 암호화폐 스캘핑 트레이딩 전문가입니다. 
 1~5분 단위 초단기 전략을 사용하며, 기술 지표와 시장 데이터를 종합적으로 분석하여 
-신속하고 명확한 매매 판단을 합니다. 
+신속하고 명확한 매매 판단을 합니다.
 
 당신의 주요 임무:
 1. 제공된 시장 데이터를 종합적으로 분석
-2. 현재 시점의 매수 진입 적절성 판단
-3. 적정 목표가와 손절가 제시 (반드시 실제 가격으로)
-4. 판단의 근거를 명확하게 제시 (정확히 3가지)
+2. 현재 시점의 매수 진입 적절성 판단 (should_enter: true/false)
+3. 적정 목표가와 손절가를 실제 가격(정수)로 제시
+4. 판단의 근거를 정확히 3가지로 제시
 
 리스크 관리 원칙:
-- 수수료를 고려한 실현 가능한 수익 추구
-- 손실 위험 최소화를 위한 적절한 손절가 설정
-- 기술적 지표들의 신뢰도 검증
-- 시장 변동성과 추세의 지속성 고려
+- 수수료를 고려하여 실현 가능한 수익을 우선적으로 추구
+- 손실 위험을 줄이기 위한 적절한 손절가 제시
+- 기술적 지표(예: RSI, 거래량, 이동평균 등)는 서로 보완적으로 판단
+- 시장 변동성과 추세 지속성을 고려해, 단순한 단기 잡음에 휘둘리지 말 것
 
-응답은 반드시 지정된 JSON 형식을 따라야 하며, 
-모든 가격은 정수로 제시하고 
-목표가는 현재가보다 높게, 손절가는 현재가보다 낮게 설정해야 합니다."""
+추가 규칙 (무분별한 진입 방지):
+1. 현재가 대비 목표가는 반드시 높게, 손절가는 반드시 낮게 설정 (정수)
+2. (중요) should_enter를 true로 판단하려면 **다음 조건 중 최소 2가지 이상**이 충족되어야 한다:
+   - (1) 기술 지표(예: RSI, 거래량, 추세 등)에서 뚜렷한 상승 신호가 2개 이상 나타남
+   - (2) 최근 가격 움직임이 상승 추세로 전환되었고, 적어도 0.3% 이상의 추가 상승 여지가 확인됨
+   - (3) 시장 변동성이 안정적이거나 오히려 증가하여 단기 스윙(0.3% 이상) 가능성이 높음
+   - (4) 매수/매도 비율 등 호가 흐름이 확실한 매수 우위(예: 비율 > 1.2)로 나타남
+3. 지표 간에 충돌이 있거나 애매하면, 사소한 근거만으로 true를 주지 말고 false 판단(관망) 
+4. 진입 직후 1분 이하(또는 극도로 짧은 텀)에서 발생한 아주 작은 변동(±0.1% 이내)만으로는 무조건 진입 결정을 내리지 않는다
+5. 응답은 반드시 다음 JSON 형식을 따르며, 모든 가격은 정수로 표기해야 한다:
+
+{
+    "should_enter": true/false,
+    "target_price": 0,     
+    "stop_loss_price": 0,
+    "reasons": [
+        "첫 번째 근거",
+        "두 번째 근거",
+        "세 번째 근거"
+    ]
+}
+
+목표가는 현재가보다 높고, 손절가는 현재가보다 낮게 제시해야 한다.
+"""
             
-        # 사용자 프롬프트 생성
         user_prompt = f"""
 현재 {trading_round.symbol} 매수 진입 기회를 분석해 주세요.
 
@@ -931,7 +1080,7 @@ class RoundManager:
 - 캔들 강도: {market_data.candle_strength} (실체비율: {market_data.candle_body_ratio:.1%})
 
 [기술적 지표]
-- RSI: 1분({market_data.rsi_1:.1f}), 3분({market_data.rsi_3:.1f}), 7분({market_data.rsi_7:.1f}), 14분({market_data.rsi_14:.1f})
+- RSI: 3분({market_data.rsi_3:.1f}), 7분({market_data.rsi_7:.1f}), 14분({market_data.rsi_14:.1f})
 - 이동평균: MA1({market_data.ma1:,.0f}), MA3({market_data.ma3:,.0f}), MA5({market_data.ma5:,.0f}), MA10({market_data.ma10:,.0f})
 - 변동성: 3분({market_data.volatility_3m:.2f}%), 5분({market_data.volatility_5m:.2f}%), 10분({market_data.volatility_10m:.2f}%)
 - VWAP(3분): {market_data.vwap_3m:,.0f}원
@@ -950,18 +1099,23 @@ class RoundManager:
 - 5분 신규 고가 돌파: {'O' if market_data.new_high_5m else 'X'}
 - 5분 신규 저가 돌파: {'O' if market_data.new_low_5m else 'X'}
 
-위 데이터를 종합적으로 분석하여 다음 형식의 JSON으로 응답해 주세요:
+위 데이터를 종합적으로 분석하여, 
+아래 JSON 형태로 응답해 주세요 (반드시 시스템 프롬프트의 추가 규칙을 준수):
 
 {{
-    "should_enter": true/false,
-    "target_price": 0,      // 목표가 (원), 반드시 현재가보다 높게
-    "stop_loss_price": 0,   // 손절가 (원), 반드시 현재가보다 낮게
+    "should_enter": true or false,
+    "target_price": 0,      // 반드시 현재가보다 높게, 정수
+    "stop_loss_price": 0,   // 반드시 현재가보다 낮게, 정수
     "reasons": [
         "첫 번째 근거",
         "두 번째 근거",
         "세 번째 근거"
     ]
-}}"""
+}}
+
+- 반드시 세 가지 근거를 제시해야 하며, 
+- 미세 변동(±0.1% 이내)만으로는 진입을 권하지 않도록 주의해 주세요.
+"""
         
         self.log_manager.log(
             category=LogCategory.ROUND,
@@ -1132,7 +1286,8 @@ class RoundManager:
         self,
         system_prompt: str,
         user_prompt: str,
-        temperature: float = 0.1  # 더 결정적인 응답을 위해 0.1로 낮춤
+        temperature: float = 0.3,  # 더 결정적인 응답을 위해 0.1로 낮춤
+        model: str = "gpt-4o-mini-2024-07-18",
     ) -> Optional[Dict]:
         """GPT API를 호출하여 응답을 받습니다.
         
@@ -1158,7 +1313,7 @@ class RoundManager:
             }
             
             data = {
-                "model": "gpt-4o-mini-2024-07-18",
+                "model": model,
                 "messages": [
                     {
                         "role": "system",
@@ -1965,7 +2120,7 @@ class RoundManager:
                 if not self.update_round_status(
                     round_id=round_id,
                     new_status=RoundStatus.COMPLETED,
-                    reason=self._get_exit_completion_message(completed_order, reasons)
+                    reason=reasons
                 ):
                     self._log_exit_error(
                         round_id,
@@ -2058,24 +2213,45 @@ class RoundManager:
 현재 보유 중인 포지션에 대해 시장 상황을 실시간으로 분석하고,
 최적의 청산 시점을 결정하는 것이 당신의 주요 임무입니다.
 
-당신의 주요 임무:
+당신의 목표:
 1. 제공된 시장 데이터를 종합적으로 분석
 2. 현재 보유 중인 포지션의 수익/손실 상황 평가
-3. 청산 적절성 판단 (반드시 should_exit로 표현)
-4. 판단의 근거를 명확하게 제시 (정확히 3가지)
+3. 청산 적절성 판단 (반드시 "should_exit" 키로 true/false를 결정)
+4. 판단의 근거를 정확히 3가지 제시 (reasons 배열)
 
 리스크 관리 원칙:
-- 목표가 도달 시 반드시 청산 권고
-- 손절가 도달 시 반드시 청산 권고
-- 수익 실현 기회 포착 시 신속한 청산 결정
-- 손실 확대 가능성 감지 시 선제적 대응
+- 목표가를 정확히 돌파했으면 즉시 청산 권고
+- 손절가를 정확히 하회하면 즉시 청산 권고
+- 갑작스러운 급등/급락으로 손실 확대 위험이 높을 때만 선제적 청산 권고
+- 수익 실현이 1% 이상 가능하다고 확신하면 신속 청산 고려
 
-응답은 반드시 지정된 JSON 형식을 따라야 합니다."""
+추가 규칙 (지나친 조기 청산 방지):
+1. (목표가/손절가에 "근접"한 것만으론) 청산 결정을 내리지 말 것.
+   실제로 목표가 이상 / 손절가 이하가 되어야 강력한 청산 근거가 됨.
+2. 아래 네 가지 중 **최소 2가지** 이상이 충족될 때만 should_exit를 true로 판정:
+   - (1) 목표가/손절가 도달 (또는 초과)  
+   - (2) 주요 지표(RSI, 거래량, 추세 등)에서 뚜렷한 하락 전환 신호가 2개 이상 감지  
+   - (3) 이미 1% 이상 수익 발생 중이고 추가 상승 가능성이 극도로 낮다고 판단  
+   - (4) 최근 몇 분간 급락이 진행되어 손실 확대 위험이 확실히 커짐
+3. 지표들이 서로 충돌하면 즉시 청산을 자제하고 관망(보유 유지) 가능성을 우선 고려
+4. 근거 3가지 중 단순한 미세 변동이나 사소한 신호로만 구성되지 않도록 주의
+5. 진입 후 1분 이내에는 급격한 변동(±1% 이상) 외에는 청산 권고를 내리지 않음
+
+당신의 응답 형식(반드시 JSON 형식):
+{
+    "should_exit": true/false,
+    "reasons": [
+        "첫 번째 근거",
+        "두 번째 근거",
+        "세 번째 근거"
+    ]
+}
+""" 
         
         profit_loss_rate = ((market_data.current_price - trading_round.entry_order.price) / trading_round.entry_order.price) * 100
         # 사용자 프롬프트 생성
         user_prompt = f"""
-현재 {trading_round.symbol} 포지션의 청산 여부를 분석해 주세요.
+현재 {trading_round.symbol} 포지션에 대한 청산 여부를 분석해 주세요.
 
 [포지션 정보]
 - 진입가: {trading_round.entry_order.price:,.0f}원
@@ -2090,11 +2266,11 @@ class RoundManager:
 [기본 시장 정보]
 - 거래량 동향: {market_data.volume_trend_1m}
 - 가격 동향: {market_data.price_trend_1m}
-- 캔들 강도: {market_data.candle_strength} (실체비율: {market_data.candle_body_ratio:.1%})
+- 캔들 강도: {market_data.candle_strength} (실체 비율: {market_data.candle_body_ratio:.1%})
 
 [기술적 지표]
-- RSI: 1분({market_data.rsi_1:.1f}), 3분({market_data.rsi_3:.1f}), 7분({market_data.rsi_7:.1f}), 14분({market_data.rsi_14:.1f})
-- 이동평균: MA1({market_data.ma1:,.0f}), MA3({market_data.ma3:,.0f}), MA5({market_data.ma5:,.0f}), MA10({market_data.ma10:,.0f})
+- RSI: 3분({market_data.rsi_3:.1f}), 7분({market_data.rsi_7:.1f}), 14분({market_data.rsi_14:.1f})
+- 이동평균: MA3({market_data.ma3:,.0f}), MA5({market_data.ma5:,.0f}), MA10({market_data.ma10:,.0f})
 - 변동성: 3분({market_data.volatility_3m:.2f}%), 5분({market_data.volatility_5m:.2f}%), 10분({market_data.volatility_10m:.2f}%)
 - VWAP(3분): {market_data.vwap_3m:,.0f}원
 - 볼린저밴드 폭: {market_data.bb_width:.2f}%
@@ -2112,16 +2288,19 @@ class RoundManager:
 - 5분 신규 고가 돌파: {'O' if market_data.new_high_5m else 'X'}
 - 5분 신규 저가 돌파: {'O' if market_data.new_low_5m else 'X'}
 
-위 데이터를 종합적으로 분석하여 다음 형식의 JSON으로 응답해 주세요:
-
+위 데이터를 종합적으로 분석하여 **아래의 JSON 형식**으로 응답해 주세요:
 {{
-    "should_exit": true/false,
+    "should_exit": true or false,
     "reasons": [
         "첫 번째 근거",
         "두 번째 근거",
         "세 번째 근거"
     ]
-}}"""
+}}
+
+**반드시 system_prompt에서 정의된 추가 규칙을 고려하여,
+사소한 변동에 대해서는 즉시 매도 결정을 내리지 않도록 주의해 주세요.**
+"""
         
         self.log_manager.log(
             category=LogCategory.ROUND,

@@ -71,6 +71,19 @@ class RoundMetrics:
     max_profit_rate: float          # 최대 수익률
     max_loss_rate: float           # 최대 손실률
     volatility: float              # 변동성
+    
+    def to_dict(self) -> Dict:
+        """성과 지표를 딕셔너리로 변환합니다."""
+        return {
+            "entry_price": self.entry_price,
+            "current_price": self.current_price,
+            "profit_loss": self.profit_loss,
+            "profit_loss_rate": self.profit_loss_rate,
+            "holding_time": self.holding_time,
+            "max_profit_rate": self.max_profit_rate,
+            "max_loss_rate": self.max_loss_rate,
+            "volatility": self.volatility
+        }
 
 @dataclass
 class TradingRound:
