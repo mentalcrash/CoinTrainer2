@@ -1665,20 +1665,20 @@ class RoundManager:
                 return None
             
             available_balance = float(krw_balance['balance'])
+            locked_balance = float(krw_balance['locked'])
             if available_balance <= 0:
                 self.log_manager.log(
                     category=LogCategory.ROUND_ERROR,
                     message="매수 주문 생성 실패: KRW 잔고 부족",
                     data={
                         "round_id": round_id,
-                        "krw_balance": available_balance
+                        "krw_balance": available_balance,
+                        "locked": locked_balance
                     }
                 )
                 return None
             
-            # 주문 금액 계산 (총 잔고의 10%)
-            RATIO = 0.2
-            order_amount = available_balance * RATIO
+            order_amount = available_balance - locked_balance
             
             # 주문 생성
             order_request = OrderRequest(
