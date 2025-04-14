@@ -3,7 +3,7 @@ import uuid
 import json
 import requests
 from datetime import datetime
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Type, Union
 from src.utils.log_manager import LogManager, LogCategory
 from src.models.market_data import TradeExecutionResult
 from src.models.order import OrderRequest, OrderResponse
@@ -17,8 +17,10 @@ from src.models.market_data import MarketOverview
 import traceback
 from src.discord_notifier import DiscordNotifier
 from google import genai
-from .models import ModelResponse
-from typing import Literal
+from .models import ModelEntryResponse, ModelExitResponse
+from typing import Literal, Union
+
+
 class RoundManager:
     """매매 라운드 관리자"""
     
@@ -1264,34 +1266,19 @@ class RoundManager:
 
     def _call_gemini(
         self,
-        prompt: str
-    ) -> Optional[ModelResponse]:
-        """Gemini API를 호출하여 응답을 받습니다.
+        prompt: str,
+        response_schema: Union[Type[ModelEntryResponse], Type[ModelExitResponse]]
+    ) -> Optional[Union[ModelEntryResponse, ModelExitResponse]]:
         
-        Args:
-            prompt (str): 요청 프롬프트
-            
-        Returns:    
-            Optional[ModelResponse]: 파싱된 JSON 응답 또는 None 
-        """
-        try:
-            response = self.gemini.models.generate_content(
-                    model="gemini-2.0-flash", 
-                    config={
-                    'response_mime_type': 'application/json',
-                    'response_schema': ModelResponse,
-                },  
-                contents=prompt
-            )
-            return response.parsed
-
-        except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ROUND_ERROR,
-                message="Gemini API 호출 중 예외 발생",
-                data={"error": str(e)}
-            )
-            return None
+        response = self.gemini.models.generate_content(
+            model="gemini-2.0-flash", 
+            config={
+                'response_mime_type': 'application/json',
+                'response_schema': response_schema,
+            },  
+            contents=prompt
+        )
+        return response.parsed
 
     def _call_gpt(
         self,
@@ -1438,7 +1425,7 @@ class RoundManager:
                 parsed = self._call_gemini(f"""
                                            {system_prompt}
                                            {user_prompt}
-                                           """)
+                                           """, ModelEntryResponse)
                 target_profit_rate = ((parsed.target_price - market_data.current_price) / market_data.current_price) * 100
                 stop_loss_rate = ((parsed.stop_loss_price - market_data.current_price) / market_data.current_price) * 100
                 decision = GPTEntryDecision(
@@ -2260,7 +2247,7 @@ class RoundManager:
 - 여러 지표 간 충돌 시, 확실한 하락 전환 신호가 없으면 관망(유지)
 
 추가 규칙 (무분별한 청산 방지):
-1. “should_exit”를 true로 결정하려면 **다음 조건 중 최소 2가지 이상**이 충족되어야 함:
+1. "should_exit"를 true로 결정하려면 **다음 조건 중 최소 2가지 이상**이 충족되어야 함:
    - (1) 현재가가 목표가(또는 손절가)에 사실상 도달(±0.1% 이내)해 수익 실현 혹은 손실 제한이 필요
    - (2) 주요 지표(RSI, 거래량, 호가 흐름 등)에서 **뚜렷한 하락 전환 신호**가 2개 이상 동시 발생
    - (3) 이미 충분한 수익률(예: 0.5%~1% 이상)을 달성했고, 추가 상승 여력이 매우 낮다고 판단
@@ -2398,7 +2385,7 @@ system_prompt에서 제시된 원칙(조건 중 2가지 이상 충족 시 청산
                 parsed = self._call_gemini(f"""
                                            {system_prompt}
                                            {user_prompt}
-                                           """) 
+                                           """, ModelExitResponse)
                 decision = GPTExitDecision(
                     should_exit=parsed.should_exit,
                     reasons=parsed.reasons,

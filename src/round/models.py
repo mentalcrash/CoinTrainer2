@@ -206,8 +206,14 @@ class GPTExitDecision:
     timestamp: datetime         # 결정 시간 
     
 @dataclass
-class ModelResponse:
+class ModelEntryResponse:
     should_enter: bool
     target_price: int
     stop_loss_price: int
     reasons: list[str]
+    
+class ModelExitResponse:
+    should_exit: bool
+    reasons: list[str]
+    current_price: float
+    profit_loss_rate: float
