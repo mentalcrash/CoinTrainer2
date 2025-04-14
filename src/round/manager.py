@@ -878,7 +878,7 @@ class RoundManager:
                             continue
                         
                         # 매수 준비 상태로 전환
-                        if self.prepare_entry(round_id, f"매수 시그널 발생:\n{entry_decision.reasons}"):
+                        if self.prepare_entry(round_id, entry_decision.reasons):
                             # 매수 진입 프로세스 실행
                             if self.execute_entry_process(round_id):
                                 self.log_manager.log(
@@ -936,7 +936,7 @@ class RoundManager:
             )
             return False
 
-    def prepare_entry(self, round_id: str, reason: str) -> bool:
+    def prepare_entry(self, round_id: str, reason: List[str]) -> bool:
         """매수 시그널이 발생하여 진입 준비 상태로 변경합니다."""
         return self.update_round_status(round_id, RoundStatus.ENTRY_READY, reason)
 
@@ -1164,7 +1164,7 @@ class RoundManager:
                 should_enter=data['should_enter'],
                 target_profit_rate=target_profit_rate,
                 stop_loss_rate=stop_loss_rate,
-                reasons=json.loads(data['reasons']),
+                reasons=data['reasons'],
                 current_price=current_price,
                 target_price=data['target_price'],
                 stop_loss_price=data['stop_loss_price'],
@@ -1239,7 +1239,7 @@ class RoundManager:
             
             decision = GPTExitDecision(
                 should_exit=data['should_exit'],
-                reasons=json.loads(data['reasons']),
+                reasons=data['reasons'],
                 current_price=current_price,
                 profit_loss_rate=profit_loss_rate,
                 timestamp=datetime.now()
