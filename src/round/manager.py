@@ -1270,11 +1270,12 @@ class RoundManager:
     def _call_gemini(
         self,
         prompt: str,
-        response_schema: Union[Type[ModelEntryResponse], Type[ModelExitResponse]]
+        response_schema: Union[Type[ModelEntryResponse], Type[ModelExitResponse]], 
+        model: str = "gemini-1.5-flash"
     ) -> Optional[Union[ModelEntryResponse, ModelExitResponse]]:
         
         response = self.gemini.models.generate_content(
-            model="gemini-2.0-flash", 
+            model=model, 
             config={
                 'response_mime_type': 'application/json',
                 'response_schema': response_schema,
@@ -1428,7 +1429,10 @@ class RoundManager:
                 parsed = self._call_gemini(f"""
                                            {system_prompt}
                                            {user_prompt}
-                                           """, ModelEntryResponse)
+                                           """, 
+                                           ModelEntryResponse,
+                                           model="gemini-2.5-pro-preview-03-25"
+                                           )
                 target_profit_rate = ((parsed.target_price - market_data.current_price) / market_data.current_price) * 100
                 stop_loss_rate = ((parsed.stop_loss_price - market_data.current_price) / market_data.current_price) * 100
                 decision = GPTEntryDecision(
