@@ -1426,7 +1426,6 @@ class RoundManager:
                 message=f"진입 분석 시작 (모델: {model_type})",
                 data={
                     "round_id": round_id,
-                    "symbol": market_data.symbol,
                     "current_price": market_data.current_price
                 }
             )
