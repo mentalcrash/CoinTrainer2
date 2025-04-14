@@ -862,7 +862,7 @@ class RoundManager:
                     )
                     
                     # GPT 매수 진입 결정 요청
-                    entry_decision = self.get_entry_decision(round_id, market_data, model_type="gemini-2.5-pro-preview-03-25")
+                    entry_decision = self.get_entry_decision(round_id, market_data, model_type="gemini")
                     
                     if not entry_decision:
                         self.log_manager.log(
@@ -891,7 +891,7 @@ class RoundManager:
                             continue
                         
                         # 매수 준비 상태로 전환
-                        if self.prepare_entry(round_id, entry_decision.reasons, 'gemini/'):
+                        if self.prepare_entry(round_id, entry_decision.reasons, 'gemini-2.5-pro-preview-03-25'):
                             # 매수 진입 프로세스 실행
                             if self.execute_entry_process(round_id):
                                 self.log_manager.log(
@@ -1426,6 +1426,7 @@ class RoundManager:
                 message=f"진입 분석 시작 (모델: {model_type})",
                 data={
                     "round_id": round_id,
+
                     "current_price": market_data.current_price
                 }
             )
