@@ -7,8 +7,10 @@ from googleapiclient.discovery import build
 from src.utils.log_manager import LogManager, LogCategory
 from src.models.market_data import TradeExecutionResult
 from src.models.order import OrderResponse, Trade
+from src.round.models import TradingRound
 
 import uuid
+import traceback
 
 class TradingLogger:
     """Google Sheets를 이용한 트레이딩 로거"""
@@ -39,7 +41,8 @@ class TradingLogger:
         self.SHEETS = {
             'order_request': 'Order Request',  # 주문 기록
             'order_response': 'Order Response',  # 주문 응답 데이터
-            'trade_response': 'Trade Response'   # 체결 응답 데이터
+            'trade_response': 'Trade Response',   # 체결 응답 데이터
+            'round_summary': 'Round Summary'   # 라운드 요약 정보
         }
         
         # 시트 초기화
@@ -219,6 +222,32 @@ class TradingLogger:
                 'Funds',                     # 체결 금액
                 'Side',                      # 매수/매도
                 'Created At'                 # 체결 시각
+            ],
+            'Round Summary': [
+                'Round ID',                # 라운드 ID
+                'Timestamp',               # 기록 시간
+                'Symbol',                  # 심볼
+                'Status',                  # 라운드 상태
+                'Start Time',              # 시작 시간
+                'End Time',                # 종료 시간
+                'Entry Price',             # 진입 가격
+                'Exit Price',              # 청산 가격
+                'Take Profit',             # 목표가
+                'Stop Loss',               # 손절가
+                'Entry Order UUID',        # 진입 주문 ID
+                'Exit Order UUID',         # 청산 주문 ID
+                'Quantity',                # 수량
+                'Entry Fee',               # 진입 수수료
+                'Exit Fee',                # 청산 수수료
+                'Total Fee',               # 총 수수료
+                'PnL',                     # 손익
+                'PnL Rate',                # 손익률(%)
+                'Is Win',                  # 수익 여부
+                'Round Duration',          # 라운드 지속 시간(분)
+                'Entry Reasons',           # 진입 이유
+                'Exit Reasons',            # 청산 이유
+                'Entry Model Type',        # 진입 결정 모델
+                'Exit Model Type'          # 청산 결정 모델
             ]
         }
         
@@ -635,5 +664,127 @@ class TradingLogger:
                     category=LogCategory.ERROR,
                     message="체결 응답 저장 실패",
                     data={"error": str(e)}
+                )
+            raise 
+
+    def log_round_summary(self, trading_round: TradingRound):
+        """라운드 요약 정보를 저장합니다.
+        
+        Args:
+            trading_round: 거래 라운드 객체
+        """
+        try:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # PnL 및 지속 시간 계산
+            pnl = 0.0
+            pnl_rate = 0.0
+            round_duration = 0
+            entry_fee = 0.0
+            exit_fee = 0.0
+            total_fee = 0.0
+            is_win = False
+            entry_price = 0.0
+            exit_price = 0.0
+            quantity = 0.0
+            
+            if trading_round.entry_order and trading_round.entry_order.order_result:
+                entry_price = float(trading_round.entry_order.price)
+                entry_fee = float(trading_round.entry_order.order_result.paid_fee) if trading_round.entry_order.order_result.paid_fee else 0.0
+                quantity = float(trading_round.entry_order.order_result.executed_volume) if trading_round.entry_order.order_result.executed_volume else 0.0
+                
+                if trading_round.entry_order.order_result.created_at:
+                    entry_time = datetime.strptime(trading_round.entry_order.order_result.created_at, "%Y-%m-%dT%H:%M:%S%z")
+                    
+                    if trading_round.exit_order and trading_round.exit_order.order_result and trading_round.exit_order.order_result.created_at:
+                        exit_time = datetime.strptime(trading_round.exit_order.order_result.created_at, "%Y-%m-%dT%H:%M:%S%z")
+                        exit_price = float(trading_round.exit_order.price)
+                        exit_fee = float(trading_round.exit_order.order_result.paid_fee) if trading_round.exit_order.order_result.paid_fee else 0.0
+                        
+                        # 지속 시간(분)
+                        round_duration = (exit_time - entry_time).total_seconds() / 60
+                        
+                        # PnL 계산
+                        total_fee = entry_fee + exit_fee
+                        pnl = (exit_price - entry_price) * quantity - total_fee
+                        pnl_rate = ((exit_price - entry_price) / entry_price * 100) - ((total_fee / (entry_price * quantity)) * 100)
+                        is_win = pnl > 0
+            
+            # 진입/청산 이유 포맷팅
+            entry_reasons = ", ".join(trading_round.entry_reason) if hasattr(trading_round, 'entry_reason') and trading_round.entry_reason else ""
+            exit_reasons = ", ".join(trading_round.exit_reason) if hasattr(trading_round, 'exit_reason') and trading_round.exit_reason else ""
+            
+            # 진입/청산 모델 타입
+            entry_model_type = trading_round.entry_model_type if hasattr(trading_round, 'entry_model_type') else ""
+            exit_model_type = trading_round.exit_model_type if hasattr(trading_round, 'exit_model_type') else ""
+            
+            # 시작/종료 시간 결정
+            start_time = ""
+            end_time = ""
+            
+            # start_time 결정 (여러 필드 중 존재하는 것 사용)
+            if hasattr(trading_round, 'start_time') and trading_round.start_time:
+                start_time = trading_round.start_time.strftime("%Y-%m-%d %H:%M:%S")
+            elif hasattr(trading_round, 'created_at') and trading_round.created_at:
+                start_time = trading_round.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            
+            # end_time 결정 (여러 필드 중 존재하는 것 사용)
+            if hasattr(trading_round, 'end_time') and trading_round.end_time:
+                end_time = trading_round.end_time.strftime("%Y-%m-%d %H:%M:%S")
+            elif hasattr(trading_round, 'updated_at') and trading_round.updated_at:
+                end_time = trading_round.updated_at.strftime("%Y-%m-%d %H:%M:%S")
+            
+            values = [[
+                trading_round.id,                            # Round ID
+                now,                                         # Timestamp
+                trading_round.symbol,                        # Symbol
+                trading_round.status,                        # Status
+                start_time,                                  # Start Time
+                end_time,                                    # End Time
+                str(entry_price),                            # Entry Price
+                str(exit_price) if exit_price else "",       # Exit Price
+                str(trading_round.take_profit) if hasattr(trading_round, 'take_profit') and trading_round.take_profit else "",  # Take Profit
+                str(trading_round.stop_loss) if hasattr(trading_round, 'stop_loss') and trading_round.stop_loss else "",       # Stop Loss
+                trading_round.entry_order.order_result.uuid if trading_round.entry_order and trading_round.entry_order.order_result else "",  # Entry Order UUID
+                trading_round.exit_order.order_result.uuid if trading_round.exit_order and trading_round.exit_order.order_result else "",    # Exit Order UUID
+                str(quantity),                                # Quantity
+                str(entry_fee),                               # Entry Fee
+                str(exit_fee),                                # Exit Fee
+                str(total_fee),                               # Total Fee
+                str(pnl),                                     # PnL
+                f"{pnl_rate:.2f}%",                           # PnL Rate
+                "Y" if is_win else "N",                       # Is Win
+                f"{round_duration:.1f}",                      # Round Duration
+                entry_reasons,                                # Entry Reasons
+                exit_reasons,                                 # Exit Reasons
+                entry_model_type,                             # Entry Model Type
+                exit_model_type                               # Exit Model Type
+            ]]
+            
+            self._append_values(self.SHEETS['round_summary'], values)
+            
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.TRADING,
+                    message=f"라운드 요약 저장 완료: {trading_round.id}",
+                    data={
+                        "round_id": trading_round.id,
+                        "symbol": trading_round.symbol,
+                        "status": trading_round.status,
+                        "pnl_rate": f"{pnl_rate:.2f}%",
+                        "is_win": is_win
+                    }
+                )
+            
+        except Exception as e:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="라운드 요약 저장 실패",
+                    data={
+                        "round_id": trading_round.id if hasattr(trading_round, 'id') else "Unknown",
+                        "error": str(e),
+                        "traceback": traceback.format_exc()
+                    }
                 )
             raise 

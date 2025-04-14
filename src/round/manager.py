@@ -20,7 +20,7 @@ from google import genai
 from .models import ModelEntryResponse, ModelExitResponse
 from typing import Literal, Union
 from src.ticker import Ticker
-
+from src.trading_logger import TradingLogger
 
 class RoundManager:
     """매매 라운드 관리자"""
@@ -64,6 +64,7 @@ class RoundManager:
         self.gemini = genai.Client(api_key=os.getenv("GOOGLE_GEMINI_API_KEY"))
         
         self.ticker = Ticker(log_manager)
+        self.trading_logger = TradingLogger(log_manager)
      
     def run(self, symbol: str):
         """무한 라운딩을 실행합니다.
@@ -128,7 +129,9 @@ class RoundManager:
                     return False
                 
                 # 4. 라운드 종료 처리
-                summary = self.get_round(round_id)
+                round = self.get_round(round_id)
+                
+                self.trading_logger.log_round_summary(round)
                 
                 if not self.discord_notifier.send_end_round_notification(round):
                     self.log_manager.log(
@@ -351,7 +354,8 @@ class RoundManager:
         self,
         round_id: str,
         new_status: str,
-        reason: Optional[List[str]] = None
+        reason: Optional[List[str]] = None,
+        model_type: Optional[str] = None
     ) -> bool:
         """라운드의 상태를 업데이트합니다.
         
@@ -382,7 +386,7 @@ class RoundManager:
             # ENTRY_READY 상태일 때 매수 이유 저장
             if new_status == RoundStatus.ENTRY_READY and reason:
                 trading_round.entry_reason = reason
-                
+                trading_round.entry_model_type = model_type
             # 상태별 추가 처리
             if new_status == RoundStatus.COMPLETED:
                 trading_round.end_time = datetime.now()
@@ -858,7 +862,7 @@ class RoundManager:
                     )
                     
                     # GPT 매수 진입 결정 요청
-                    entry_decision = self.get_entry_decision(round_id, market_data, model_type="gemini")
+                    entry_decision = self.get_entry_decision(round_id, market_data, model_type="gemini-2.5-pro-preview-03-25")
                     
                     if not entry_decision:
                         self.log_manager.log(
@@ -887,7 +891,7 @@ class RoundManager:
                             continue
                         
                         # 매수 준비 상태로 전환
-                        if self.prepare_entry(round_id, entry_decision.reasons):
+                        if self.prepare_entry(round_id, entry_decision.reasons, 'gemini/'):
                             # 매수 진입 프로세스 실행
                             if self.execute_entry_process(round_id):
                                 self.log_manager.log(
@@ -945,9 +949,9 @@ class RoundManager:
             )
             return False
 
-    def prepare_entry(self, round_id: str, reason: List[str]) -> bool:
+    def prepare_entry(self, round_id: str, reason: List[str], model_type: str) -> bool:
         """매수 시그널이 발생하여 진입 준비 상태로 변경합니다."""
-        return self.update_round_status(round_id, RoundStatus.ENTRY_READY, reason)
+        return self.update_round_status(round_id, RoundStatus.ENTRY_READY, reason, model_type)
 
     def confirm_entry_order(self, round_id: str, order_response: OrderResponse) -> bool:
         """매수 주문 결과를 라운드에 기록합니다."""

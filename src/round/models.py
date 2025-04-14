@@ -100,6 +100,9 @@ class TradingRound:
         'failed'                    # 실패
     ]
     
+    entry_model_type: str
+    exit_model_type: str
+    
     # 목표 설정
     take_profit: Optional[float] = None  # 목표가
     stop_loss: Optional[float] = None    # 손절가
