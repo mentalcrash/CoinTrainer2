@@ -280,8 +280,8 @@ RSI 지표:
             # 홀딩 시간 계산
             try:
                 # 주문 시간 기준으로 계산
-                entry_time = round.entry_order.order_result.timestamp
-                exit_time = round.exit_order.order_result.timestamp
+                entry_time = round.entry_order.timestamp
+                exit_time = round.exit_order.timestamp
                 if entry_time and exit_time:
                     holding_time = exit_time - entry_time
                     hours = holding_time.total_seconds() // 3600
