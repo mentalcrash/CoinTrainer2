@@ -1919,8 +1919,8 @@ class RoundManager:
             bool: 모니터링 시작 성공 여부
         """
         MAX_RETRIES = 3
-        MONITORING_INTERVAL = 0.5  # seconds
-        ERROR_RETRY_INTERVAL = 0.5  # seconds
+        MONITORING_INTERVAL = 1  # seconds
+        ERROR_RETRY_INTERVAL = 1  # seconds
         
         def _validate_round() -> Optional[TradingRound]:
             """라운드 상태를 검증합니다."""
