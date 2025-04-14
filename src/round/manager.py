@@ -1415,21 +1415,68 @@ class RoundManager:
             Optional[GPTEntryDecision]: 매수 진입 결정 또는 None
         """
         try:            
-            # 사용자 프롬프트 생성
-            system_prompt, user_prompt = self._generate_market_prompt(round_id, market_data)
-            if not system_prompt or not user_prompt:
-                return None
-            
             if model_type == "gpt":
+                # 사용자 프롬프트 생성
+                system_prompt, user_prompt = self._generate_market_prompt(round_id, market_data)
+                if not system_prompt or not user_prompt:
+                    return None
                 # GPT 호출
                 response = self._call_gpt(system_prompt, user_prompt, model="gpt-4o-2024-11-20")
                 decision = self._parse_gpt_entry_response(round_id, response, market_data.current_price)
             elif model_type == "gemini":
                 # Gemini 호출
-                parsed = self._call_gemini(f"""
-                                           {system_prompt}
-                                           {user_prompt}
-                                           """, 
+                
+                prompt = f"""
+당신은 암호화폐 시장의 **초단기(스캘핑) 매매**에 고도로 특화된 AI 트레이딩 분석가입니다. 당신의 유일한 목표는 제시된 **실시간 시장 데이터**를 면밀히 분석하여 **수 분 내의 짧은 시간** 안에 수익을 얻을 수 있는 **매수 진입 시점**을 포착하는 것입니다.
+
+**임무:**
+
+1.  주어진 모든 시장 데이터를 **종합적으로** 분석하고 해석하여 현재 시점에서 **매수 진입의 유효성**을 판단하십시오. 긍정적 신호와 부정적 신호를 모두 고려해야 합니다.
+2.  매수 진입이 **합리적**이라고 판단될 경우, 다음 사항을 포함하여 결과를 제시하십시오:
+    *   `should_enter`: `true`
+    *   `target_price`: 현재가보다 **높은 정수** 값으로, 단기적으로 도달 가능하다고 판단되는 현실적인 목표 가격
+    *   `stop_loss_price`: 현재가보다 **낮은 정수** 값으로, 진입 판단이 틀렸을 경우 손실을 제한할 수 있는 가격
+    *   `reasons`: 매수 진입 판단의 **핵심 근거 3가지**. 각 근거는 제시된 데이터(예: 가격 추세, 거래량, 특정 지표, 호가 상황 등)에 기반해야 하며, 왜 그것이 매수 신호로 해석되었는지 명확히 설명해야 합니다.
+3.  매수 진입이 **비합리적**이거나 **리스크가 높다**고 판단될 경우, 다음 사항을 포함하여 결과를 제시하십시오:
+    *   `should_enter`: `false`
+    *   `target_price`: `0`
+    *   `stop_loss_price`: `0`
+    *   `reasons`: 매수 진입을 **하지 않는 이유 3가지**. 어떤 데이터(예: 약한 모멘텀, 높은 변동성 대비 불리한 호가, 저항 신호 등)가 진입을 망설이게 하는지 구체적으로 설명해야 합니다.
+
+**분석 시 고려 사항:**
+
+*   **단기 모멘텀:** 가격 및 거래량의 최근 추세(1분)가 상승 방향을 지지하는가?
+*   **기술적 지표:** RSI, 이동평균선, VWAP 등이 단기적 강세 또는 지지 신호를 보이는가? 과매수/과매도 상태와 추세의 맥락을 함께 고려하십시오.
+*   **호가 및 거래:** 매수/매도 압력(호가 비율), 스프레드(진입 비용), 캔들 강도(시장 참여자의 확신) 등을 통해 즉각적인 가격 움직임의 방향성과 힘을 예측하십시오.
+*   **변동성 및 리스크:** 현재 변동성 수준이 스캘핑에 적합한가? 볼린저밴드 폭 등을 참고하여 잠재적 가격 변동 범위를 가늠하고, 이에 따른 손절 라인의 타당성을 평가하십시오.
+*   **특이 신호:** 신고가/신저가 돌파와 같은 이벤트가 발생했는지, 이것이 추세의 시작/지속 또는 반전을 의미하는지 판단하십시오.
+                
+[실시간 시장 데이터]
+
+* 기본 정보:
+    * 현재가: {market_data.current_price:,.0f}원
+    * 거래량 동향(1분): {market_data.volume_trend_1m}
+    * 가격 동향(1분): {market_data.price_trend_1m}
+* 캔들 강도: {market_data.candle_strength} (실체비율: {market_data.candle_body_ratio:.1%})
+
+* 기술적 지표:
+    * RSI: 3분({market_data.rsi_3:.1f}), 7분({market_data.rsi_7:.1f})
+    * 이동평균: MA1({market_data.ma1:,.0f}), MA3({market_data.ma3:,.0f}), MA5({market_data.ma5:,.0f}), MA10({market_data.ma10:,.0f})
+    * 변동성: 3분({market_data.volatility_3m:.2f}%), 5분({market_data.volatility_5m:.2f}%), 10분({market_data.volatility_10m:.2f}%)
+    * VWAP(3분): {market_data.vwap_3m:,.0f}원
+    * 볼린저밴드 폭: {market_data.bb_width:.2f}%
+* 호가 분석:
+    * 매수/매도 비율: {market_data.order_book_ratio:.2f}
+    * 스프레드: {market_data.spread:.3f}%
+* 특이사항:
+    * 5분 신고가 돌파: {'O' if market_data.new_high_5m else 'X'}
+    * 5분 신저가 돌파: {'O' if market_data.new_low_5m else 'X'}
+
+[분석 요청]
+위 데이터를 종합적으로 분석하여, 지금 매수 진입하는 것이 타당한지 판단하고, 요구된 JSON 형식으로 결과를 반환해주십시오.
+"""
+                
+                parsed = self._call_gemini(prompt, 
                                            ModelEntryResponse,
                                            model="gemini-2.5-pro-preview-03-25"
                                            )
