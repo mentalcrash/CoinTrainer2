@@ -1547,7 +1547,7 @@ class RoundManager:
                 parsed = self._call_gemini(
                     prompt, 
                     ModelEntryResponse,
-                    model="gemini-2.5-pro-preview-03-25"
+                    model="gemini-2.0-flash"
                 )
                 
                 if not parsed:
