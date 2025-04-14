@@ -1390,7 +1390,7 @@ class RoundManager:
                 return None
                 
             # GPT 호출
-            response = self._call_gpt(system_prompt, user_prompt)
+            response = self._call_gpt(system_prompt, user_prompt, model="gpt-4o-2024-11-20")
                 
             # 응답 파싱
             return self._parse_gpt_entry_response(round_id, response, market_data.current_price)
