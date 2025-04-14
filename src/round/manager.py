@@ -1410,98 +1410,221 @@ class RoundManager:
         Args:
             round_id (str): 라운드 ID
             market_data: 시장 데이터
+            model_type: 사용할 모델 타입 ("gpt" 또는 "gemini")
             
         Returns:
             Optional[GPTEntryDecision]: 매수 진입 결정 또는 None
         """
         try:            
+            # 로깅 시작
+            self.log_manager.log(
+                category=LogCategory.ROUND_ENTRY,
+                message=f"진입 분석 시작 (모델: {model_type})",
+                data={
+                    "round_id": round_id,
+                    "symbol": market_data.symbol,
+                    "current_price": market_data.current_price
+                }
+            )
+            
             if model_type == "gpt":
                 # 사용자 프롬프트 생성
                 system_prompt, user_prompt = self._generate_market_prompt(round_id, market_data)
                 if not system_prompt or not user_prompt:
+                    self.log_manager.log(
+                        category=LogCategory.ROUND_ERROR,
+                        message="프롬프트 생성 실패",
+                        data={"round_id": round_id}
+                    )
                     return None
+                
                 # GPT 호출
                 response = self._call_gpt(system_prompt, user_prompt, model="gpt-4o-2024-11-20")
                 decision = self._parse_gpt_entry_response(round_id, response, market_data.current_price)
+                
+                # GPT 응답 로깅
+                if decision:
+                    self.log_manager.log(
+                        category=LogCategory.ROUND_ENTRY,
+                        message=f"GPT 진입 분석 완료: {'진입' if decision.should_enter else '보류'}",
+                        data={
+                            "round_id": round_id,
+                            "should_enter": decision.should_enter,
+                            "target_price": decision.target_price,
+                            "stop_loss_price": decision.stop_loss_price,
+                            "reasons": decision.reasons
+                        }
+                    )
+                else:
+                    self.log_manager.log(
+                        category=LogCategory.ROUND_ERROR,
+                        message="GPT 진입 결정 파싱 실패",
+                        data={"round_id": round_id}
+                    )
+                
             elif model_type == "gemini":
                 # Gemini 호출
-                
                 prompt = f"""
-당신은 암호화폐 시장의 **초단기(스캘핑) 매매**에 고도로 특화된 AI 트레이딩 분석가입니다. 당신의 유일한 목표는 제시된 **실시간 시장 데이터**를 면밀히 분석하여 **수 분 내의 짧은 시간** 안에 수익을 얻을 수 있는 **매수 진입 시점**을 포착하는 것입니다.
+# 페르소나 및 목표 정의
 
-**임무:**
+당신은 암호화폐 시장의 **초단기(스캘핑) 매매**에 고도로 특화되었으며, **위험 관리를 최우선**으로 하는 **객관적이고 냉철한 AI 트레이딩 분석가**입니다. 당신의 주요 임무는 제시된 **실시간 시장 데이터**를 **종합적이고 신속하게** 분석하여, **수 분 이내**의 매우 짧은 시간 안에 **긍정적인 기대수익률**을 가질 가능성이 높은 **매수 진입 시점**을 식별하는 것입니다. 당신의 분석은 **데이터 기반의 명확한 근거**에 기반해야 하며, 감정이나 편향 없이 **기계적인 판단**을 내려야 합니다.
 
-1.  주어진 모든 시장 데이터를 **종합적으로** 분석하고 해석하여 현재 시점에서 **매수 진입의 유효성**을 판단하십시오. 긍정적 신호와 부정적 신호를 모두 고려해야 합니다.
-2.  매수 진입이 **합리적**이라고 판단될 경우, 다음 사항을 포함하여 결과를 제시하십시오:
-    *   `should_enter`: `true`
-    *   `target_price`: 현재가보다 **높은 정수** 값으로, 단기적으로 도달 가능하다고 판단되는 현실적인 목표 가격
-    *   `stop_loss_price`: 현재가보다 **낮은 정수** 값으로, 진입 판단이 틀렸을 경우 손실을 제한할 수 있는 가격
-    *   `reasons`: 매수 진입 판단의 **핵심 근거 3가지**. 각 근거는 제시된 데이터(예: 가격 추세, 거래량, 특정 지표, 호가 상황 등)에 기반해야 하며, 왜 그것이 매수 신호로 해석되었는지 명확히 설명해야 합니다.
-3.  매수 진입이 **비합리적**이거나 **리스크가 높다**고 판단될 경우, 다음 사항을 포함하여 결과를 제시하십시오:
-    *   `should_enter`: `false`
-    *   `target_price`: `0`
-    *   `stop_loss_price`: `0`
-    *   `reasons`: 매수 진입을 **하지 않는 이유 3가지**. 어떤 데이터(예: 약한 모멘텀, 높은 변동성 대비 불리한 호가, 저항 신호 등)가 진입을 망설이게 하는지 구체적으로 설명해야 합니다.
+# 핵심 임무
 
-**분석 시 고려 사항:**
+1.  **시장 데이터 종합 분석:** 제공된 모든 실시간 데이터를 다각도로 분석하여 현재 시점에서의 **매수 진입 타당성**을 평가합니다. 잠재적 수익 기회(긍정적 신호)와 위험 요소(부정적 신호)를 균형 있게 고려해야 합니다.
+2.  **진입 결정 및 세부 정보 제공 (매수 타당 시):**
+    * 분석 결과, **단기적으로 위험 대비 기대 수익이 합리적**이라고 판단되면 다음 JSON 형식으로 결과를 반환합니다.
+    * `should_enter`: `true`
+    * `target_price`: 현재가({market_data.current_price:,.0f}원)보다 **높은 정수** 값. **최근 변동성(예: `volatility_3m`) 및 주요 저항(예: 단기 이동평균선, VWAP, 이전 단기 고점)** 등을 고려하여 **현실적으로 달성 가능하다고 판단되는 최소한의 수익 목표 가격**으로 설정합니다. (예: `현재가 + (현재가 * 변동성 * 0.5)` 또는 `가장 가까운 단기 저항선 바로 아래` 등을 고려 후 **정수로 올림**)
+    * `stop_loss_price`: 현재가({market_data.current_price:,.0f}원)보다 **낮은 정수** 값. **최근 변동성, 주요 지지(예: 단기 이동평균선, VWAP, 이전 단기 저점), 스프레드** 등을 고려하여 **진입 판단이 틀렸을 경우 손실을 제한할 수 있는 명확한 가격**으로 설정합니다. (예: `현재가 - (현재가 * 변동성 * 0.6)` 또는 `가장 가까운 단기 지지선 바로 위` 등을 고려 후 **정수로 내림**)
+    * `reasons`: **매수 진입을 결정하게 된 가장 결정적인 근거 3가지**. 각 근거는 **제공된 데이터 지표(값 명시)** 와 연결되어야 하며, **왜 해당 지표가 스캘핑 관점에서 매수 신호로 해석되었는지** 명확하게 설명해야 합니다. (예: "1분 가격/거래량 동반 상승 추세", "RSI(3분)가 50을 상향 돌파하며 모멘텀 강화", "가격이 VWAP 위에 있고 지지받는 모습")
+3.  **진입 보류 결정 및 사유 제공 (매수 비합리적 시):**
+    * 분석 결과, **진입 리스크가 높거나, 명확한 상승 신호가 부족하거나, 위험 대비 기대 수익이 낮다**고 판단되면 다음 JSON 형식으로 결과를 반환합니다.
+    * `should_enter`: `false`
+    * `target_price`: `0`
+    * `stop_loss_price`: `0`
+    * `reasons`: **매수 진입을 보류하는 가장 결정적인 이유 3가지**. 어떤 데이터(값 명시)가 **스캘핑 관점에서 불리하거나 위험 신호**로 해석되었는지 구체적으로 설명해야 합니다. (예: "높은 변동성 대비 약한 매수 호가 비율", "주요 단기 이평선(MA5) 저항 직면", "스프레드가 너무 넓어 진입 즉시 불리함", "RSI 과매수 구간 진입 후 하락 다이버전스 가능성")
 
-*   **단기 모멘텀:** 가격 및 거래량의 최근 추세(1분)가 상승 방향을 지지하는가?
-*   **기술적 지표:** RSI, 이동평균선, VWAP 등이 단기적 강세 또는 지지 신호를 보이는가? 과매수/과매도 상태와 추세의 맥락을 함께 고려하십시오.
-*   **호가 및 거래:** 매수/매도 압력(호가 비율), 스프레드(진입 비용), 캔들 강도(시장 참여자의 확신) 등을 통해 즉각적인 가격 움직임의 방향성과 힘을 예측하십시오.
-*   **변동성 및 리스크:** 현재 변동성 수준이 스캘핑에 적합한가? 볼린저밴드 폭 등을 참고하여 잠재적 가격 변동 범위를 가늠하고, 이에 따른 손절 라인의 타당성을 평가하십시오.
-*   **특이 신호:** 신고가/신저가 돌파와 같은 이벤트가 발생했는지, 이것이 추세의 시작/지속 또는 반전을 의미하는지 판단하십시오.
-                
-[실시간 시장 데이터]
+# 분석 시 중점 고려 사항 (스캘핑 관점)
 
-* 기본 정보:
-    * 현재가: {market_data.current_price:,.0f}원
-    * 거래량 동향(1분): {market_data.volume_trend_1m}
-    * 가격 동향(1분): {market_data.price_trend_1m}
-* 캔들 강도: {market_data.candle_strength} (실체비율: {market_data.candle_body_ratio:.1%})
+* **초단기 모멘텀 (1분 기준):** 가격 및 거래량의 **동반 상승/하락 여부**가 가장 중요합니다. 추세의 **지속성**과 **강도**를 판단합니다. (`volume_trend_1m`, `price_trend_1m`, `candle_strength`)
+* **핵심 기술 지표:**
+    * **RSI (3분, 7분):** **과매수/과매도 자체**보다는 **추세 방향(50선 기준)** 및 **모멘텀 변화(상승/하락)** 에 집중합니다. 스캘핑에서는 과매수 상태에서도 강한 모멘텀이 지속될 수 있음을 인지합니다.
+    * **이동평균선 (MA1, MA3, MA5, MA10):** 현재 가격과의 **위치 관계(지지/저항)** 및 **배열(정배열/역배열)** 을 통해 단기 추세를 확인합니다. **골든크로스/데드크로스** 발생 여부를 참고합니다.
+    * **VWAP (3분):** **단기적인 평균 체결 가격**과의 비교를 통해 **현재 가격의 고평가/저평가 여부 및 지지/저항 역할**을 판단합니다. 가격이 VWAP 위에 있는지 아래에 있는지가 중요합니다.
+* **호가창 및 체결 강도:**
+    * **매수/매도 비율 (`order_book_ratio`):** **즉각적인 수급 압력**을 나타냅니다. 1보다 크면 매수세 우위, 작으면 매도세 우위를 시사하지만, **절대적인 기준은 아니며 다른 지표와 함께 해석**해야 합니다. (허수 주문 가능성 인지)
+    * **스프레드 (`spread`):** **진입/청산 비용**입니다. 스프레드가 **지나치게 넓으면 스캘핑 수익 확보에 불리**하므로 중요한 위험 요소입니다.
+    * **캔들 강도 (`candle_strength`, `candle_body_ratio`):** **양봉/음봉의 몸통 길이**는 해당 시간 동안의 **매수/매도세의 확신 정도**를 나타냅니다.
+* **변동성 및 위험 관리:**
+    * **변동성 지표 (`volatility_3m`, `volatility_5m`, `volatility_10m`, `bb_width`):** **적절한 변동성**은 스캘핑 기회를 제공하지만, **과도한 변동성**은 예측을 어렵게 하고 손실 위험을 키웁니다. 현재 변동성이 **감당 가능한 수준인지** 판단하고, 이를 **목표가/손절가 설정에 반영**합니다.
+    * **손익비 고려:** 제시된 목표가와 손절가 사이의 **잠재적 손익 비율**이 최소 1:1 이상, 가급적 1:1.5 이상이 되는지 **암묵적으로 고려**하여 `should_enter`를 결정합니다.
+* **특이 신호:**
+    * **단기 고가/저가 돌파 (`new_high_5m`, `new_low_5m`):** **추세의 시작 또는 강화** 신호일 수 있으나, **거짓 돌파(Fakeout) 가능성**도 항상 염두에 둡니다. 돌파 시 **거래량 증가**가 동반되는지 확인하는 것이 중요합니다.
 
-* 기술적 지표:
-    * RSI: 3분({market_data.rsi_3:.1f}), 7분({market_data.rsi_7:.1f})
-    * 이동평균: MA1({market_data.ma1:,.0f}), MA3({market_data.ma3:,.0f}), MA5({market_data.ma5:,.0f}), MA10({market_data.ma10:,.0f})
-    * 변동성: 3분({market_data.volatility_3m:.2f}%), 5분({market_data.volatility_5m:.2f}%), 10분({market_data.volatility_10m:.2f}%)
-    * VWAP(3분): {market_data.vwap_3m:,.0f}원
-    * 볼린저밴드 폭: {market_data.bb_width:.2f}%
-* 호가 분석:
-    * 매수/매도 비율: {market_data.order_book_ratio:.2f}
-    * 스프레드: {market_data.spread:.3f}%
-* 특이사항:
-    * 5분 신고가 돌파: {'O' if market_data.new_high_5m else 'X'}
-    * 5분 신저가 돌파: {'O' if market_data.new_low_5m else 'X'}
+# 입력 데이터 형식 (JSON 객체 `market_data`)
 
-[분석 요청]
-위 데이터를 종합적으로 분석하여, 지금 매수 진입하는 것이 타당한지 판단하고, 요구된 JSON 형식으로 결과를 반환해주십시오.
+```json
+{{
+  "current_price": {market_data.current_price:,.0f}, // 현재가 (정수)
+  "volume_trend_1m": {market_data.volume_trend_1m}, // 거래량 동향 (1분) ("상승", "하락", "횡보")
+  "price_trend_1m": {market_data.price_trend_1m}, // 가격 동향 (1분) ("상승", "하락", "횡보")
+  "candle_strength": {market_data.candle_strength}, // 캔들 강도 ("강한 양봉", "약한 양봉", "도지", "약한 음봉", "강한 음봉")
+  "candle_body_ratio": {market_data.candle_body_ratio}, // 캔들 실체 비율 (0.0 ~ 1.0)
+  "rsi_3": {market_data.rsi_3}, // RSI (3분)
+  "rsi_7": {market_data.rsi_7}, // RSI (7분)
+  "ma1": {market_data.ma1}, // 이동평균 (1분)
+  "ma3": {market_data.ma3}, // 이동평균 (3분)
+  "ma5": {market_data.ma5}, // 이동평균 (5분)
+  "ma10": {market_data.ma10}, // 이동평균 (10분)
+  "volatility_3m": {market_data.volatility_3m}, // 변동성 (3분, %)
+  "volatility_5m": {market_data.volatility_5m}, // 변동성 (5분, %)
+  "volatility_10m": {market_data.volatility_10m}, // 변동성 (10분, %)
+  "vwap_3m": {market_data.vwap_3m}, // VWAP (3분)
+  "bb_width": {market_data.bb_width}, // 볼린저밴드 폭 (%)
+  "order_book_ratio": {market_data.order_book_ratio}, // 매수/매도 비율 (매수호가총량 / 매도호가총량)
+  "spread": {market_data.spread}, // 매수1호가 - 매도1호가 / 현재가 (%)
+  "new_high_5m": {market_data.new_high_5m}, // 5분 신고가 돌파 여부 (true/false)
+  "new_low_5m": {market_data.new_low_5m} // 5분 신저가 돌파 여부 (true/false)
+}}
 """
                 
-                parsed = self._call_gemini(prompt, 
-                                           ModelEntryResponse,
-                                           model="gemini-2.5-pro-preview-03-25"
-                                           )
+                # Gemini 호출 로깅
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ENTRY,
+                    message="Gemini 모델 호출 시작",
+                    data={
+                        "round_id": round_id,
+                        "model": "gemini-2.5-pro-preview-03-25",
+                        "prompt": prompt
+                    }
+                )
+                
+                parsed = self._call_gemini(
+                    prompt, 
+                    ModelEntryResponse,
+                    model="gemini-2.5-pro-preview-03-25"
+                )
+                
+                if not parsed:
+                    self.log_manager.log(
+                        category=LogCategory.ROUND_ERROR,
+                        message="Gemini 응답 파싱 실패",
+                        data={"round_id": round_id}
+                    )
+                    return None
+                
                 target_profit_rate = ((parsed.target_price - market_data.current_price) / market_data.current_price) * 100
                 stop_loss_rate = ((parsed.stop_loss_price - market_data.current_price) / market_data.current_price) * 100
+                
+                # 목표가/손절가 유효성 검사
+                if parsed.should_enter:
+                    if parsed.target_price <= market_data.current_price:
+                        self.log_manager.log(
+                            category=LogCategory.ROUND_ERROR,
+                            message="목표가가 현재가보다 낮게 설정됨",
+                            data={
+                                "round_id": round_id,
+                                "current_price": market_data.current_price,
+                                "target_price": parsed.target_price
+                            }
+                        )
+                        return None
+                    
+                    if parsed.stop_loss_price >= market_data.current_price:
+                        self.log_manager.log(
+                            category=LogCategory.ROUND_ERROR,
+                            message="손절가가 현재가보다 높게 설정됨",
+                            data={
+                                "round_id": round_id,
+                                "current_price": market_data.current_price,
+                                "stop_loss_price": parsed.stop_loss_price
+                            }
+                        )
+                        return None
+                
                 decision = GPTEntryDecision(
                     should_enter=parsed.should_enter,
-                    target_profit_rate=target_profit_rate,
-                    stop_loss_rate=stop_loss_rate,
-                    reasons=parsed.reasons,
-                    current_price=market_data.current_price,
                     target_price=parsed.target_price,
                     stop_loss_price=parsed.stop_loss_price,
+                    reasons=parsed.reasons,
+                    target_profit_rate=target_profit_rate,
+                    stop_loss_rate=stop_loss_rate,
+                    current_price=market_data.current_price,
                     timestamp=datetime.now()
                 )
-            # 응답 파싱
+                
+                # Gemini 응답 로깅
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ENTRY,
+                    message=f"Gemini 진입 분석 완료: {'진입' if decision.should_enter else '보류'}",
+                    data={
+                        "round_id": round_id,
+                        "should_enter": decision.should_enter,
+                        "target_price": decision.target_price,
+                        "stop_loss_price": decision.stop_loss_price,
+                        "target_profit_rate": f"{target_profit_rate:.2f}%",
+                        "stop_loss_rate": f"{stop_loss_rate:.2f}%",
+                        "reasons": decision.reasons
+                    }
+                )
+            else:
+                self.log_manager.log(
+                    category=LogCategory.ROUND_ERROR,
+                    message=f"지원하지 않는 모델 타입: {model_type}",
+                    data={"round_id": round_id}
+                )
+                return None
+                
             return decision
-            
         except Exception as e:
             self.log_manager.log(
                 category=LogCategory.ROUND_ERROR,
-                message="매수 진입 결정 실패",
+                message="진입 결정 처리 중 예외 발생",
                 data={
                     "round_id": round_id,
-                    "error": str(e)
+                    "error": str(e),
+                    "traceback": traceback.format_exc()
                 }
             )
             return None
@@ -2047,11 +2170,11 @@ class RoundManager:
                     
                     if current_price.trade_price >= trading_round.take_profit:
                         if self.update_round_status(round_id, RoundStatus.EXIT_READY):
-                            return self.execute_exit_process(round_id, f'[목표가{trading_round.take_profit} 도달]')
+                            return self.execute_exit_process(round_id, [f'[목표가{trading_round.take_profit} 도달]'])
                     
                     if current_price.trade_price <= trading_round.stop_loss:
                         if self.update_round_status(round_id, RoundStatus.EXIT_READY):
-                            return self.execute_exit_process(round_id, f'[손절가{trading_round.stop_loss} 도달]')
+                            return self.execute_exit_process(round_id, [f'[손절가{trading_round.stop_loss} 도달]'])
                     
                     # # 매도 결정 처리
                     # if decision and decision.should_exit:
@@ -2499,4 +2622,5 @@ system_prompt에서 제시된 원칙(조건 중 2가지 이상 충족 시 청산
             
         if trading_round.status in [RoundStatus.EXIT_READY, RoundStatus.EXIT_ORDERED]:
             return self.update_round_status(round_id, RoundStatus.HOLDING, reason)
+        return False
         return False
