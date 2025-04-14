@@ -16,7 +16,9 @@ import threading
 from src.models.market_data import MarketOverview
 import traceback
 from src.discord_notifier import DiscordNotifier
-
+from google import genai
+from .models import ModelResponse
+from typing import Literal
 class RoundManager:
     """매매 라운드 관리자"""
     
@@ -55,6 +57,8 @@ class RoundManager:
         )
         
         self.discord_notifier = DiscordNotifier(os.getenv("DISCORD_WEBHOOK_URL"), log_manager)
+        
+        self.gemini = genai.Client(api_key=os.getenv("GOOGLE_GEMINI_API_KEY"))
      
     def run(self, symbol: str):
         """무한 라운딩을 실행합니다.
@@ -849,7 +853,7 @@ class RoundManager:
                     )
                     
                     # GPT 매수 진입 결정 요청
-                    entry_decision = self.get_entry_decision(round_id, market_data)
+                    entry_decision = self.get_entry_decision(round_id, market_data, model_type="gemini")
                     
                     if not entry_decision:
                         self.log_manager.log(
@@ -1258,6 +1262,37 @@ class RoundManager:
             )
             return None
 
+    def _call_gemini(
+        self,
+        prompt: str
+    ) -> Optional[ModelResponse]:
+        """Gemini API를 호출하여 응답을 받습니다.
+        
+        Args:
+            prompt (str): 요청 프롬프트
+            
+        Returns:    
+            Optional[ModelResponse]: 파싱된 JSON 응답 또는 None 
+        """
+        try:
+            response = self.gemini.models.generate_content(
+                    model="gemini-2.0-flash", 
+                    config={
+                    'response_mime_type': 'application/json',
+                    'response_schema': ModelResponse,
+                },  
+                contents=prompt
+            )
+            return response.parsed
+
+        except Exception as e:
+            self.log_manager.log(
+                category=LogCategory.ROUND_ERROR,
+                message="Gemini API 호출 중 예외 발생",
+                data={"error": str(e)}
+            )
+            return None
+
     def _call_gpt(
         self,
         system_prompt: str,
@@ -1373,7 +1408,12 @@ class RoundManager:
             )
             return None
 
-    def get_entry_decision(self, round_id: str, market_data: MarketOverview) -> Optional[GPTEntryDecision]:
+    def get_entry_decision(
+        self, 
+                        round_id: str,
+                        market_data: MarketOverview,
+                        model_type: Literal["gpt", "gemini"]   
+                           ) -> Optional[GPTEntryDecision]:
         """시장 데이터를 분석하여 매수 진입 결정을 얻습니다.
         
         Args:
@@ -1388,12 +1428,30 @@ class RoundManager:
             system_prompt, user_prompt = self._generate_market_prompt(round_id, market_data)
             if not system_prompt or not user_prompt:
                 return None
-                
-            # GPT 호출
-            response = self._call_gpt(system_prompt, user_prompt, model="gpt-4o-2024-11-20")
-                
+            
+            if model_type == "gpt":
+                # GPT 호출
+                response = self._call_gpt(system_prompt, user_prompt, model="gpt-4o-2024-11-20")
+                decision = self._parse_gpt_entry_response(round_id, response, market_data.current_price)
+            elif model_type == "gemini":
+                # Gemini 호출
+                parsed = self._call_gemini(f"""
+                                           {system_prompt}
+                                           
+                                           {user_prompt}
+                                           """)
+                decision = GPTEntryDecision(
+                    should_enter=parsed.should_enter,
+                    target_profit_rate=parsed.target_profit_rate,
+                    stop_loss_rate=parsed.stop_loss_rate,
+                    reasons=parsed.reasons,
+                    current_price=market_data.current_price,
+                    target_price=parsed.target_price,
+                    stop_loss_price=parsed.stop_loss_price,
+                    timestamp=datetime.now()
+                )
             # 응답 파싱
-            return self._parse_gpt_entry_response(round_id, response, market_data.current_price)
+            return decision
             
         except Exception as e:
             self.log_manager.log(
@@ -1937,7 +1995,8 @@ class RoundManager:
                         round_id,
                         market_data=market_data,
                         balance=balance,
-                        trading_round=trading_round
+                        trading_round=trading_round,
+                        model_type="gemini"
                     )
                     
                     # 매도 결정 처리
@@ -2289,7 +2348,8 @@ system_prompt에서 제시된 원칙(조건 중 2가지 이상 충족 시 청산
         round_id: str,
         market_data: MarketOverview,
         balance: Dict,
-        trading_round: TradingRound
+        trading_round: TradingRound,
+        model_type: Literal["gpt", "gemini"]
     ) -> Optional[GPTExitDecision]:
         """시장 데이터를 분석하여 매도 청산 결정을 얻습니다.
         
@@ -2320,39 +2380,44 @@ system_prompt에서 제시된 원칙(조건 중 2가지 이상 충족 시 청산
                 )
                 return None
                 
-            # 4. GPT 호출
-            response = self._call_gpt(system_prompt, user_prompt)
-            if not response:
-                self.log_manager.log(
-                    category=LogCategory.ROUND_ERROR,
-                    message="청산 결정 실패: GPT 응답 없음",
-                    data={"round_id": round_id}
-                )
-                return None
+            if model_type == "gpt":
+                # GPT 호출  
+                response = self._call_gpt(system_prompt, user_prompt)
+                if not response:
+                    self.log_manager.log(
+                        category=LogCategory.ROUND_ERROR,
+                        message="청산 결정 실패: GPT 응답 없음",
+                        data={"round_id": round_id}
+                    )
+                    return None
             
-            decision = self._parse_gpt_exit_response(round_id, response, market_data.current_price)
-            if not decision:
-                self.log_manager.log(
-                    category=LogCategory.ROUND_ERROR,
-                    message="청산 결정 실패: 응답 파싱 실패",
-                    data={"round_id": round_id}
+                decision = self._parse_gpt_exit_response(round_id, response, market_data.current_price)
+            elif model_type == "gemini":
+                # Gemini 호출
+                parsed = self._call_gemini(f"""
+                                           {system_prompt}
+                                           {user_prompt}
+                                           """) 
+                decision = GPTExitDecision(
+                    should_exit=parsed.should_exit,
+                    reasons=parsed.reasons,
+                    current_price=market_data.current_price,
+                    profit_loss_rate=parsed.profit_loss_rate,
+                    timestamp=datetime.now()    
                 )
-                return None
+            # 응답 파싱
+            return decision
             
-            # 6. 결과 로깅
+        except Exception as e:
             self.log_manager.log(
-                category=LogCategory.ROUND,
-                message="청산 결정 완료",
+                category=LogCategory.ROUND_ERROR,
+                message="청산 결정 중 오류 발생",
                 data={
                     "round_id": round_id,
-                    "symbol": trading_round.symbol,
-                    "should_exit": decision.should_exit,
-                    "reasons": decision.reasons,
-                    "current_price": market_data.current_price,
+                    "error": str(e)
                 }
             )
-            
-            return decision
+            return None
             
         except Exception as e:
             self.log_manager.log(

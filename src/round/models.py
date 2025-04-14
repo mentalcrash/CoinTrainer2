@@ -204,3 +204,10 @@ class GPTExitDecision:
     current_price: float        # 현재가
     profit_loss_rate: float     # 현재 수익률 (%)
     timestamp: datetime         # 결정 시간 
+    
+@dataclass
+class ModelResponse:
+    should_enter: bool
+    target_price: int
+    stop_loss_price: int
+    reasons: list[str]
