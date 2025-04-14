@@ -711,8 +711,8 @@ class TradingLogger:
                         is_win = pnl > 0
             
             # 진입/청산 이유 포맷팅
-            entry_reasons = ", ".join(trading_round.entry_reason) if hasattr(trading_round, 'entry_reason') and trading_round.entry_reason else ""
-            exit_reasons = ", ".join(trading_round.exit_reason) if hasattr(trading_round, 'exit_reason') and trading_round.exit_reason else ""
+            entry_reasons = "\n".join(trading_round.entry_reason) if hasattr(trading_round, 'entry_reason') and trading_round.entry_reason else ""
+            exit_reasons = "\n".join(trading_round.exit_reason) if hasattr(trading_round, 'exit_reason') and trading_round.exit_reason else ""
             
             # 진입/청산 모델 타입
             entry_model_type = trading_round.entry_model_type if hasattr(trading_round, 'entry_model_type') else ""
