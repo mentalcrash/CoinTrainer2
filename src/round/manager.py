@@ -2386,11 +2386,12 @@ system_prompt에서 제시된 원칙(조건 중 2가지 이상 충족 시 청산
                                            {system_prompt}
                                            {user_prompt}
                                            """, ModelExitResponse)
+                profit_loss_rate = ((market_data.current_price - trading_round.entry_order.price) / trading_round.entry_order.price) * 100
                 decision = GPTExitDecision(
                     should_exit=parsed.should_exit,
                     reasons=parsed.reasons,
                     current_price=market_data.current_price,
-                    profit_loss_rate=parsed.profit_loss_rate,
+                    profit_loss_rate=profit_loss_rate,
                     timestamp=datetime.now()    
                 )
             # 응답 파싱
