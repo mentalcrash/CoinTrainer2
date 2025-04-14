@@ -215,5 +215,3 @@ class ModelEntryResponse:
 class ModelExitResponse:
     should_exit: bool
     reasons: list[str]
-    current_price: float
-    profit_loss_rate: float
