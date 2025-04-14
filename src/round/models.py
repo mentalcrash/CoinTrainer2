@@ -212,6 +212,7 @@ class ModelEntryResponse:
     stop_loss_price: int
     reasons: list[str]
     
+@dataclass
 class ModelExitResponse:
     should_exit: bool
     reasons: list[str]
