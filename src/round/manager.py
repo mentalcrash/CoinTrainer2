@@ -2174,11 +2174,11 @@ class RoundManager:
                     
                     if current_price.trade_price >= trading_round.take_profit:
                         if self.update_round_status(round_id, RoundStatus.EXIT_READY):
-                            return self.execute_exit_process(round_id, [f'[목표가{trading_round.take_profit} 도달]'])
+                            return self.execute_exit_process(round_id, [f'목표가 ({trading_round.take_profit} KRW) 도달'])
                     
                     if current_price.trade_price <= trading_round.stop_loss:
                         if self.update_round_status(round_id, RoundStatus.EXIT_READY):
-                            return self.execute_exit_process(round_id, [f'[손절가{trading_round.stop_loss} 도달]'])
+                            return self.execute_exit_process(round_id, [f'손절가 ({trading_round.stop_loss} KRW) 도달'])
                     
                     # # 매도 결정 처리
                     # if decision and decision.should_exit:
