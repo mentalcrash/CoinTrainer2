@@ -1437,13 +1437,14 @@ class RoundManager:
                 # Gemini 호출
                 parsed = self._call_gemini(f"""
                                            {system_prompt}
-                                           
                                            {user_prompt}
                                            """)
+                target_profit_rate = ((parsed.target_price - market_data.current_price) / market_data.current_price) * 100
+                stop_loss_rate = ((parsed.stop_loss_price - market_data.current_price) / market_data.current_price) * 100
                 decision = GPTEntryDecision(
                     should_enter=parsed.should_enter,
-                    target_profit_rate=parsed.target_profit_rate,
-                    stop_loss_rate=parsed.stop_loss_rate,
+                    target_profit_rate=target_profit_rate,
+                    stop_loss_rate=stop_loss_rate,
                     reasons=parsed.reasons,
                     current_price=market_data.current_price,
                     target_price=parsed.target_price,
