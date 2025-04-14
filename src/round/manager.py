@@ -189,7 +189,7 @@ class RoundManager:
                 except Exception as e:
                     retry_count += 1
                     _handle_round_error(
-                        round_id if 'round_id' in locals() else None,
+                        'round_id' if 'round_id' in locals() else None,
                         e,
                         retry_count
                     )
@@ -342,7 +342,7 @@ class RoundManager:
         self,
         round_id: str,
         new_status: str,
-        reason: Optional[str] = None
+        reason: Optional[List[str]] = None
     ) -> bool:
         """라운드의 상태를 업데이트합니다.
         
@@ -970,10 +970,6 @@ class RoundManager:
         """매수가 체결되어 포지션을 보유하게 되었음을 기록합니다."""
         return self.update_round_status(round_id, RoundStatus.HOLDING, "매수 주문 체결")
 
-    def prepare_exit(self, round_id: str, reason: str) -> bool:
-        """매도 시그널이 발생하여 청산 준비 상태로 변경합니다."""
-        return self.update_round_status(round_id, RoundStatus.EXIT_READY, reason)
-
     def confirm_exit_order(self, round_id: str, order_response: OrderResponse) -> bool:
         """매도 주문 결과를 라운드에 기록합니다.
         
@@ -1168,7 +1164,7 @@ class RoundManager:
                 should_enter=data['should_enter'],
                 target_profit_rate=target_profit_rate,
                 stop_loss_rate=stop_loss_rate,
-                reasons=data['reasons'],
+                reasons=json.loads(data['reasons']),
                 current_price=current_price,
                 target_price=data['target_price'],
                 stop_loss_price=data['stop_loss_price'],
@@ -1243,7 +1239,7 @@ class RoundManager:
             
             decision = GPTExitDecision(
                 should_exit=data['should_exit'],
-                reasons=data['reasons'],
+                reasons=json.loads(data['reasons']),
                 current_price=current_price,
                 profit_loss_rate=profit_loss_rate,
                 timestamp=datetime.now()
@@ -1888,8 +1884,8 @@ class RoundManager:
             bool: 모니터링 시작 성공 여부
         """
         MAX_RETRIES = 3
-        MONITORING_INTERVAL = 30  # seconds
-        ERROR_RETRY_INTERVAL = 30  # seconds
+        MONITORING_INTERVAL = 3  # seconds
+        ERROR_RETRY_INTERVAL = 3  # seconds
         
         def _validate_round() -> Optional[TradingRound]:
             """라운드 상태를 검증합니다."""

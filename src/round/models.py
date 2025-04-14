@@ -116,8 +116,8 @@ class TradingRound:
     
     # 종료 정보
     end_time: Optional[datetime] = None         # 종료 시각
-    exit_reason: Optional[str] = None           # 종료 사유
-    entry_reason: Optional[str] = None           # 매수 진입 이유
+    exit_reason: Optional[List[str]] = None           # 종료 사유
+    entry_reason: Optional[List[str]] = None           # 매수 진입 이유
 
     def __post_init__(self):
         """초기화 후 처리"""
