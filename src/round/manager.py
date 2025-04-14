@@ -148,7 +148,7 @@ class RoundManager:
                     data={
                         "round_id": round_id,
                         "symbol": symbol,
-                        "summary": summary
+                        "summary": round
                     }
                 )
                 self.active_rounds.pop(round_id)
