@@ -1057,7 +1057,7 @@ class RoundManager:
 4. 수익 실현 가능성과 리스크를 균형 있게 고려
 
 단, 다음은 반드시 지켜야 합니다:
-- 목표가는 현재가 (+ 0.8% 이상 3호가 이하의 가격) (정수)
+- 목표가는 반드시 현재가보다 높게 (정수)
 - 손절가는 반드시 현재가보다 낮게 (정수)
 - 응답은 반드시 아래 JSON 형식을 따를 것:
 
@@ -2218,35 +2218,35 @@ class RoundManager:
             
             while True:
                 try:
-                    # # 시장 정보 수집
-                    # market_data = self.analyzer.get_market_overview(trading_round.symbol)
-                    # balance = self.account.get_balance(trading_round.symbol)
+                    # 시장 정보 수집
+                    market_data = self.analyzer.get_market_overview(trading_round.symbol)
+                    balance = self.account.get_balance(trading_round.symbol)
                     
-                    # # 매도 결정 획득
-                    # decision = self.get_exit_decision(
-                    #     round_id,
-                    #     market_data=market_data,
-                    #     balance=balance,
-                    #     trading_round=trading_round,
-                    #     model_type="gemini"
-                    # )
+                    # 매도 결정 획득
+                    decision = self.get_exit_decision(
+                        round_id,
+                        market_data=market_data,
+                        balance=balance,
+                        trading_round=trading_round,
+                        model_type="gpt"
+                    )
                     
-                    current_price = self.ticker.get_current_price(trading_round.symbol)
-                    if not current_price:
-                        raise Exception("현재가 조회 실패")
+                    # current_price = self.ticker.get_current_price(trading_round.symbol)
+                    # if not current_price:
+                    #     raise Exception("현재가 조회 실패")
                     
-                    if current_price.trade_price >= trading_round.take_profit:
-                        if self.update_round_status(round_id, RoundStatus.EXIT_READY):
-                            return self.execute_exit_process(round_id, [f'목표가 ({trading_round.take_profit} KRW) 도달'])
-                    
-                    if current_price.trade_price <= trading_round.stop_loss:
-                        if self.update_round_status(round_id, RoundStatus.EXIT_READY):
-                            return self.execute_exit_process(round_id, [f'손절가 ({trading_round.stop_loss} KRW) 도달'])
-                    
-                    # # 매도 결정 처리
-                    # if decision and decision.should_exit:
+                    # if current_price.trade_price >= trading_round.take_profit:
                     #     if self.update_round_status(round_id, RoundStatus.EXIT_READY):
-                    #         return self.execute_exit_process(round_id, decision.reasons)
+                    #         return self.execute_exit_process(round_id, [f'목표가 ({trading_round.take_profit} KRW) 도달'])
+                    
+                    # if current_price.trade_price <= trading_round.stop_loss:
+                    #     if self.update_round_status(round_id, RoundStatus.EXIT_READY):
+                    #         return self.execute_exit_process(round_id, [f'손절가 ({trading_round.stop_loss} KRW) 도달'])
+                    
+                    # 매도 결정 처리
+                    if decision and decision.should_exit:
+                        if self.update_round_status(round_id, RoundStatus.EXIT_READY):
+                            return self.execute_exit_process(round_id, decision.reasons)
                     
                     # 재시도 카운터 초기화 (성공적인 모니터링)
                     # retry_count = 0
@@ -2470,6 +2470,61 @@ class RoundManager:
             f"청산 이유:{reasons_text}"
         )
 
+    def _generate_openai_exit_prompt(
+        self,
+        round_id: str,
+        market_data: MarketOverview,
+        balance: Dict,
+        trading_round: TradingRound
+    ) -> Tuple[str, str]:
+        """OpenAI를 활용한 매도 시그널 프롬프트를 생성합니다."""
+        system_prompt = """
+당신은 암호화폐 초단타(스캘핑) 트레이딩의 청산 전문가입니다. 
+1~5분 단위로 시장을 파악하여, 이전 당신의 결정에 의해 보유하고 있는 현재 포지션을 유지할지 청산(매도)할지 빠르고 정확하게 결정합니다.
+
+당신의 임무:
+1. 제공된 시장 데이터를 종합적으로 분석
+2. 현 시점에서 매도 청산 여부를 결정 (should_exit: true/false)
+3. 판단의 근거(reasons)를 정확히 3가지 작성
+
+리스크 관리 원칙:
+- 목표가(take_profit) 근접 또는 초과 시, 수익 실현 기회 확보
+- 손절가(stop_loss) 근접 또는 하회 시, 손실 최소화 우선
+
+응답 형식: 반드시 JSON 형태
+{
+  "should_exit": true/false,
+  "reasons": [
+      "첫 번째 근거",
+      "두 번째 근거",
+      "세 번째 근거"
+  ]
+}
+
+목표: 지나친 조기 청산(소폭 이익/손실에 즉시 매도)을 피하고,
+확실한 하락 전환 신호 또는 손절/목표가 근접에만 청산을 결정한다.
+"""
+
+        indicators = self.openai_trader.get_indicators(f"KRW-{trading_round.symbol}")        
+        prompt = self.openai_trader.make_prompt_style(indicators)
+        user_prompt = f"""
+현재 보유 중인 {trading_round.symbol} 포지션의 청산 여부를 분석해 주세요.
+
+당신이 매수시 결정한 사항입니다. 참고하세요
+
+포지션 정보
+- 진입가: {trading_round.entry_order.price:,.0f}원
+- 현재가: {market_data.current_price:,.0f}원
+- 목표가: {trading_round.take_profit:,.0f}원
+- 손절가: {trading_round.stop_loss:,.0f}원
+- 이슈: {trading_round.entry_reason}
+
+시장 데이터를 종합적으로 분석해 주세요.
+
+{prompt}
+        """
+        return system_prompt, user_prompt
+
     def _generate_exit_prompt(
         self,
         round_id: str,
@@ -2609,8 +2664,21 @@ system_prompt에서 제시된 원칙(조건 중 2가지 이상 충족 시 청산
             }
         """
         try:       
+            # # 이전 현재가로만 결정
+            # current_price = self.ticker.get_current_price(trading_round.symbol)
+            # if not current_price:
+            #     raise Exception("현재가 조회 실패")
+            
+            # if current_price.trade_price >= trading_round.take_profit:
+            #     if self.update_round_status(round_id, RoundStatus.EXIT_READY):
+            #         return self.execute_exit_process(round_id, [f'목표가 ({trading_round.take_profit} KRW) 도달'])
+            
+            # if current_price.trade_price <= trading_round.stop_loss:
+            #     if self.update_round_status(round_id, RoundStatus.EXIT_READY):
+            #         return self.execute_exit_process(round_id, [f'손절가 ({trading_round.stop_loss} KRW) 도달'])
+            
             # 3. 프롬프트 생성
-            system_prompt, user_prompt = self._generate_exit_prompt(
+            system_prompt, user_prompt = self._generate_openai_exit_prompt(
                 round_id=round_id,
                 market_data=market_data,
                 balance=balance,
@@ -2627,7 +2695,7 @@ system_prompt에서 제시된 원칙(조건 중 2가지 이상 충족 시 청산
                 
             if model_type == "gpt":
                 # GPT 호출  
-                response = self._call_gpt(system_prompt, user_prompt)
+                response = self._call_gpt(system_prompt, user_prompt, model="gpt-4.1-mini-2025-04-14")
                 if not response:
                     self.log_manager.log(
                         category=LogCategory.ROUND_ERROR,
