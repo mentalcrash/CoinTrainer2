@@ -1057,7 +1057,7 @@ class RoundManager:
 4. 수익 실현 가능성과 리스크를 균형 있게 고려
 
 단, 다음은 반드시 지켜야 합니다:
-- 목표가는 반드시 현재가보다 높고 2틱 이상의 가격보다 낮게(정수)
+- 목표가는 반드시 현재가보다 높고 3틱 이상의 가격보다 낮게(정수)
 - 손절가는 반드시 현재가보다 낮게 (정수)
 - 응답은 반드시 아래 JSON 형식을 따를 것:
 
@@ -1735,7 +1735,7 @@ class RoundManager:
                 )
                 return None
             
-            order_amount = available_balance * 0.2
+            order_amount = available_balance * 0.995
             
             # 주문 생성
             order_request = OrderRequest(
