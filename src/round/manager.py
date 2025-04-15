@@ -804,7 +804,7 @@ class RoundManager:
     def start_watching(
         self,
         round_id: str,
-        interval: float = 60 * 5,
+        interval: float = 60 * 10,
         max_watching_time: float = 9999.0
     ) -> bool:
         """라운드를 시작하고 매수 기회를 지속적으로 탐색합니다."""
@@ -2160,8 +2160,8 @@ class RoundManager:
             bool: 모니터링 시작 성공 여부
         """
         MAX_RETRIES = 3
-        MONITORING_INTERVAL = 10  # seconds
-        ERROR_RETRY_INTERVAL = 10  # seconds
+        MONITORING_INTERVAL = 30  # seconds
+        ERROR_RETRY_INTERVAL = 30  # seconds
         
         def _validate_round() -> Optional[TradingRound]:
             """라운드 상태를 검증합니다."""
