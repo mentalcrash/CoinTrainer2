@@ -1678,7 +1678,7 @@ class RoundManager:
                 )
                 return None
             
-            order_amount = available_balance - locked_balance
+            order_amount = available_balance * 0.99
             
             # 주문 생성
             order_request = OrderRequest(
