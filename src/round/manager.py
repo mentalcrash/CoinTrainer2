@@ -804,7 +804,7 @@ class RoundManager:
     def start_watching(
         self,
         round_id: str,
-        interval: float = 60 * 10,
+        interval: float = 60 * 5,
         max_watching_time: float = 9999.0
     ) -> bool:
         """라운드를 시작하고 매수 기회를 지속적으로 탐색합니다."""
