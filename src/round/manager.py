@@ -865,7 +865,7 @@ class RoundManager:
                     )
                     
                     # GPT 매수 진입 결정 요청
-                    entry_decision = self.get_entry_decision(round_id, market_data, model_type="gemini")
+                    entry_decision = self.get_entry_decision(round_id, market_data, model_type="gpt")
                     
                     if not entry_decision:
                         self.log_manager.log(
