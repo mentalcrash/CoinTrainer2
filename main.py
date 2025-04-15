@@ -3,7 +3,7 @@ from src.round.manager import RoundManager
 from src.utils.log_manager import LogManager
 
 def main():
-    symbol = "XRP"
+    symbol = "AERGO"
     
     log_manager: LogManager = LogManager(base_dir="logs/round", console_format="detailed")
     log_manager.start_new_trading_session(symbol)
