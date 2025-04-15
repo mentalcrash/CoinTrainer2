@@ -21,6 +21,7 @@ from .models import ModelEntryResponse, ModelExitResponse
 from typing import Literal, Union
 from src.ticker import Ticker
 from src.trading_logger import TradingLogger
+from src.new.openai_trader import OpenAITrader
 
 class RoundManager:
     """매매 라운드 관리자"""
@@ -65,6 +66,8 @@ class RoundManager:
         
         self.ticker = Ticker(log_manager)
         self.trading_logger = TradingLogger(log_manager)
+        
+        self.openai_trader = OpenAITrader()
      
     def run(self, symbol: str):
         """무한 라운딩을 실행합니다.
@@ -891,7 +894,7 @@ class RoundManager:
                             continue
                         
                         # 매수 준비 상태로 전환
-                        if self.prepare_entry(round_id, entry_decision.reasons, 'gemini-2.5-pro-preview-03-25'):
+                        if self.prepare_entry(round_id, entry_decision.reasons, 'gpt-4.1-mini-2025-04-14'):
                             # 매수 진입 프로세스 실행
                             if self.execute_entry_process(round_id):
                                 self.log_manager.log(
@@ -1026,6 +1029,58 @@ class RoundManager:
             return self.update_round_status(round_id, RoundStatus.WATCHING, reason)
         return False
 
+    def _generate_openai_entry_prompt(self, round_id: str, market_data: MarketOverview) -> Tuple[str, str]:
+        """시장 데이터를 기반으로 OpenAI에게 전달할 프롬프트를 생성합니다.
+        
+        Args:
+            round_id (str): 라운드 ID
+            market_data (MarketOverview): 시장 데이터
+        
+        Returns:
+            Tuple[str, str]: (시스템 프롬프트, 사용자 프롬프트) 튜플
+        """
+        trading_round = self.active_rounds.get(round_id)
+        if not trading_round:
+            return "", ""
+        
+         # 시스템 프롬프트 정의
+        system_prompt = """당신은 초단기 암호화폐 매매에 특화된 스캘핑 트레이딩 전문가입니다.
+지금 당신은 실시간 시장 데이터를 기반으로 매수 진입 가능성을 평가해야 합니다.
+
+어떤 조건도 강제하지 않으며, 아래의 시장 정보를 종합적으로 해석하여
+지금 시점에서의 매수 진입 여부를 자유롭게 판단하십시오.
+
+당신의 임무:
+1. 시장 데이터를 바탕으로 현재 매수 진입이 타당한지 결정
+2. 진입이 타당하다면, 목표가(target_price)와 손절가(stop_loss_price)를 제시
+3. 판단 이유는 반드시 3가지로 구체적으로 설명
+4. 수익 실현 가능성과 리스크를 균형 있게 고려
+
+단, 다음은 반드시 지켜야 합니다:
+- 목표가는 반드시 현재가보다 높게 (정수)
+- 손절가는 반드시 현재가보다 낮게 (정수)
+- 응답은 반드시 아래 JSON 형식을 따를 것:
+
+{
+  "should_enter": true/false,
+  "target_price": 0,
+  "stop_loss_price": 0,
+  "reasons": [
+    "첫 번째 근거",
+    "두 번째 근거",
+    "세 번째 근거"
+  ]
+}
+"""
+        indicators = self.openai_trader.get_indicators(f"KRW-{trading_round.symbol}")        
+        prompt = self.openai_trader.make_prompt_style(indicators)
+        user_prompt = f"""
+현재 {trading_round.symbol} 매수 진입 기회를 분석해 주세요.
+{prompt}
+        """
+        
+        return system_prompt, user_prompt
+        
     def _generate_market_prompt(self, round_id: str, market_data: MarketOverview) -> Tuple[str, str]:
         """시장 데이터를 기반으로 GPT에게 전달할 프롬프트를 생성합니다.
         
@@ -1433,7 +1488,7 @@ class RoundManager:
             
             if model_type == "gpt":
                 # 사용자 프롬프트 생성
-                system_prompt, user_prompt = self._generate_market_prompt(round_id, market_data)
+                system_prompt, user_prompt = self._generate_openai_entry_prompt(round_id, market_data)
                 if not system_prompt or not user_prompt:
                     self.log_manager.log(
                         category=LogCategory.ROUND_ERROR,
@@ -1443,7 +1498,7 @@ class RoundManager:
                     return None
                 
                 # GPT 호출
-                response = self._call_gpt(system_prompt, user_prompt, model="gpt-4o-2024-11-20")
+                response = self._call_gpt(system_prompt, user_prompt, model="gpt-4.1-mini-2025-04-14")
                 decision = self._parse_gpt_entry_response(round_id, response, market_data.current_price)
                 
                 # GPT 응답 로깅
@@ -1680,7 +1735,7 @@ class RoundManager:
                 )
                 return None
             
-            order_amount = available_balance * 0.99
+            order_amount = available_balance * 0.2
             
             # 주문 생성
             order_request = OrderRequest(

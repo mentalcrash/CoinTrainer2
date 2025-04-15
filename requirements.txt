@@ -14,3 +14,7 @@ requests>=2.31.0
 schedule==1.2.1
 tabulate>=0.9.0
 google-genai 
+pandas 
+matplotlib 
+mplfinance
+openai
