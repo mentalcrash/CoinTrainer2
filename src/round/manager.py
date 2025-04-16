@@ -1208,8 +1208,6 @@ class RoundManager:
                 raise ValueError("target_price must be number")
             if not isinstance(data['stop_loss_price'], (int, float)):
                 raise ValueError("stop_loss_price must be number")
-            if not isinstance(data['reasons'], list) or len(data['reasons']) != 3:
-                raise ValueError("reasons must be array of 3 strings")
             
             # 7. 수익률 계산
             target_profit_rate = ((data['target_price'] - current_price) / current_price) * 100
