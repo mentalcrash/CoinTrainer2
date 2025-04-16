@@ -2161,9 +2161,9 @@ class RoundManager:
         Returns:
             bool: 모니터링 시작 성공 여부
         """
-        MAX_RETRIES = 3
-        MONITORING_INTERVAL = 5  # seconds
-        ERROR_RETRY_INTERVAL = 5  # seconds
+        MAX_RETRIES = 99
+        MONITORING_INTERVAL = 1  # seconds
+        ERROR_RETRY_INTERVAL = 1  # seconds
         
         def _validate_round() -> Optional[TradingRound]:
             """라운드 상태를 검증합니다."""
@@ -2220,35 +2220,36 @@ class RoundManager:
             
             while True:
                 try:
-                    # 시장 정보 수집
-                    market_data = self.analyzer.get_market_overview(trading_round.symbol)
-                    balance = self.account.get_balance(trading_round.symbol)
+                    current_price = self.ticker.get_current_price(trading_round.symbol)
+                    if not current_price:
+                        raise Exception("현재가 조회 실패")
                     
-                    # 매도 결정 획득
-                    decision = self.get_exit_decision(
-                        round_id,
-                        market_data=market_data,
-                        balance=balance,
-                        trading_round=trading_round,
-                        model_type="gpt"
-                    )
-                    
-                    # current_price = self.ticker.get_current_price(trading_round.symbol)
-                    # if not current_price:
-                    #     raise Exception("현재가 조회 실패")
-                    
-                    # if current_price.trade_price >= trading_round.take_profit:
-                    #     if self.update_round_status(round_id, RoundStatus.EXIT_READY):
-                    #         return self.execute_exit_process(round_id, [f'목표가 ({trading_round.take_profit} KRW) 도달'])
-                    
-                    # if current_price.trade_price <= trading_round.stop_loss:
-                    #     if self.update_round_status(round_id, RoundStatus.EXIT_READY):
-                    #         return self.execute_exit_process(round_id, [f'손절가 ({trading_round.stop_loss} KRW) 도달'])
-                    
-                    # 매도 결정 처리
-                    if decision and decision.should_exit:
+                    if current_price.trade_price >= trading_round.take_profit:
                         if self.update_round_status(round_id, RoundStatus.EXIT_READY):
-                            return self.execute_exit_process(round_id, decision.reasons)
+                            return self.execute_exit_process(round_id, [f'목표가 ({trading_round.take_profit} KRW) 도달'])
+                    
+                    if current_price.trade_price <= trading_round.stop_loss:
+                        if self.update_round_status(round_id, RoundStatus.EXIT_READY):
+                            return self.execute_exit_process(round_id, [f'손절가 ({trading_round.stop_loss} KRW) 도달'])
+                    
+                    # # 시장 분석
+                    # # 시장 정보 수집
+                    # market_data = self.analyzer.get_market_overview(trading_round.symbol)
+                    # balance = self.account.get_balance(trading_round.symbol)
+                    
+                    # # 매도 결정 획득
+                    # decision = self.get_exit_decision(
+                    #     round_id,
+                    #     market_data=market_data,
+                    #     balance=balance,
+                    #     trading_round=trading_round,
+                    #     model_type="gpt"
+                    # )
+                    
+                    # # 매도 결정 처리
+                    # if decision and decision.should_exit:
+                    #     if self.update_round_status(round_id, RoundStatus.EXIT_READY):
+                    #         return self.execute_exit_process(round_id, decision.reasons)
                     
                     # 재시도 카운터 초기화 (성공적인 모니터링)
                     # retry_count = 0
