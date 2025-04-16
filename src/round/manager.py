@@ -1889,7 +1889,7 @@ class RoundManager:
             - complete: 주문 완료, wait: 대기 중, 그 외(cancel, error 등)는 실패로 처리
         """
         try:
-            MAX_RETRIES = 10
+            MAX_RETRIES = 9999999
             RETRY_INTERVAL = 0.5
             retry_count = 0
             
