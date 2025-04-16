@@ -42,7 +42,8 @@ class TradingLogger:
             'order_request': 'Order Request',  # 주문 기록
             'order_response': 'Order Response',  # 주문 응답 데이터
             'trade_response': 'Trade Response',   # 체결 응답 데이터
-            'round_summary': 'Round Summary'   # 라운드 요약 정보
+            'round_summary': 'Round Summary',   # 라운드 요약 정보
+            'scalping_result': 'Scalping Result'  # ✅ NEW
         }
         
         # 시트 초기화
@@ -248,6 +249,18 @@ class TradingLogger:
                 'Exit Reasons',            # 청산 이유
                 'Entry Model Type',        # 진입 결정 모델
                 'Exit Model Type'          # 청산 결정 모델
+            ],
+            'Scalping Result': [  # ✅ NEW
+                'Timestamp',
+                'Symbol',
+                'Entry Price',
+                'Exit Price',
+                'Volume',
+                'PnL',
+                'PnL Rate',
+                'Entry Order UUID',
+                'Exit Order UUID',
+                'Is Win'
             ]
         }
         
@@ -788,3 +801,58 @@ class TradingLogger:
                     }
                 )
             raise 
+        
+    def log_scalping_result(self, entry_order: OrderResponse, exit_order: OrderResponse):
+        """스캘핑 결과를 간단하게 요약해서 저장합니다."""
+        try:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            symbol = entry_order.market.split("-")[1]
+            entry_price = float(entry_order.price or 0)
+            exit_price = float(exit_order.price or 0)
+            volume = float(exit_order.volume or 0)
+
+            pnl = (exit_price - entry_price) * volume
+            pnl_rate = ((exit_price - entry_price) / entry_price * 100) if entry_price else 0.0
+            is_win = pnl > 0
+
+            values = [[
+                now,
+                symbol,
+                f"{entry_price:.2f}",
+                f"{exit_price:.2f}",
+                f"{volume:.6f}",
+                f"{pnl:.2f}",
+                f"{pnl_rate:.2f}%",
+                entry_order.uuid,
+                exit_order.uuid,
+                "Y" if is_win else "N"
+            ]]
+
+            self._append_values(self.SHEETS['scalping_result'], values)
+
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.TRADING,
+                    message="스캘핑 결과 저장 완료",
+                    data={
+                        "symbol": symbol,
+                        "entry_price": entry_price,
+                        "exit_price": exit_price,
+                        "pnl": pnl,
+                        "pnl_rate": f"{pnl_rate:.2f}%",
+                        "is_win": is_win
+                    }
+                )
+        except Exception as e:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="스캘핑 결과 저장 실패",
+                    data={
+                        "entry_order_id": entry_order.uuid,
+                        "exit_order_id": exit_order.uuid,
+                        "error": str(e),
+                        "traceback": traceback.format_exc()
+                    }
+                )
+            raise

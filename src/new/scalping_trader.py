@@ -7,6 +7,8 @@ from src.new.strategy.VolatilityBreakoutSignal import VolatilityBreakoutSignal
 from src.models.order import OrderRequest, OrderResponse
 from src.discord_notifier import DiscordNotifier
 from src.account import Account
+from src.trading_order import TradingOrder
+from src.trading_logger import TradingLogger
 
 class ScalpingTrader:
     def __init__(self, market: str):
@@ -27,6 +29,12 @@ class ScalpingTrader:
         self.logger.setLevel(logging.INFO)
         
         self.discord_notifier = DiscordNotifier(os.getenv("DISCORD_WEBHOOK_URL"))
+        self.trading_order = TradingOrder(
+            api_key=os.getenv("BITHUMB_API_KEY"),
+            secret_key=os.getenv("BITHUMB_SECRET_KEY")
+        )
+        
+        self.trading_logger = TradingLogger()
 
     def fetch_market_data(self):
         """시장의 캔들, 티커, 호가 데이터를 가져옵니다."""
@@ -138,22 +146,28 @@ class ScalpingTrader:
     def run_once(self):
         """단일 트레이딩 사이클 실행"""
         self.logger.info("▶️ 트레이딩 사이클 시작")
-        candles, ticker, orderbook = self.fetch_market_data()
-        if not self.analyze_market(candles, ticker, orderbook):
-            self.logger.info("🟡 매수 신호 없음 - 사이클 종료")
-            return
+        if not self.is_position:
+            candles, ticker, orderbook = self.fetch_market_data()
+            if not self.analyze_market(candles, ticker, orderbook):
+                self.logger.info("🟡 매수 신호 없음 - 사이클 종료")
+                return
 
-        entry_order = self.execute_entry_order()
-        if not entry_order:
-            self.logger.warning("❗ 매수 주문 실패")
-            return
+            entry_order = self.execute_entry_order()
+            if not entry_order:
+                self.logger.warning("❗ 매수 주문 실패")
+                return
 
         self.is_position = True
+        
+        self.discord_notifier.send_start_scalping(entry_order)
+        
         self.monitor_position(entry_order)
 
         exit_order = self.execute_exit_order(entry_order.volume)
         if exit_order:
             self.logger.info(f"💰 매도 완료 - 체결가: {exit_order.price}, 수익률 계산 가능")
+            self.discord_notifier.send_end_scalping(entry_order, exit_order)
+            self.trading_logger.log_scalping_result(entry_order, exit_order)
         else:
             self.logger.warning("❗ 매도 주문 실패")
 

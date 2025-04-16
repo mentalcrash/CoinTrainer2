@@ -11,8 +11,7 @@ from urllib.parse import urlencode
 from typing import Dict, Optional, Union, Literal, List
 from src.utils.log_manager import LogManager, LogCategory
 from src.models.market_data import OrderResult, OrderSideType, OrderType, OrderInfo
-from src.models.order import Trade
-from src.round.manager import OrderRequest, OrderResponse
+from src.models.order import OrderRequest, OrderResponse
 
 class TradingOrder:
     """주문 처리를 담당하는 클래스"""

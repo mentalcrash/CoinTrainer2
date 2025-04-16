@@ -213,7 +213,86 @@ RSI 지표:
                 message="에러 알림 전송 완료",
                 data={"error_message": error_message}
             )
-        
+    
+    def send_end_scalping(self, entry_order: OrderResponse, exit_order: OrderResponse) -> bool:
+        """스캘핑 종료 알림을 Discord로 전송합니다."""
+        try:
+            entry_price = float(entry_order.price or 0)
+            exit_price = float(exit_order.price or 0)
+            volume = float(exit_order.volume or 0)
+
+            # 수익 계산
+            profit = (exit_price - entry_price) * volume
+            profit_rate = (exit_price - entry_price) / entry_price * 100 if entry_price else 0
+
+            # 이모지
+            result_emoji = "🔥" if profit_rate >= 0 else "💧"
+            result_label = "익절 성공" if profit_rate >= 0 else "손절 처리"
+
+            message = f"""```ini
+    [{result_emoji} 스캘핑 종료 알림]
+
+    [매매 결과]
+    • 심볼: {entry_order.market}
+    • 매수가: {entry_price:,.0f} KRW
+    • 매도가: {exit_price:,.0f} KRW
+    • 수량: {volume}
+    • 손익: {profit:,.0f} KRW
+    • 수익률: {profit_rate:+.2f}%
+
+    [{result_label}] 거래가 종료되었습니다.
+    ```"""
+            self._send_message(message)
+            return True
+
+        except Exception as e:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=f"스캘핑 종료 알림 전송 실패: {str(e)}",
+                    data={
+                        "entry_order": entry_order.uuid,
+                        "exit_order": exit_order.uuid,
+                        "market": entry_order.market
+                    }
+                )
+            return False
+    
+    def send_start_scalping(self, response: OrderResponse) -> bool:
+        """스캘핑 시작 알림을 Discord로 전송합니다."""
+        try:
+            # 체결가 및 수량
+            entry_price = float(response.price or 0)
+            entry_volume = float(response.volume or 0)
+            entry_time = response.created_at
+
+            message = f"""```ini
+    [🚀 스캘핑 시작 알림]
+
+    [기본 정보]
+    • 심볼: {response.market}
+    • 주문 ID: {response.uuid}
+    • 주문 시각: {entry_time}
+
+    [매수 정보]
+    • 체결가: {entry_price:,.0f} KRW
+    • 체결 수량: {entry_volume}
+
+    트레이딩 모니터링을 시작합니다... 🔍
+    ```"""
+            self._send_message(message)
+            return True
+
+        except Exception as e:
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=f"스캘핑 시작 알림 전송 실패: {str(e)}",
+                    data={"order_uuid": response.uuid, "market": response.market}
+                )
+            return False
+                    
+                    
     def send_start_round_notification(self, round: TradingRound) -> bool:
         """라운드 시작 알림을 Discord로 전송합니다."""
         try:
