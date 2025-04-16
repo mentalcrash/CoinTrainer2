@@ -7,10 +7,11 @@ from requests import Response
 from src.models.market_data import TradeExecutionResult
 from src.utils.log_manager import LogManager, LogCategory
 from src.round.models import TradingRound
+from src.models.order import OrderResponse
 
 
 class DiscordNotifier:
-    def __init__(self, webhook_url: str, log_manager: LogManager):
+    def __init__(self, webhook_url: str, log_manager: Optional[LogManager] = None):
         """Discord 웹훅을 통해 알림을 보내는 클래스
 
         Args:
@@ -41,10 +42,11 @@ class DiscordNotifier:
         )
 
         if response.status_code != 204:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message="Discord 메시지 전송 실패",
-                data={
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message="Discord 메시지 전송 실패",
+                    data={
                     "status_code": response.status_code,
                     "response": response.text
                 }
@@ -155,11 +157,12 @@ RSI 지표:
             return message
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message=f"디스코드 메시지 생성 실패: {str(e)}",
-                data={"symbol": result.decision_result.symbol if result.decision_result else "Unknown"}
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=f"디스코드 메시지 생성 실패: {str(e)}",
+                    data={"symbol": result.decision_result.symbol if result.decision_result else "Unknown"}
+                )
             return "⚠️ 메시지 생성 중 오류가 발생했습니다."
 
     def send_trade_notification(self, result: TradeExecutionResult) -> None:
@@ -171,20 +174,22 @@ RSI 지표:
             # Discord로 전송
             self._send_message(message)
             
-            self.log_manager.log(
-                category=LogCategory.DISCORD,
-                message=f"매매 알림 전송 완료",
-                data={
-                    "message": message
-                }
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.DISCORD,
+                    message=f"매매 알림 전송 완료",
+                    data={
+                        "message": message
+                    }
+                )
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message=f"Discord 매매 알림 전송 실패: {str(e)}",
-                data={"error": str(e)}
-            )
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=f"Discord 매매 알림 전송 실패: {str(e)}",
+                    data={"error": str(e)}
+                )
 
     def send_error_notification(self, error_message: str) -> None:
         """에러 메시지를 Discord로 전송합니다.
@@ -202,11 +207,12 @@ RSI 지표:
         }
 
         self._send_message("", [embed])
-        self.log_manager.log(
-            category=LogCategory.DISCORD,
-            message="에러 알림 전송 완료",
-            data={"error_message": error_message}
-        )
+        if self.log_manager:
+            self.log_manager.log(
+                category=LogCategory.DISCORD,
+                message="에러 알림 전송 완료",
+                data={"error_message": error_message}
+            )
         
     def send_start_round_notification(self, round: TradingRound) -> bool:
         """라운드 시작 알림을 Discord로 전송합니다."""
@@ -242,16 +248,21 @@ RSI 지표:
             return True
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message=f"라운드 시작 알림 전송 실패: {str(e)}",
-                data={
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=f"라운드 시작 알림 전송 실패: {str(e)}",
+                    data={
                     "round_id": round.id,
                     "symbol": round.symbol,
                     "error": str(e)
                 }
             )
             return False
+    
+    def send_scalping_notification(self, entry_order: OrderResponse, exit_order: OrderResponse  ) -> bool:
+        """스캐핑 알림을 Discord로 전송합니다."""
+        
     
     def send_end_round_notification(self, round: TradingRound) -> bool:
         """라운드 종료 알림을 Discord로 전송합니다."""
@@ -292,10 +303,11 @@ RSI 지표:
                     hours = holding_time.total_seconds() // 3600
                     minutes = (holding_time.total_seconds() % 3600) // 60
             except Exception as e:
-                self.log_manager.log(
-                    category=LogCategory.WARNING,
-                    message="홀딩 시간 계산 실패",
-                    data={
+                if self.log_manager:
+                    self.log_manager.log(
+                        category=LogCategory.WARNING,
+                        message="홀딩 시간 계산 실패",
+                        data={
                         "round_id": round.id,
                         "error": str(e)
                     }
@@ -340,10 +352,11 @@ RSI 지표:
             return True
             
         except Exception as e:
-            self.log_manager.log(
-                category=LogCategory.ERROR,
-                message=f"라운드 종료 알림 전송 실패: {str(e)}",
-                data={
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.ERROR,
+                    message=f"라운드 종료 알림 전송 실패: {str(e)}",
+                    data={
                     "round_id": round.id,
                     "symbol": round.symbol,
                     "error": str(e)
