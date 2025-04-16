@@ -1050,11 +1050,13 @@ class RoundManager:
 어떤 조건도 강제하지 않으며, 아래의 시장 정보를 종합적으로 해석하여
 지금 시점에서의 매수 진입 여부를 자유롭게 판단하십시오.
 
-당신의 임무:
-1. 시장 데이터를 바탕으로 현재 매수 진입이 타당한지 결정
-2. 진입이 타당하다면, 목표가(target_price)와 손절가(stop_loss_price)를 제시
-3. 판단 이유는 반드시 3가지로 구체적으로 설명
-4. 수익 실현 가능성과 리스크를 균형 있게 고려
+===== 핵심 판단 지표 조건 =====
+- 호가 불균형 (orderbook_imbalance_ratio) ≥ 0.6
+- 체결 우위 비율 (execution_bid_ratio) ≥ 0.7
+- 거래량 급증 비율 (volume_spike_ratio) ≥ 1.3
+
+이 3가지 지표 중 **모두를 만족해야만 진입할 수 있습니다.**  
+그 외에는 {"should_enter": false}로 판단하고, 목표가/손절가/사유는 모두 비워둡니다.
 
 단, 다음은 반드시 지켜야 합니다:
 - 목표가는 반드시 현재가보다 높고 3틱 이상의 가격보다 낮게(정수)
@@ -1735,7 +1737,7 @@ class RoundManager:
                 )
                 return None
             
-            order_amount = available_balance * 0.995
+            order_amount = available_balance * 0.2
             
             # 주문 생성
             order_request = OrderRequest(
