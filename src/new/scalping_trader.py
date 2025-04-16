@@ -103,7 +103,7 @@ class ScalpingTrader:
         self.logger.info(f"⏳ 주문 체결 대기 시작 (ID: {order_response.uuid})")
 
         for i in range(MAX_RETRIES):
-            completed_order = self.order.get_order_detail(order_response.uuid)
+            completed_order = self.trading_order.get_order_detail(order_response.uuid)
 
             if completed_order and completed_order.state == "complete":
                 self.logger.info(f"✅ 주문 체결 완료 - 체결가: {completed_order.price}, 수량: {completed_order.volume}")
