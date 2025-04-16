@@ -18,7 +18,7 @@ class OpenAITrader:
         trades_response = self.bithumb_client.get_trades(market=market, count=10)
         trades = trades_response.trades
         
-        candles_response = self.bithumb_client.get_candles(market=market, interval="1h", limit=10)
+        candles_response = self.bithumb_client.get_candles(market=market, interval="1h", limit=5)
         candles = candles_response.candles
         
         return {
@@ -39,33 +39,78 @@ class OpenAITrader:
         # 현재 시간
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        prompt = f"""
-===== 시장 기본 정보 (현재가) =====
-- 분석 시간: {current_time}
-- 분석 대상: {ticker.market}
-- 현재가: {ticker.trade_price}
-- 시세 상태: {ticker.change} (변동률: {ticker.signed_change_rate})
-- 시가: {ticker.opening_price}
-- 고가: {ticker.high_price}
-- 저가: {ticker.low_price}
-- 전일 종가: {ticker.prev_closing_price}
-- 거래량(24h): {ticker.acc_trade_volume_24h}
-- 거래대금(24h): {ticker.acc_trade_price_24h}
-- 52주 최고가: {ticker.highest_52_week_price} ({ticker.highest_52_week_date})
-- 52주 최저가: {ticker.lowest_52_week_price} ({ticker.lowest_52_week_date})
+#         prompt = f"""
+# ===== 시장 기본 정보 (현재가) =====
+# - 분석 시간: {current_time}
+# - 분석 대상: {ticker.market}
+# - 현재가: {ticker.trade_price}
+# - 시세 상태: {ticker.change} (변동률: {ticker.signed_change_rate})
+# - 거래량(24h): {ticker.acc_trade_volume_24h}
+# - 거래대금(24h): {ticker.acc_trade_price_24h}
 
-===== 호가창 정보 =====
-- 총 매도 주문량: {orderbook.total_ask_size}
-- 총 매수 주문량: {orderbook.total_bid_size}
-- 호가 정보:
-{chr(10).join([f"  - 매도 {i+1}호가: 가격 {unit.ask_price}, 수량 {unit.ask_size} | 매수 {i+1}호가: 가격 {unit.bid_price}, 수량 {unit.bid_size}" for i, unit in enumerate(orderbook.orderbook_units)])}
+# ===== 호가창 정보 =====
+# - 총 매도 주문량: {orderbook.total_ask_size}
+# - 총 매수 주문량: {orderbook.total_bid_size}
+# - 호가 정보:
+# {chr(10).join([f"  - 매도 {i+1}호가: 가격 {unit.ask_price}, 수량 {unit.ask_size} | 매수 {i+1}호가: 가격 {unit.bid_price}, 수량 {unit.bid_size}" for i, unit in enumerate(orderbook.orderbook_units[:5])])}
 
-===== 최근 체결 내역 =====
-{chr(10).join([f"- 체결 {i+1}: 시간 {trade.trade_date_utc} {trade.trade_time_utc}, 가격 {trade.trade_price}, 수량 {trade.trade_volume}, 유형 {trade.ask_bid}" for i, trade in enumerate(trades)])}
+# ===== 최근 체결 내역 =====
+# {chr(10).join([f"- 체결 {i+1}: 시간 {trade.trade_date_utc} {trade.trade_time_utc}, 가격 {trade.trade_price}, 수량 {trade.trade_volume}, 유형 {trade.ask_bid}" for i, trade in enumerate(trades)])}
 
-===== 최근 캔들 데이터 =====
-{chr(10).join([f"- 캔들 {i+1}: 시간 {candle.candle_date_time_kst}, 시가 {candle.opening_price}, 고가 {candle.high_price}, 저가 {candle.low_price}, 종가 {candle.trade_price}, 거래량 {candle.candle_acc_trade_volume}" for i, candle in enumerate(candles)])}
-        """
+# ===== 최근 캔들 데이터 =====
+# {chr(10).join([f"- 캔들 {i+1}: 시간 {candle.candle_date_time_kst}, 시가 {candle.opening_price}, 고가 {candle.high_price}, 저가 {candle.low_price}, 종가 {candle.trade_price}, 거래량 {candle.candle_acc_trade_volume}" for i, candle in enumerate(candles)])}
+#         """
+        prompt =f"""
+===== 실시간 시장 데이터 =====
+* 캔들 데이터는 요소 0번이 최근입니다.
+
+"current": {{
+  "time": "{current_time}",
+  "market": "{ticker.market}",
+  "price": {ticker.trade_price},
+  "change": "{ticker.change}",
+  "change_rate": {ticker.signed_change_rate},
+  "volume_24h": {ticker.acc_trade_volume_24h},
+  "value_24h": {ticker.acc_trade_price_24h}
+}},
+
+"orderbook": {{
+  "total_ask_size": {orderbook.total_ask_size},
+  "total_bid_size": {orderbook.total_bid_size},
+  "top5": {json.dumps([
+        {
+            "ask_price": unit.ask_price, 
+            "ask_size": unit.ask_size, 
+            "bid_price": unit.bid_price,
+            "bid_size": unit.bid_size
+        }
+    for i, unit in enumerate(orderbook.orderbook_units[:5])
+  ])}
+}},
+
+"trades": {json.dumps([
+    {
+        "time": f"{trade.trade_date_utc} {trade.trade_time_utc}", 
+        "price": trade.trade_price, 
+        "volume": trade.trade_volume, 
+        "type": trade.ask_bid
+    }
+    for trade in trades
+])},
+
+"candles": {json.dumps([
+    {
+        "time": candle.candle_date_time_kst, 
+        "open": candle.opening_price, 
+        "high": candle.high_price, 
+        "low": candle.low_price, 
+        "close": candle.trade_price, 
+        "volume": candle.candle_acc_trade_volume
+    }
+    for candle in candles
+])}
+"""
+
         return prompt
     
     def get_analysis(self, prompt: str, model: str = "gpt-4.1-mini-2025-04-14") -> dict:

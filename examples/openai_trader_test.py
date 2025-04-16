@@ -269,7 +269,7 @@ def main():
         # AI 분석 시간 측정
         logger.info("AI 분석 중...2")
         analysis_start_time = time.time()
-        analysis = trader.get_analysis(prompt, model="gpt-4.1-2025-04-14")
+        analysis = trader.get_analysis(prompt)
         analysis_end_time = time.time()
         analysis_time = analysis_end_time - analysis_start_time
         logger.info(f"AI 분석 완료 (소요시간: {format_time(analysis_time)})")
