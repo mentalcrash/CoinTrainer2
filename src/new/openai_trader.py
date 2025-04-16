@@ -98,7 +98,7 @@ class OpenAITrader:
     for trade in trades
 ])},
 
-"candles": {json.dumps([
+"candles_minute": {json.dumps([
     {
         "time": candle.candle_date_time_kst, 
         "open": candle.opening_price, 
