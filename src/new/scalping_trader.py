@@ -95,7 +95,7 @@ class ScalpingTrader:
             self.warning("❗ KRW 잔고 부족으로 매수 불가") # self.logger.warning -> self.warning
             return None
         
-        order_amount = available_balance * 0.2
+        order_amount = available_balance * 0.1
         self.info(f"🟢 매수 주문 실행 시작 - 주문 금액: {order_amount:,.0f} KRW") # self.logger.info -> self.info
 
         order_request = OrderRequest(
@@ -133,7 +133,7 @@ class ScalpingTrader:
             )
             
         order_response = self.trading_order.create_order_v2(order_request)
-        self.info(f"📤 매도 주문 전송 완료 - 주문 ID: {order_response.uuid}") # self.logger.info -> self.info
+        self.info(f"📤 매도 주문 전송 완료 - 주문 ID: {order_response.uuid}\n{order_request.to_json()}") # self.logger.info -> self.info
 
         completed_order = self.wait_order_completion(order_response)  
         if completed_order:
@@ -145,7 +145,7 @@ class ScalpingTrader:
                 cancel_order = self.trading_order.cancel_order_v2(order_response.uuid)
                 self.info(f"❗ 매도 주문 취소 완료\n{cancel_order.to_json()}") # self.logger.warning -> self.warning
             except Exception as e:
-                self.info(f"❗ 매도 주문 취소 실패: {e}\nuuid:{order_response.uuid}", exc_info=True) # self.logger.error -> self.error
+                self.info(f"❗ 매도 주문 취소 실패: {e}\nuuid:{order_response.uuid}") # self.logger.error -> self.error
                 # 마지막으로 주문처리 확인
             return self.wait_order_completion(order_response)  
 
@@ -165,6 +165,8 @@ class ScalpingTrader:
             elif completed_order and completed_order.state in ["cancel", "error"]:
                 self.warning(f"❌ 주문 체결 실패 또는 취소 - 상태: {completed_order.state}") # self.logger.warning -> self.warning
                 return None
+            else:
+                self.info(f"⏳ 주문 체결 대기 중 - 체결 상태: {completed_order.state}") # self.logger.info -> self.info
 
             time.sleep(backoff_schedule[i])
 

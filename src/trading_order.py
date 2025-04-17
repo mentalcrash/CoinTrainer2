@@ -397,7 +397,7 @@ class TradingOrder:
         }
         
         try:
-            response = requests.delete(endpoint, data=json.dumps(params), headers=headers)
+            response = requests.delete(endpoint, params=params, headers=headers)
             response.raise_for_status()
             data = response.json()
             
@@ -419,8 +419,12 @@ class TradingOrder:
                 )
             
             return order_res
-            
         except Exception as e:
+            
+            if response:
+                print(f'[API] 매매 취소 실패\n{e}\n{response.json()}')
+            else:
+                print(f'[API] 매매 취소 실패\n{e}')
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.ERROR,
