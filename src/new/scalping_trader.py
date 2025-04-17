@@ -131,7 +131,7 @@ class ScalpingTrader:
         self.logger.info(f"👀 포지션 모니터링 시작 (목표가: {target_price}, 손절가: {stop_loss_price})")
 
         while True:
-            ticker = self.analyzer.get_ticker(self.market)
+            ticker = self.api_client.get_ticker(self.market)
             current_price = float(ticker.current_price)
 
             if current_price >= target_price:
