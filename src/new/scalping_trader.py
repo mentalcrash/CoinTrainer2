@@ -1,7 +1,7 @@
 import logging
 import time
 import os
-from typing import Optional
+from typing import Optional, Literal
 from src.new.api.bithumb.client import BithumbApiClient
 from src.new.strategy.VolatilityBreakoutSignal import VolatilityBreakoutSignal
 from src.models.order import OrderRequest, OrderResponse
@@ -9,6 +9,8 @@ from src.discord_notifier import DiscordNotifier
 from src.account import Account
 from src.trading_order import TradingOrder
 from src.trading_logger import TradingLogger
+
+MonitorResult = Literal["target", "stop_loss", "error"]
 
 class ScalpingTrader:
     def __init__(self, market: str):
@@ -27,8 +29,6 @@ class ScalpingTrader:
         # 로깅 설정 - 기본 로거 가져오기
         # self.logger 대신 self.base_logger 사용
         self.base_logger = logging.getLogger(__name__) 
-        # 레벨 설정은 전역 설정(setup_logging)에서 관리되므로 여기서 setLevel 불필요할 수 있음
-        # self.base_logger.setLevel(logging.INFO) 
         
         self.discord_notifier = DiscordNotifier(os.getenv("DISCORD_WEBHOOK_URL"))
         self.trading_order = TradingOrder(
@@ -111,21 +111,39 @@ class ScalpingTrader:
         completed_order = self.wait_order_completion(order_response)  
         return completed_order
 
-    def execute_exit_order(self, volume: float):
+    def execute_exit_order(self, monitor_result: MonitorResult, volume: float, price: Optional[float] = None) -> Optional[OrderResponse]:
         """시장가 매도 주문 실행"""
         self.info(f"🔴 매도 주문 실행 시작 - 수량: {volume}") # self.logger.info -> self.info
-        order_request = OrderRequest(
-            market=self.market,
-            side="ask",
-            order_type="market",
-            price=None,
-            volume=volume
-        )
+        
+        if monitor_result == "target":
+            order_request = OrderRequest(
+                market=self.market,
+                side="ask",
+                order_type="limit",
+                price=price,
+                volume=volume
+            )
+        elif monitor_result == "stop_loss":
+            order_request = OrderRequest(
+                market=self.market,
+                side="ask",
+                order_type="market",
+                price=None,
+                volume=volume
+            )
+            
         order_response = self.trading_order.create_order_v2(order_request)
         self.info(f"📤 매도 주문 전송 완료 - 주문 ID: {order_response.uuid}") # self.logger.info -> self.info
 
         completed_order = self.wait_order_completion(order_response)  
-        return completed_order
+        if completed_order:
+            self.info(f"✅ 매도 주문 체결 완료\n{completed_order.to_json()}") # self.logger.info -> self.info
+            return completed_order
+        else:
+            self.warning("❗ 매도 주문 체결 실패") # self.logger.warning -> self.warning
+            cancel_order = self.trading_order.cancel_order_v2(order_response.uuid)
+            self.warning(f"❗ 매도 주문 취소 완료\n{cancel_order.to_json()}") # self.logger.warning -> self.warning
+            return None
 
     def wait_order_completion(self, order_response: OrderResponse) -> Optional[OrderResponse]:
         """HTTP polling 방식으로 주문 체결 여부 확인"""
@@ -156,7 +174,7 @@ class ScalpingTrader:
         # self.debug(f"🎯 목표가/손절가 계산됨: Target={target_price}, StopLoss={stop_loss_price}") # 필요시 debug 사용
         return target_price, stop_loss_price
 
-    def monitor_position(self, order_response: OrderResponse):
+    def monitor_position(self, order_response: OrderResponse) -> MonitorResult:
         """포지션 상태를 감시하며 목표가/손절가 도달 여부 판단"""
         entry_price = order_response.price_per_unit
         target_price, stop_loss_price = self.calculate_targets(entry_price)
@@ -200,15 +218,22 @@ class ScalpingTrader:
             target_price, stop_loss_price = self.calculate_targets(entry_order.price_per_unit)
             self.discord_notifier.send_start_scalping(entry_order, target_price, stop_loss_price)
             
-            self.monitor_position(entry_order)
-
-            exit_order = self.execute_exit_order(entry_order.total_volume)
-            if exit_order:
-                self.info(f"💰 매도 완료 - 체결가: {exit_order.price_per_unit}, 수익률 계산 가능") # self.logger.info -> self.info
-                self.discord_notifier.send_end_scalping(entry_order, exit_order)
-                self.trading_logger.log_scalping_result(entry_order, exit_order)
-            else:
-                self.warning("❗ 매도 주문 실패") # self.logger.warning -> self.warning
+            def monitoring():
+                result = self.monitor_position(entry_order)
+                if result == "target":
+                    exit_order = self.execute_exit_order(result, entry_order.total_volume, target_price)
+                elif result == "stop_loss":
+                    exit_order = self.execute_exit_order(result, entry_order.total_volume)
+                
+                if exit_order:
+                    self.info(f"💰 매도 완료 - 체결가: {exit_order.price_per_unit}, 수익률 계산 가능") # self.logger.info -> self.info
+                    self.discord_notifier.send_end_scalping(entry_order, exit_order)
+                    self.trading_logger.log_scalping_result(entry_order, exit_order)
+                else:
+                    self.warning("❗ 매도 주문 실패 다시 매도 주문 시도") # self.logger.warning -> self.warning
+                    monitoring()
+                    
+            monitoring()
 
             self.is_position = False
             self.info("⛔ 트레이딩 사이클 종료") # self.logger.info -> self.info

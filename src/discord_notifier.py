@@ -218,12 +218,17 @@ RSI 지표:
         """스캘핑 종료 알림을 Discord로 전송합니다."""
         try:
             entry_price = entry_order.price_per_unit
-            exit_price = int(float(exit_order.price or 0) / float(exit_order.volume or 0) or 0)
-            volume = float(exit_order.volume or 0)
+            exit_price = exit_order.price_per_unit
+            volume = exit_order.total_volume
 
             # 수익 계산
             profit = (exit_price - entry_price) * volume
             profit_rate = (exit_price - entry_price) / entry_price * 100 if entry_price else 0
+
+            # 수수료 포함 수익 계산
+            fee = entry_order.paid_fee + exit_order.paid_fee
+            total_profit = profit - fee
+            profit_rate_with_fee = total_profit / (entry_price * volume) * 100
 
             # 이모지
             result_emoji = "🔥" if profit_rate >= 0 else "💧"
@@ -234,11 +239,17 @@ RSI 지표:
 
     [매매 결과]
     • 심볼: {entry_order.market}
+    
     • 매수가: {entry_price:,.0f} KRW
     • 매도가: {exit_price:,.0f} KRW
     • 수량: {volume}
-    • 손익: {profit:,.0f} KRW
+    
+    • 수익: {profit:,.0f} KRW
     • 수익률: {profit_rate:+.2f}%
+    
+    • 수수료: {fee:,.0f} KRW
+    • 순수익: {total_profit:,.0f} KRW
+    • 수익률: {profit_rate_with_fee:+.2f}%
 
     [{result_label}] 거래가 종료되었습니다.
     ```"""

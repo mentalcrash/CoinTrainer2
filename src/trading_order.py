@@ -376,7 +376,7 @@ class TradingOrder:
                 )
             raise
             
-    def cancel_order(self, symbol: str, order_id: str) -> Dict:
+    def cancel_order_v2(self, order_id: str) -> OrderResponse:
         """주문 취소
         
         Args:
@@ -384,13 +384,11 @@ class TradingOrder:
             order_id (str): 취소할 주문 ID
             
         Returns:
-            Dict: 취소 결과를 담은 딕셔너리
+            OrderResponse: 취소 결과를 담은 OrderResponse 객체
         """
-        endpoint = f"{self.base_url}/trade/cancel"
+        endpoint = f"{self.base_url}/v1/order"
         params = {
-            'order_currency': symbol,
-            'order_id': order_id,
-            'type': 'bid'  # 또는 'ask', 취소할 주문의 종류에 따라
+            'uuid': order_id
         }
         
         headers = {
@@ -399,26 +397,37 @@ class TradingOrder:
         }
         
         try:
-            response = requests.post(endpoint, data=json.dumps(params), headers=headers)
+            response = requests.delete(endpoint, data=json.dumps(params), headers=headers)
             response.raise_for_status()
             data = response.json()
             
-            if data.get('status') == '0000':
-                return data.get('data', {})
-            else:
-                if self.log_manager:
-                    self.log_manager.log(
-                        category=LogCategory.ERROR,
-                        message="주문 취소 실패",
-                        data={"message": data.get('message'), "symbol": symbol, "order_id": order_id}
-                    )
-                return {}
-                
+            if not data or 'error' in data:
+                raise Exception(f"API Error: {data.get('error', {}).get('message', 'Unknown error')}")
+            
+            # 주문 취소 결과
+            order_res = OrderResponse.from_dict(data)
+            
+            # 주문 결과 로깅
+            if self.log_manager:
+                self.log_manager.log(
+                    category=LogCategory.TRADING,
+                    message=f"{order_res.market} {order_res.side} 주문 {'취소' if order_res.state == 'cancel' else '접수'}",
+                    data={
+                        "symbol": order_res.market,
+                        "order_result": order_res.to_dict()
+                    }
+                )
+            
+            return order_res
+            
         except Exception as e:
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.ERROR,
-                    message="주문 취소 중 오류 발생",
-                    data={"error": str(e), "symbol": symbol, "order_id": order_id}
+                    message=f"{order_res.market} {order_res.side} 주문 취소 실패",
+                    data={
+                        "symbol": order_res.market,
+                        "error": str(e)
+                    }
                 )
-            return {} 
+            raise
