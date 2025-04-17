@@ -226,7 +226,7 @@ RSI 지표:
             profit_rate = (exit_price - entry_price) / entry_price * 100 if entry_price else 0
 
             # 수수료 포함 수익 계산
-            fee = entry_order.paid_fee + exit_order.paid_fee
+            fee = float(entry_order.paid_fee) + float(exit_order.paid_fee)
             total_profit = profit - fee
             profit_rate_with_fee = total_profit / (entry_price * volume) * 100
 
