@@ -125,14 +125,14 @@ class ScalpingTrader:
 
     def monitor_position(self, order_response: OrderResponse):
         """포지션 상태를 감시하며 목표가/손절가 도달 여부 판단"""
-        target_price, stop_loss_price = self.calculate_targets(order_response.price)
+        target_price, stop_loss_price = self.calculate_targets(order_response.price/order_response.volume)
         interval_sec = 1
 
         self.logger.info(f"👀 포지션 모니터링 시작 (목표가: {target_price}, 손절가: {stop_loss_price})")
 
         while True:
             ticker = self.api_client.get_ticker(self.market)
-            current_price = float(ticker.current_price)
+            current_price = float(ticker.tickers[0].trade_price)
 
             if current_price >= target_price:
                 self.logger.info(f"📈 목표가 도달 → 현재가: {current_price} ≥ {target_price}")

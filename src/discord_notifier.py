@@ -217,8 +217,8 @@ RSI 지표:
     def send_end_scalping(self, entry_order: OrderResponse, exit_order: OrderResponse) -> bool:
         """스캘핑 종료 알림을 Discord로 전송합니다."""
         try:
-            entry_price = float(entry_order.price or 0)
-            exit_price = float(exit_order.price or 0)
+            entry_price = int(float(entry_order.price or 0) / float(entry_order.volume or 0) or 0)
+            exit_price = int(float(exit_order.price or 0) / float(exit_order.volume or 0) or 0)
             volume = float(exit_order.volume or 0)
 
             # 수익 계산
@@ -262,7 +262,7 @@ RSI 지표:
         """스캘핑 시작 알림을 Discord로 전송합니다."""
         try:
             # 체결가 및 수량
-            entry_price = float(response.price or 0)
+            entry_price = int(float(response.price or 0) / float(response.volume or 0) or 0)
             entry_volume = float(response.volume or 0)
             entry_time = response.created_at
 
