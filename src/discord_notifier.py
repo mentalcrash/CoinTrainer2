@@ -234,11 +234,6 @@ RSI 지표:
             result_emoji = "🔥" if profit_rate >= 0 else "💧"
             result_label = "익절 성공" if profit_rate >= 0 else "손절 처리"
             
-            holding_time = exit_order.created_at - entry_order.created_at
-            hours = holding_time.total_seconds() // 3600
-            minutes = (holding_time.total_seconds() % 3600) // 60
-            seconds = holding_time.total_seconds() % 60
-
             message = f"""```ini
     [{result_emoji} 스캘핑 종료 알림]
 
@@ -256,7 +251,8 @@ RSI 지표:
     • 순수익: {total_profit:,.0f} KRW
     • 수익률: {profit_rate_with_fee:+.2f}%
     
-    • 홀딩 시간: {int(hours)}시간 {int(minutes)}분 {int(seconds)}초
+    • 매수 시간: {entry_order.created_at}
+    • 매도 시간: {exit_order.created_at}
 
     [{result_label}] 거래가 종료되었습니다.
     ```"""
