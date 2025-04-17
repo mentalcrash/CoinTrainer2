@@ -202,7 +202,7 @@ class ScalpingTrader:
             
             self.monitor_position(entry_order)
 
-            exit_order = self.execute_exit_order(entry_order.volume)
+            exit_order = self.execute_exit_order(entry_order.total_volume)
             if exit_order:
                 self.info(f"💰 매도 완료 - 체결가: {exit_order.price_per_unit}, 수익률 계산 가능") # self.logger.info -> self.info
                 self.discord_notifier.send_end_scalping(entry_order, exit_order)

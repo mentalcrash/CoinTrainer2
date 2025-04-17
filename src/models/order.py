@@ -82,6 +82,11 @@ class OrderResponse:
     trades: List[Trade] = None
     
     @property
+    def total_volume(self) -> float:
+        """체결 내역의 총 수량을 반환합니다."""
+        return sum(float(trade.volume) for trade in self.trades)
+    
+    @property
     def price_per_unit(self) -> float:
         """
         평균 체결 단가 (Volume-Weighted Average Price)를 계산합니다.
