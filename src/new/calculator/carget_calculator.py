@@ -7,8 +7,8 @@ class TargetCalculator:
         orderbook: Orderbook,
         take_ticks: int = 5,
         stop_ticks: int = 2,
-        take_profit_rate: float = 0.1,
-        stop_loss_rate: float = 0.05
+        take_profit_rate: float = 0.001,
+        stop_loss_rate: float = 0.0005
     ) -> tuple[int, int]:
         """
         스프레드 및 틱 단위를 기반으로 목표가와 손절가를 계산합니다.
@@ -53,4 +53,4 @@ class TargetCalculator:
 
         except Exception as e:
             print(f"[TargetCalculator] 계산 실패: {e}")
-            return int(current_price * 1.05), int(current_price * 0.975)  # fallback 값
+            return int(current_price * 1.001), int(current_price * 0.9995)  # fallback 값
