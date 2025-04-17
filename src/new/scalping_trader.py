@@ -149,7 +149,7 @@ class ScalpingTrader:
         self.warning("⏱️ 주문 체결 실패 - 최대 재시도 초과") # self.logger.warning -> self.warning
         return None
 
-    def calculate_targets(self, current_price: float, profit_rate: float = 0.005, loss_rate: float = 0.00025) -> tuple[int, int]:
+    def calculate_targets(self, current_price: float, profit_rate: float = 0.005, loss_rate: float = 0.0025) -> tuple[int, int]:
         """목표가와 손절가 계산"""
         target_price = int(current_price * (1 + profit_rate))
         stop_loss_price = int(current_price * (1 - loss_rate))
