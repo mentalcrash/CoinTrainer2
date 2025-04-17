@@ -197,8 +197,8 @@ class ScalpingTrader:
         
         if entry_order: # 매수 주문이 성공했을 때만 진입
             self.is_position = True
-            
-            self.discord_notifier.send_start_scalping(entry_order)
+            target_price, stop_loss_price = self.calculate_targets(entry_order.price_per_unit)
+            self.discord_notifier.send_start_scalping(entry_order, target_price, stop_loss_price)
             
             self.monitor_position(entry_order)
 

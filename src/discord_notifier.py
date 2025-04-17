@@ -258,12 +258,12 @@ RSI 지표:
                 )
             return False
     
-    def send_start_scalping(self, response: OrderResponse) -> bool:
+    def send_start_scalping(self, response: OrderResponse, target_price: int, stop_loss_price: int) -> bool:
         """스캘핑 시작 알림을 Discord로 전송합니다."""
         try:
             # 체결가 및 수량
             entry_price = response.price_per_unit
-            entry_volume = float(response.volume or 0)
+            entry_volume = float(response.total_volume or 0)
             entry_time = response.created_at
 
             message = f"""```ini
@@ -277,6 +277,10 @@ RSI 지표:
     [매수 정보]
     • 체결가: {entry_price:,.0f} KRW
     • 체결 수량: {entry_volume}
+    
+    [타겟 가격]
+    • 목표가: {target_price:,.0f} KRW
+    • 손절가: {stop_loss_price:,.0f} KRW
 
     트레이딩 모니터링을 시작합니다... 🔍
     ```"""
