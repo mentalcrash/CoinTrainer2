@@ -231,7 +231,7 @@ class ScalpingTrader:
             self.discord_notifier.send_start_scalping(entry_order, target_price, stop_loss_price)
             
             def monitoring():
-                result = self.monitor_position(entry_order, hold_duration_seconds=3)
+                result = self.monitor_position(entry_order, hold_duration_seconds=5)
                 if result == "target":
                     exit_order = self.execute_exit_order(result, entry_order.total_volume, target_price)
                 elif result == "stop_loss":
