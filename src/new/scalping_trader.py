@@ -174,7 +174,7 @@ class ScalpingTrader:
         # self.debug(f"🎯 목표가/손절가 계산됨: Target={target_price}, StopLoss={stop_loss_price}") # 필요시 debug 사용
         return target_price, stop_loss_price
 
-    def monitor_position(self, order_response: OrderResponse) -> MonitorResult:
+    def monitor_position(self, order_response: OrderResponse) -> Optional[MonitorResult]:
         """포지션 상태를 감시하며 목표가/손절가 도달 여부 판단"""
         entry_price = order_response.price_per_unit
         target_price, stop_loss_price = self.calculate_targets(entry_price)
@@ -188,14 +188,15 @@ class ScalpingTrader:
 
             if current_price >= target_price:
                 self.info(f"📈 목표가 도달 → 현재가: {current_price:,.0f} ≥ {target_price:,}") # self.logger.info -> self.info
-                break
+                return "target"
             elif current_price <= stop_loss_price:
                 self.info(f"📉 손절가 도달 → 현재가: {current_price:,.0f} ≤ {stop_loss_price:,}") # self.logger.info -> self.info
-                break
+                return "stop_loss"
             else:
                 # 주기적인 상태 로깅 (옵션)
                 # self.debug(f"현재가: {current_price:,.0f}") 
                 time.sleep(interval_sec)
+        return None
 
     def run_once(self):
         """단일 트레이딩 사이클 실행"""
