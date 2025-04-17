@@ -278,7 +278,7 @@ RSI 지표:
         """스캘핑 시작 알림을 Discord로 전송합니다."""
         try:
             # 체결가 및 수량
-            entry_price = response.price_per_unit
+            entry_price = int(response.price_per_unit)
             entry_volume = float(response.total_volume or 0)
             entry_time = response.created_at
 

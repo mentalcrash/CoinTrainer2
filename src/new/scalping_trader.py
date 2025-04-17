@@ -177,10 +177,10 @@ class ScalpingTrader:
         """목표가와 손절가 계산"""
         target_price = int(current_price * (1 + profit_rate))
         if target_price == int(current_price):
-            target_price = int(current_price) + 2
+            target_price = int(current_price) + 3
         stop_loss_price = int(current_price * (1 - loss_rate))
         if stop_loss_price == int(current_price):
-            stop_loss_price = int(current_price) - 1    
+            stop_loss_price = int(current_price) - 2    
         # self.debug(f"🎯 목표가/손절가 계산됨: Target={target_price}, StopLoss={stop_loss_price}") # 필요시 debug 사용
         return target_price, stop_loss_price
 
