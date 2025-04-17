@@ -807,8 +807,8 @@ class TradingLogger:
         try:
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             symbol = entry_order.market.split("-")[1]
-            entry_price = float(entry_order.price or 0)
-            exit_price = float(exit_order.price or 0)
+            entry_price = entry_order.price_per_unit
+            exit_price = exit_order.price_per_unit
             volume = float(exit_order.volume or 0)
 
             pnl = (exit_price - entry_price) * volume

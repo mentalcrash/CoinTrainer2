@@ -80,6 +80,38 @@ class OrderResponse:
 
     # 체결 목록
     trades: List[Trade] = None
+    
+    @property
+    def price_per_unit(self) -> float:
+        """
+        평균 체결 단가 (Volume-Weighted Average Price)를 계산합니다.
+        (모든 체결의 price * volume 합) / (모든 체결의 volume 합)
+        체결 내역이 없으면 0.0을 반환합니다.
+        """
+        if not self.trades:
+            return 0.0
+
+        total_value = 0.0
+        total_volume = 0.0
+
+        for trade in self.trades:
+            try:
+                # trade.price와 trade.volume이 유효한 숫자인지 확인
+                trade_price = float(trade.price)
+                trade_volume = float(trade.volume)
+                
+                total_value += trade_price * trade_volume
+                total_volume += trade_volume
+            except (ValueError, TypeError):
+                # 유효하지 않은 데이터가 있는 경우 해당 체결은 건너뜁니다.
+                # 필요시 로깅 추가 가능: logging.warning(f"Invalid trade data found: {trade}")
+                continue 
+
+        if total_volume > 0:
+            return total_value / total_volume
+        else:
+            # 체결 내역은 있으나 유효한 volume 합이 0인 경우
+            return 0.0
 
     @classmethod
     def from_dict(cls, data: Dict) -> Optional['OrderResponse']:
