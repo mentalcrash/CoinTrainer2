@@ -105,7 +105,7 @@ class ScalpingTrader:
         for i in range(MAX_RETRIES):
             completed_order = self.trading_order.get_order_v2(order_response.uuid)
 
-            if completed_order and completed_order.state == "complete":
+            if completed_order and completed_order.state == "done":
                 self.logger.info(f"✅ 주문 체결 완료 - 체결가: {completed_order.price}, 수량: {completed_order.volume}")
                 return completed_order
             elif completed_order and completed_order.state in ["cancel", "error"]:
