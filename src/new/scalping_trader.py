@@ -4,11 +4,13 @@ import os
 from typing import Optional, Literal
 from src.new.api.bithumb.client import BithumbApiClient
 from src.new.strategy.VolatilityBreakoutSignal import VolatilityBreakoutSignal
+from src.new.models.bithumb.response import CandlesResponse, TickerResponse, OrderbookResponse
 from src.models.order import OrderRequest, OrderResponse
 from src.discord_notifier import DiscordNotifier
 from src.account import Account
 from src.trading_order import TradingOrder
 from src.trading_logger import TradingLogger
+from src.new.calculator.carget_calculator import TargetCalculator
 
 MonitorResult = Literal["target", "stop_loss", "error"]
 
@@ -67,7 +69,7 @@ class ScalpingTrader:
         self._log(logging.CRITICAL, msg, *args, **kwargs)
     # --- 로깅 헬퍼 메서드 끝 ---
 
-    def fetch_market_data(self):
+    def fetch_market_data(self) -> tuple[CandlesResponse, TickerResponse, OrderbookResponse]:
         """시장의 캔들, 티커, 호가 데이터를 가져옵니다."""
         self.info("📥 시장 데이터 수집 시작") # self.logger.info -> self.info
         candles = self.api_client.get_candles(self.market, interval="1m", limit=30).candles
@@ -227,15 +229,13 @@ class ScalpingTrader:
         
         if entry_order: # 매수 주문이 성공했을 때만 진입
             self.is_position = True
-            target_price, stop_loss_price = self.calculate_targets(entry_order.price_per_unit)
+            # target_price, stop_loss_price = self.calculate_targets(entry_order.price_per_unit)
+            target_price, stop_loss_price = TargetCalculator.from_orderbook(entry_order.price_per_unit, orderbook.orderbooks[0])
             self.discord_notifier.send_start_scalping(entry_order, target_price, stop_loss_price)
             
             def monitoring():
-                result = self.monitor_position(entry_order, hold_duration_seconds=5)
-                if result == "target":
-                    exit_order = self.execute_exit_order(result, entry_order.total_volume, target_price)
-                elif result == "stop_loss":
-                    exit_order = self.execute_exit_order(result, entry_order.total_volume)
+                result = self.monitor_position(entry_order, hold_duration_seconds=0)
+                exit_order = self.execute_exit_order(result, entry_order.total_volume)
                 
                 if exit_order and exit_order.state == "done":
                     self.info(f"💰 매도 완료 - 체결가: {exit_order.price_per_unit}, 수익률 계산 가능") # self.logger.info -> self.info
