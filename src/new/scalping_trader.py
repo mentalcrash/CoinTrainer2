@@ -140,10 +140,14 @@ class ScalpingTrader:
             self.info(f"✅ 매도 주문 체결 완료\n{completed_order.to_json()}") # self.logger.info -> self.info
             return completed_order
         else:
-            self.warning("❗ 매도 주문 체결 실패") # self.logger.warning -> self.warning
-            cancel_order = self.trading_order.cancel_order_v2(order_response.uuid)
-            self.warning(f"❗ 매도 주문 취소 완료\n{cancel_order.to_json()}") # self.logger.warning -> self.warning
-            return None
+            self.info("❗ 매도 주문 체결 실패") # self.logger.warning -> self.warning
+            try:
+                cancel_order = self.trading_order.cancel_order_v2(order_response.uuid)
+                self.info(f"❗ 매도 주문 취소 완료\n{cancel_order.to_json()}") # self.logger.warning -> self.warning
+            except Exception as e:
+                self.info(f"❗ 매도 주문 취소 실패: {e}\nuuid:{order_response.uuid}", exc_info=True) # self.logger.error -> self.error
+                # 마지막으로 주문처리 확인
+            return self.wait_order_completion(order_response)  
 
     def wait_order_completion(self, order_response: OrderResponse) -> Optional[OrderResponse]:
         """HTTP polling 방식으로 주문 체결 여부 확인"""
@@ -226,7 +230,7 @@ class ScalpingTrader:
                 elif result == "stop_loss":
                     exit_order = self.execute_exit_order(result, entry_order.total_volume)
                 
-                if exit_order:
+                if exit_order and exit_order.state == "done":
                     self.info(f"💰 매도 완료 - 체결가: {exit_order.price_per_unit}, 수익률 계산 가능") # self.logger.info -> self.info
                     self.discord_notifier.send_end_scalping(entry_order, exit_order)
                     self.trading_logger.log_scalping_result(entry_order, exit_order)
