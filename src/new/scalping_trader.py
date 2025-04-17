@@ -177,19 +177,19 @@ class ScalpingTrader:
         """목표가와 손절가 계산"""
         target_price = int(current_price * (1 + profit_rate))
         if target_price == int(current_price):
-            target_price = int(target_price + 1)
+            target_price = int(current_price) + 1
         stop_loss_price = int(current_price * (1 - loss_rate))
         if stop_loss_price == int(current_price):
-            stop_loss_price = int(stop_loss_price - 1)    
+            stop_loss_price = int(current_price) - 1    
         # self.debug(f"🎯 목표가/손절가 계산됨: Target={target_price}, StopLoss={stop_loss_price}") # 필요시 debug 사용
         return target_price, stop_loss_price
 
-    def monitor_position(self, order_response: OrderResponse) -> Optional[MonitorResult]:
+    def monitor_position(self, order_response: OrderResponse, hold_duration_seconds: int = 0 ) -> Optional[MonitorResult]:
         """포지션 상태를 감시하며 목표가/손절가 도달 여부 판단"""
         entry_price = order_response.price_per_unit
         target_price, stop_loss_price = self.calculate_targets(entry_price)
         interval_sec = 1
-
+        elapsed_seconds = 0
         self.info(f"👀 포지션 모니터링 시작 (평균 진입가: {entry_price:,.0f}, 목표가: {target_price:,}, 손절가: {stop_loss_price:,})") # self.logger.info -> self.info
 
         while True:
@@ -199,13 +199,14 @@ class ScalpingTrader:
             if current_price >= target_price:
                 self.info(f"📈 목표가 도달 → 현재가: {current_price:,.0f} ≥ {target_price:,}") # self.logger.info -> self.info
                 return "target"
-            elif current_price <= stop_loss_price:
+            elif current_price <= stop_loss_price and elapsed_seconds >= hold_duration_seconds:
                 self.info(f"📉 손절가 도달 → 현재가: {current_price:,.0f} ≤ {stop_loss_price:,}") # self.logger.info -> self.info
                 return "stop_loss"
             else:
                 # 주기적인 상태 로깅 (옵션)
                 # self.debug(f"현재가: {current_price:,.0f}") 
                 time.sleep(interval_sec)
+                elapsed_seconds += interval_sec
         return None
 
     def run_once(self):
@@ -230,7 +231,7 @@ class ScalpingTrader:
             self.discord_notifier.send_start_scalping(entry_order, target_price, stop_loss_price)
             
             def monitoring():
-                result = self.monitor_position(entry_order)
+                result = self.monitor_position(entry_order, hold_duration_seconds=3)
                 if result == "target":
                     exit_order = self.execute_exit_order(result, entry_order.total_volume, target_price)
                 elif result == "stop_loss":
