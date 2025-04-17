@@ -73,7 +73,7 @@ def main():
     """메인 실행 함수"""
     
     # 처리할 심볼 리스트 정의
-    symbols = ["AERGO", "ARDR", "STRAX", "ARK", "XCN", "DOGE"] # 예시 심볼, 필요에 따라 수정하세요
+    symbols = ["AERGO", "ARDR", "STRAX", "ARK", "DOGE", "LAYER", "GAS", "KERNEL", "WCT"] # 예시 심볼, 필요에 따라 수정하세요
 
     # 로깅 설정 호출 (스레드 시작 전)
     setup_logging()
