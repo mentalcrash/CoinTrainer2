@@ -133,7 +133,7 @@ class ScalpingTrader:
             )
             
         order_response = self.trading_order.create_order_v2(order_request)
-        self.info(f"📤 매도 주문 전송 완료 - 주문 ID: {order_response.uuid}\n{order_request.to_json()}") # self.logger.info -> self.info
+        self.info(f"📤 매도 주문 전송 완료 - 주문 ID: {order_response.uuid}\n{order_request}") # self.logger.info -> self.info
 
         completed_order = self.wait_order_completion(order_response)  
         if completed_order:
@@ -177,10 +177,10 @@ class ScalpingTrader:
         """목표가와 손절가 계산"""
         target_price = int(current_price * (1 + profit_rate))
         if target_price == int(current_price):
-            target_price = int(current_price + 1)
+            target_price = int(target_price + 1)
         stop_loss_price = int(current_price * (1 - loss_rate))
         if stop_loss_price == int(current_price):
-            stop_loss_price = int(current_price - 1)    
+            stop_loss_price = int(stop_loss_price - 1)    
         # self.debug(f"🎯 목표가/손절가 계산됨: Target={target_price}, StopLoss={stop_loss_price}") # 필요시 debug 사용
         return target_price, stop_loss_price
 
