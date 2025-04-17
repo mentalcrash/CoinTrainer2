@@ -257,6 +257,8 @@ RSI 지표:
             return True
 
         except Exception as e:
+            print(f"스캘핑 종료 알림 전송 실패 {e}\nentry_order: {entry_order}\nexit_order: {exit_order}")
+            
             if self.log_manager:
                 self.log_manager.log(
                     category=LogCategory.ERROR,
