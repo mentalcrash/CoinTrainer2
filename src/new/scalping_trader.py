@@ -177,7 +177,7 @@ class ScalpingTrader:
         """목표가와 손절가 계산"""
         target_price = int(current_price * (1 + profit_rate))
         if target_price == int(current_price):
-            target_price = int(current_price) + 1
+            target_price = int(current_price) + 2
         stop_loss_price = int(current_price * (1 - loss_rate))
         if stop_loss_price == int(current_price):
             stop_loss_price = int(current_price) - 1    
