@@ -281,4 +281,6 @@ class ScalpingTrader:
             
             if self.max_consecutive_losses <= self.consecutive_losses:
                 self.info("🔴 최대 연속 손실 횟수 도달 - 트레이딩 종료") # self.logger.info -> self.info
+                # slack message 
+                self.discord_notifier.send_message(f"🔴 {self.market} 최대 연속 손실 횟수 도달 - 트레이딩 종료")
                 break

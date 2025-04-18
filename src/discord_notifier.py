@@ -214,6 +214,14 @@ RSI 지표:
                 data={"error_message": error_message}
             )
     
+    def send_message(self, message: str) -> bool:
+        """메시지를 Discord로 전송합니다."""
+        try:
+            self._send_message(message)
+            return True
+        except Exception as e:
+            return False
+    
     def send_end_scalping(self, entry_order: OrderResponse, exit_order: OrderResponse, reason: str) -> bool:
         """스캘핑 종료 알림을 Discord로 전송합니다."""
         try:
