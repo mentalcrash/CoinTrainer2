@@ -260,13 +260,14 @@ class ScalpingTrader:
             # 예외적인 상황을 대비하여 로그 추가 가능
             self.warning("⚠️ 포지션 진입 상태이나 유효한 진입 주문 정보가 없습니다.")
 
-    def run_forever(self):
+    def run_forever(self, life_time: int = 3600, loop_interval: int = 15):
         """무한 루프 실행"""
-        self.info("🔁 무한 트레이딩 루프 진입") # self.logger.info -> self.info
-        while True:
+        start_time = time.time()   
+        self.info(f"🔁 무한 트레이딩 루프 진입 (life_time: {life_time}초, loop_interval: {loop_interval}초)") # self.logger.info -> self.info
+        while time.time() - start_time < life_time:
             try:
                 self.run_once()
             except Exception as e:
                 self.error(f"[ERROR] run_once 중 예외 발생: {e}", exc_info=True) # self.logger.error -> self.error
 
-            time.sleep(self.loop_interval)
+            time.sleep(loop_interval)

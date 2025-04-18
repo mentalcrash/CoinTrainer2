@@ -98,4 +98,6 @@ def main():
     logging.info("모든 트레이더 스레드가 종료되었습니다.")
 
 if __name__ == "__main__":
-    main()
+    while True:
+        main()
+        time.sleep(60)
