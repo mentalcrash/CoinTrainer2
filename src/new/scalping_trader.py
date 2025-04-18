@@ -206,7 +206,7 @@ class ScalpingTrader:
             ticker = self.api_client.get_ticker(self.market)
             current_price = float(ticker.tickers[0].trade_price)
 
-            if strategy.should_sell(current_price, target_price, stop_loss_price):
+            if strategy.should_sell(current_price, target_price, stop_loss_price, hold_force=hold_duration_seconds<=elapsed_seconds):
                 self.info(f"📈 매도 조건 달성") # self.logger.info -> self.info
                 return "target"
             else:
@@ -240,7 +240,7 @@ class ScalpingTrader:
             self.discord_notifier.send_start_scalping(entry_order, target_price, stop_loss_price)
             
             def monitoring():
-                result = self.monitor_position(entry_order, strategy, hold_duration_seconds=0)
+                result = self.monitor_position(entry_order, strategy, hold_duration_seconds=5)
                 exit_order = self.execute_exit_order(result, entry_order.total_volume)
                 
                 if exit_order and exit_order.state == "done":

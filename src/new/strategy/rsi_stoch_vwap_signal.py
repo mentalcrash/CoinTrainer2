@@ -25,9 +25,11 @@ class RSIStochVWAPSignal(SignalStrategy):
         # 종합 판단
         return is_rsi_break and is_stoch_cross and is_above_vwap
 
-    def should_sell(self, current_price: float, target_price: float, stop_loss_price: float) -> bool:
+    def should_sell(self, current_price: float, target_price: float, stop_loss_price: float, hold_force: bool = False) -> bool:
         if current_price >= target_price:
             return True
+        elif hold_force:
+            return False
         elif current_price <= stop_loss_price:
             return True
         else:
