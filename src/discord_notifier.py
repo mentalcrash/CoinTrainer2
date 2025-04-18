@@ -327,13 +327,14 @@ RSI 지표:
             entry_price = int(response.price_per_unit)
             entry_volume = float(response.total_volume or 0)
             entry_time = response.created_at
+            target_profit_rate = ((target_price - entry_price) / entry_price) * 100
+            stop_loss_rate = ((stop_loss_price - entry_price) / entry_price) * 100
 
             message = f"""```ini
     [🚀 스캘핑 시작 알림]
 
     [기본 정보]
     • 심볼: {response.market}
-    • 주문 ID: {response.uuid}
     • 주문 시각: {entry_time}
 
     [매수 정보]
@@ -341,8 +342,8 @@ RSI 지표:
     • 체결 수량: {entry_volume}
     
     [타겟 가격]
-    • 목표가: {target_price:,.0f} KRW
-    • 손절가: {stop_loss_price:,.0f} KRW
+    • 목표가: {target_price:,.0f} KRW (수익률: {target_profit_rate:+.2f}%)
+    • 손절가: {stop_loss_price:,.0f} KRW (손실률: {stop_loss_rate:+.2f}%)
 
     트레이딩 모니터링을 시작합니다... 🔍
     ```"""

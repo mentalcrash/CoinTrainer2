@@ -1,5 +1,5 @@
 from src.new.models.bithumb.response import Orderbook
-
+from math import ceil, floor
 class TargetCalculator:
     @staticmethod
     def from_orderbook(
@@ -40,11 +40,11 @@ class TargetCalculator:
                 raise ValueError("틱 단위 계산 오류")
 
             # 목표가 및 손절가 계산
-            target_price_for_tick = int(current_price + tick_size * take_ticks)
-            stop_loss_price_for_tick = int(current_price - tick_size * stop_ticks)
+            target_price_for_tick = ceil(current_price + tick_size * take_ticks)
+            stop_loss_price_for_tick = floor(current_price - tick_size * stop_ticks)
 
-            target_price_for_rate = int(current_price * (1 + take_profit_rate))
-            stop_loss_price_for_rate = int(current_price * (1 - stop_loss_rate))
+            target_price_for_rate = ceil(current_price * (1 + take_profit_rate))
+            stop_loss_price_for_rate = floor(current_price * (1 - stop_loss_rate))
             
             target_price = max(target_price_for_tick, target_price_for_rate)
             stop_loss_price = min(stop_loss_price_for_tick, stop_loss_price_for_rate)
