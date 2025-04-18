@@ -200,3 +200,13 @@ class Trade(BaseModel):
 class TradesResponse(BaseModel):
     """빗썸 체결 내역 데이터 응답"""
     trades: List[Trade] = Field(description="체결 내역 데이터 목록")
+    
+class MarketInfo(BaseModel):
+    """빗썸 시장 정보 데이터를 표현하는 Pydantic 모델"""
+    market: str = Field(description="시장 구분 코드 (예: KRW-BTC)")
+    korean_name: str = Field(description="한글명")
+    english_name: str = Field(description="영문명")    
+    
+class AllMarketInfoResponse(BaseModel):
+    """빗썸 모든 시장 정보 응답"""
+    market_info: List[MarketInfo] = Field(description="모든 시장 정보 데이터 목록")

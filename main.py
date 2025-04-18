@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 import logging
 import threading
+from src.new.utils.scalping_candidate_selector import ScalpingCandidateSelector
 
 # 프로젝트 루트 경로 추가 (기존 코드 유지)
 # sys.path.append(...) 
@@ -49,42 +50,43 @@ def setup_logging():
 
         logging.info("통합 로깅 설정 완료. 로그 파일: %s", log_filename)
 
-def run_trader(symbol: str):
+def run_trader(market: str):
     """지정된 심볼에 대한 ScalpingTrader를 실행합니다."""
     
     # 이제 run_trader 내에서는 로깅 설정을 하지 않습니다.
     # 대신 설정된 전역 로거를 사용합니다.
     logger = logging.getLogger() # 루트 로거를 가져옵니다.
 
-    logger.info(f"ScalpingTrader 스레드 시작 (Market: KRW-{symbol})")
+    logger.info(f"ScalpingTrader 스레드 시작 (Market: {market})")
     try:
         # ScalpingTrader는 내부적으로 logging 모듈을 사용한다고 가정합니다.
         # 만약 특정 로거 인스턴스를 전달해야 한다면, setup_logging에서 생성한 로거를 전달할 수 있습니다.
         # logger = logging.getLogger(threading.current_thread().name) # 이렇게 스레드별 로거를 가져와 전달해도 됩니다.
-        scalping_trader = ScalpingTrader(market=f"KRW-{symbol}") 
+        scalping_trader = ScalpingTrader(market=market) 
         scalping_trader.run_forever()
     except Exception as e:
         # 오류 발생 시 스레드 이름과 심볼 정보를 포함하여 로깅
-        logger.error(f"KRW-{symbol} 트레이더 실행 중 오류 발생: {e}", exc_info=True)
+        logger.error(f"{market} 트레이더 실행 중 오류 발생: {e}", exc_info=True)
     finally:
-        logger.info(f"ScalpingTrader 스레드 종료 (Market: KRW-{symbol})")
+        logger.info(f"ScalpingTrader 스레드 종료 (Market: {market})")
 
 def main():
     """메인 실행 함수"""
     
     # 처리할 심볼 리스트 정의
-    symbols = ["AERGO", "ARDR", "STRAX", "ARK", "DOGE", "LAYER", "GAS", "KERNEL", "WCT"] # 예시 심볼, 필요에 따라 수정하세요
+    scalping_candidate_selector = ScalpingCandidateSelector()
+    markets = [ticker.market for ticker in scalping_candidate_selector.select_candidates()]
 
     # 로깅 설정 호출 (스레드 시작 전)
     setup_logging()
 
-    logging.info(f"총 {len(symbols)}개의 심볼에 대해 스캘핑 트레이더를 시작합니다: {', '.join(symbols)}")
+    logging.info(f"총 {len(markets)}개의 심볼에 대해 스캘핑 트레이더를 시작합니다: {', '.join(markets)}")
 
     threads = []
-    for symbol in symbols:
+    for market in markets:
         # 각 심볼에 대해 스레드 생성 (스레드 이름 지정 중요!)
-        thread_name = f"Trader-{symbol}" 
-        thread = threading.Thread(target=run_trader, args=(symbol,), name=thread_name)
+        thread_name = f"Trader-{market}" 
+        thread = threading.Thread(target=run_trader, args=(market,), name=thread_name)
         threads.append(thread)
         thread.start() # 스레드 시작
         # time.sleep(1) # 필요 시 API 요청 분산을 위한 딜레이

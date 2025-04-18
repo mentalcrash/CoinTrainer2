@@ -1,11 +1,10 @@
 import logging
-from typing import List, Optional, Dict, Any, Union
+from typing import Optional, Dict, Any
 import requests
-from datetime import datetime
 from typing import Literal
 import os
 
-from src.new.models.bithumb.response import Candle, CandlesResponse, OrderbookResponse, Orderbook, TickerResponse, Ticker, TradesResponse, Trade
+from src.new.models.bithumb.response import Candle, CandlesResponse, OrderbookResponse, Orderbook, TickerResponse, Ticker, TradesResponse, Trade, AllMarketInfoResponse, MarketInfo
 
 logger = logging.getLogger(__name__)
 
@@ -188,3 +187,10 @@ class BithumbApiClient:
         }
         response = self._make_request("GET", "/trades/ticks", params=params)
         return TradesResponse(trades=[Trade.model_validate(item) for item in response]) 
+    
+    def get_all_market_info(self) -> AllMarketInfoResponse:
+        """
+        모든 시장 정보를 가져옵니다.
+        """
+        response = self._make_request("GET", "/market/all")
+        return AllMarketInfoResponse(market_info=[MarketInfo.model_validate(item) for item in response])
