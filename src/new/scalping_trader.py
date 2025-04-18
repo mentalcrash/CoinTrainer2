@@ -113,7 +113,7 @@ class ScalpingTrader:
         completed_order = self.wait_order_completion(order_response)  
         return completed_order
 
-    def execute_exit_order(self, monitor_result: MonitorResult, volume: float, price: Optional[float] = None) -> Optional[OrderResponse]:
+    def execute_exit_order(self, volume: float) -> Optional[OrderResponse]:
         """시장가 매도 주문 실행"""
         self.info(f"🔴 매도 주문 실행 시작 - 수량: {volume}") # self.logger.info -> self.info
         
@@ -194,7 +194,7 @@ class ScalpingTrader:
         # self.debug(f"🎯 목표가/손절가 계산됨: Target={target_price}, StopLoss={stop_loss_price}") # 필요시 debug 사용
         return target_price, stop_loss_price
 
-    def monitor_position(self, order_response: OrderResponse, strategy: SignalStrategy, hold_duration_seconds: int = 0) -> Optional[MonitorResult]:
+    def monitor_position(self, order_response: OrderResponse, strategy: SignalStrategy, hold_duration_seconds: int = 0) -> str:
         """포지션 상태를 감시하며 목표가/손절가 도달 여부 판단"""
         entry_price = order_response.price_per_unit
         target_price, stop_loss_price = self.calculate_targets(entry_price)
@@ -206,9 +206,10 @@ class ScalpingTrader:
             ticker = self.api_client.get_ticker(self.market)
             current_price = float(ticker.tickers[0].trade_price)
 
-            if strategy.should_sell(current_price, target_price, stop_loss_price, hold_force=hold_duration_seconds<=elapsed_seconds):
+            should_sell, reason = strategy.should_sell(current_price, target_price, stop_loss_price, hold_force=hold_duration_seconds<=elapsed_seconds)
+            if should_sell:
                 self.info(f"📈 매도 조건 달성") # self.logger.info -> self.info
-                return "target"
+                return reason
             else:
                 # 주기적인 상태 로깅 (옵션)
                 # self.debug(f"현재가: {current_price:,.0f}") 
@@ -240,12 +241,12 @@ class ScalpingTrader:
             self.discord_notifier.send_start_scalping(entry_order, target_price, stop_loss_price)
             
             def monitoring():
-                result = self.monitor_position(entry_order, strategy, hold_duration_seconds=5)
-                exit_order = self.execute_exit_order(result, entry_order.total_volume)
+                reason = self.monitor_position(entry_order, strategy, hold_duration_seconds=5)
+                exit_order = self.execute_exit_order(entry_order.total_volume)
                 
                 if exit_order and exit_order.state == "done":
                     self.info(f"💰 매도 완료 - 체결가: {exit_order.price_per_unit}, 수익률 계산 가능") # self.logger.info -> self.info
-                    self.discord_notifier.send_end_scalping(entry_order, exit_order)
+                    self.discord_notifier.send_end_scalping(entry_order, exit_order, reason)
                     self.trading_logger.log_scalping_result(entry_order, exit_order)
                 else:
                     self.warning("❗ 매도 주문 실패 다시 매도 주문 시도") # self.logger.warning -> self.warning

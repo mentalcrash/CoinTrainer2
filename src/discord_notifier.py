@@ -214,7 +214,7 @@ RSI 지표:
                 data={"error_message": error_message}
             )
     
-    def send_end_scalping(self, entry_order: OrderResponse, exit_order: OrderResponse) -> bool:
+    def send_end_scalping(self, entry_order: OrderResponse, exit_order: OrderResponse, reason: str) -> bool:
         """스캘핑 종료 알림을 Discord로 전송합니다."""
         try:
             entry_price = entry_order.price_per_unit
@@ -232,7 +232,6 @@ RSI 지표:
 
             # 이모지
             result_emoji = "🔥" if profit_rate >= 0 else "💧"
-            result_label = "익절 성공" if profit_rate >= 0 else "손절 처리"
             
             # 홀딩 시간 계산
             holding_time_str = self.calculate_holding_time(entry_order.created_at, exit_order.created_at)
@@ -242,21 +241,27 @@ RSI 지표:
 
 [거래 정보]
     • 마켓: {entry_order.market}
-    • 매수 시간: {entry_order.created_at}
-    • 매도 시간: {exit_order.created_at}
-    • 홀딩 시간: {holding_time_str}
-    
-[수익 정보]
     • 매수가: {entry_price:,.0f} KRW
     • 매도가: {exit_price:,.0f} KRW
+    • 수량: {entry_order.total_volume}
+    • 홀딩 시간: {holding_time_str}
+    • 매수 금액: {entry_price * entry_order.total_volume:,.0f} KRW
+    • 매도 금액: {exit_price * exit_order.total_volume:,.0f} KRW
+    
+    
+[수익 정보]
+    • 수익: {profit:,.0f} KRW
     • 수익률: {profit_rate:.2f}%
+    • 수수료: {fee:,.0f} KRW
+    • 수수료포함 수익: {total_profit:,.0f} KRW
     • 수수료포함 수익률: {profit_rate_with_fee:.2f}%
     
 [기타 정보]
     • 거래금액: {exit_order.total_volume * exit_price:,.0f} KRW
     • 수수료: {fee:,.0f} KRW
 
-    [{result_label}] 거래가 종료되었습니다.
+[거래 이유]
+{'\n'.join(f'   • {msg}' for msg in reason.split('\n'))}
     ```"""
             self._send_message(message)
             return True

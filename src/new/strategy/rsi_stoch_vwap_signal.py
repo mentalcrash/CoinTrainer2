@@ -3,7 +3,7 @@ from src.new.models.bithumb.response import Candle, Ticker, Orderbook
 from src.new.calculator.rsi_calculator import RSICalculator
 from src.new.calculator.stoch_rsi_calculator import StochRSICalculator
 from src.new.calculator.vwap_calculator import VWAPCalculator
-
+from typing import Tuple
 class RSIStochVWAPSignal(SignalStrategy):
     def should_buy(self) -> bool:
         if len(self.candles) < 30:
@@ -25,14 +25,14 @@ class RSIStochVWAPSignal(SignalStrategy):
         # 종합 판단
         return is_rsi_break and is_stoch_cross and is_above_vwap
 
-    def should_sell(self, current_price: float, target_price: float, stop_loss_price: float, hold_force: bool = False) -> bool:
+    def should_sell(self, current_price: float, target_price: float, stop_loss_price: float, hold_force: bool = False) -> Tuple[bool, str]:
         if current_price >= target_price:
-            return True
-        elif hold_force:
-            return False
+            return True, f'목표가에 도달했습니다 목표가: 현재가 {current_price}, 목표가 {target_price}'
+        elif hold_force:    
+            return False, f'강제 보유 중입니다 현재가 {current_price}, 목표가 {target_price}'
         elif current_price <= stop_loss_price:
-            return True
+            return True, f'손절가에 도달했습니다 현재가 {current_price}, 손절가 {stop_loss_price}'
         else:
             # RSI가 50 아래로 내려가면 조정 가능성
             rsi = RSICalculator(self.candles).calculate(period=14)
-            return rsi[-1] < 50
+            return rsi[-1] < 50, f'RSI가 50 아래로 내려갔습니다 현재 RSI: {rsi[-1]}\n현재가 {current_price}, 목표가 {target_price}, 손절가 {stop_loss_price}'
