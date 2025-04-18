@@ -248,17 +248,12 @@ RSI 지표:
     • 매수 금액: {entry_price * entry_order.total_volume:,.0f} KRW
     • 매도 금액: {exit_price * exit_order.total_volume:,.0f} KRW
     
-    
 [수익 정보]
     • 수익: {profit:,.0f} KRW
     • 수익률: {profit_rate:.2f}%
-    • 수수료: {fee:,.0f} KRW
+    • 수수료: -{fee:,.0f} KRW
     • 수수료포함 수익: {total_profit:,.0f} KRW
     • 수수료포함 수익률: {profit_rate_with_fee:.2f}%
-    
-[기타 정보]
-    • 거래금액: {exit_order.total_volume * exit_price:,.0f} KRW
-    • 수수료: {fee:,.0f} KRW
 
 [거래 이유]
 {'\n'.join(f'   • {msg}' for msg in reason.split('\n'))}

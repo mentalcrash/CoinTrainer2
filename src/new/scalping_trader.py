@@ -199,14 +199,13 @@ class ScalpingTrader:
         entry_price = order_response.price_per_unit
         target_price, stop_loss_price = self.calculate_targets(entry_price)
         interval_sec = 1
-        elapsed_seconds = 0
-        self.info(f"👀 포지션 모니터링 시작 (평균 진입가: {entry_price:,.0f}, 목표가: {target_price:,}, 손절가: {stop_loss_price:,})") # self.logger.info -> self.info
-
+        self.info(f"👀 포지션 모니터링 시작 (평균 진입가: {entry_price:,.0f}, 목표가: {target_price:,}, 손절가: {stop_loss_price:,}), 강제 홀드: {hold_duration_seconds}초") # self.logger.info -> self.info
+        time.sleep(hold_duration_seconds)
         while True:
             ticker = self.api_client.get_ticker(self.market)
             current_price = float(ticker.tickers[0].trade_price)
 
-            should_sell, reason = strategy.should_sell(current_price, target_price, stop_loss_price, hold_force=hold_duration_seconds<=elapsed_seconds)
+            should_sell, reason = strategy.should_sell(current_price, target_price, stop_loss_price)
             if should_sell:
                 self.info(f"📈 매도 조건 달성") # self.logger.info -> self.info
                 return reason
@@ -214,7 +213,6 @@ class ScalpingTrader:
                 # 주기적인 상태 로깅 (옵션)
                 # self.debug(f"현재가: {current_price:,.0f}") 
                 time.sleep(interval_sec)
-                elapsed_seconds += interval_sec
         return None
 
     def run_once(self):
