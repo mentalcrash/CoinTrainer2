@@ -63,7 +63,7 @@ class OrderResponse:
         'cancel'                    # 주문 취소
     ]
     market: str                     # 마켓 정보
-    created_at: str                 # 주문 생성 시각
+    created_at: str                 # 주문 생성 시각 (2024-04-18T12:00:00+09:00)
     trades_count: int               # 거래 횟수
     paid_fee: float                 # 지불된 수수료
     executed_volume: str            # 체결된 수량

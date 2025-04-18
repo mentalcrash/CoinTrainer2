@@ -234,25 +234,27 @@ RSI 지표:
             result_emoji = "🔥" if profit_rate >= 0 else "💧"
             result_label = "익절 성공" if profit_rate >= 0 else "손절 처리"
             
+            # 홀딩 시간 계산
+            holding_time_str = self.calculate_holding_time(entry_order.created_at, exit_order.created_at)
+            
             message = f"""```ini
     [{result_emoji} 스캘핑 종료 알림]
 
-    [매매 결과]
-    • 심볼: {entry_order.market}
-    
-    • 매수가: {entry_price:,.0f} KRW
-    • 매도가: {exit_price:,.0f} KRW
-    • 수량: {volume}
-    
-    • 수익: {profit:,.0f} KRW
-    • 수익률: {profit_rate:+.2f}%
-    
-    • 수수료: {fee:,.0f} KRW
-    • 순수익: {total_profit:,.0f} KRW
-    • 수익률: {profit_rate_with_fee:+.2f}%
-    
+:white_check_mark: **거래 정보**
+    • 마켓: {entry_order.market}
     • 매수 시간: {entry_order.created_at}
     • 매도 시간: {exit_order.created_at}
+    • 홀딩 시간: {holding_time_str}
+    
+:chart_with_upwards_trend: **수익 정보**
+    • 매수가: {entry_price:,.0f} KRW
+    • 매도가: {exit_price:,.0f} KRW
+    • 수익률: {profit_rate:.2f}%
+    • 수수료포함 수익률: {profit_rate_with_fee:.2f}%
+    
+:money_with_wings: **기타 정보**
+    • 거래금액: {exit_order.total_volume * exit_price:,.0f} KRW
+    • 수수료: {fee:,.0f} KRW
 
     [{result_label}] 거래가 종료되었습니다.
     ```"""
@@ -273,6 +275,50 @@ RSI 지표:
                     }
                 )
             return False
+    
+    def calculate_holding_time(self, entry_time_str: str, exit_time_str: str) -> str:
+        """
+        매수 시간과 매도 시간 문자열을 받아 홀딩 시간을 계산하여 "x시간 y분 z초" 형식의 문자열로 반환합니다.
+        
+        Args:
+            entry_time_str: 매수 시간 문자열 (ISO 8601 포맷)
+            exit_time_str: 매도 시간 문자열 (ISO 8601 포맷)
+            
+        Returns:
+            str: 홀딩 시간을 "x시간 y분 z초" 형식으로 표현한 문자열
+        """
+        try:
+            # ISO 8601 형식 문자열을 datetime 객체로 파싱
+            entry_time = datetime.fromisoformat(entry_time_str)
+            exit_time = datetime.fromisoformat(exit_time_str)
+            
+            # 홀딩 시간 계산 (timedelta 객체)
+            holding_time = exit_time - entry_time
+            
+            # 음수인 경우 오류로 처리 (종료 시간이 시작 시간보다 이전인 경우)
+            if holding_time.total_seconds() < 0:
+                return "시간 계산 오류 (종료 시간이 시작 시간보다 이전)"
+            
+            # 홀딩 시간의 총 초 수
+            total_seconds = int(holding_time.total_seconds())
+            
+            # 시간, 분, 초 단위로 변환
+            hours, remainder = divmod(total_seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            
+            # 결과 문자열 구성
+            time_parts = []
+            if hours > 0:
+                time_parts.append(f"{hours}시간")
+            if minutes > 0 or hours > 0:  # 시간이 있으면 0분도 표시
+                time_parts.append(f"{minutes}분")
+            time_parts.append(f"{seconds}초")
+            
+            return " ".join(time_parts)
+            
+        except Exception as e:
+            # 파싱 실패 시 오류 메시지 반환
+            return f"시간 계산 오류 ({str(e)})"
     
     def send_start_scalping(self, response: OrderResponse, target_price: int, stop_loss_price: int) -> bool:
         """스캘핑 시작 알림을 Discord로 전송합니다."""
