@@ -117,23 +117,31 @@ class ScalpingTrader:
         """시장가 매도 주문 실행"""
         self.info(f"🔴 매도 주문 실행 시작 - 수량: {volume}") # self.logger.info -> self.info
         
-        if monitor_result == "target":
-            order_request = OrderRequest(
-                market=self.market,
-                side="ask",
-                order_type="limit",
-                price=price,
-                volume=volume
-            )
-        elif monitor_result == "stop_loss":
-            order_request = OrderRequest(
-                market=self.market,
-                side="ask",
-                order_type="market",
-                price=None,
-                volume=volume
-            )
+        # if monitor_result == "target":
+        #     order_request = OrderRequest(
+        #         market=self.market,
+        #         side="ask",
+        #         order_type="limit",
+        #         price=price,
+        #         volume=volume
+        #     )
+        # elif monitor_result == "stop_loss":
+        #     order_request = OrderRequest(
+        #         market=self.market,
+        #         side="ask",
+        #         order_type="market",
+        #         price=None,
+        #         volume=volume
+        #     )
             
+        order_request = OrderRequest(
+            market=self.market,
+            side="ask",
+            order_type="market",
+            price=None,
+            volume=volume    
+        )
+        
         order_response = self.trading_order.create_order_v2(order_request)
         self.info(f"📤 매도 주문 전송 완료 - 주문 ID: {order_response.uuid}\n{order_request}") # self.logger.info -> self.info
 
