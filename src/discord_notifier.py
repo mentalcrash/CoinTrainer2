@@ -240,19 +240,19 @@ RSI 지표:
             message = f"""```ini
     [{result_emoji} 스캘핑 종료 알림]
 
-:white_check_mark: **거래 정보**
+[거래 정보]
     • 마켓: {entry_order.market}
     • 매수 시간: {entry_order.created_at}
     • 매도 시간: {exit_order.created_at}
     • 홀딩 시간: {holding_time_str}
     
-:chart_with_upwards_trend: **수익 정보**
+[수익 정보]
     • 매수가: {entry_price:,.0f} KRW
     • 매도가: {exit_price:,.0f} KRW
     • 수익률: {profit_rate:.2f}%
     • 수수료포함 수익률: {profit_rate_with_fee:.2f}%
     
-:money_with_wings: **기타 정보**
+[기타 정보]
     • 거래금액: {exit_order.total_volume * exit_price:,.0f} KRW
     • 수수료: {fee:,.0f} KRW
 
