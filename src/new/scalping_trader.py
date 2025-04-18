@@ -97,7 +97,7 @@ class ScalpingTrader:
             self.warning("❗ KRW 잔고 부족으로 매수 불가") # self.logger.warning -> self.warning
             return None
         
-        order_amount = available_balance * 0.05
+        order_amount = available_balance * 0.03
         self.info(f"🟢 매수 주문 실행 시작 - 주문 금액: {order_amount:,.0f} KRW") # self.logger.info -> self.info
 
         order_request = OrderRequest(
