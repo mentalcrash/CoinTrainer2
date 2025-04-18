@@ -40,6 +40,9 @@ class ScalpingTrader:
         )
         
         self.trading_logger = TradingLogger()
+        
+        self.max_consecutive_losses = 3
+        self.consecutive_losses = 0
 
     # --- 로깅 헬퍼 메서드 추가 ---
     def _log(self, level, msg, *args, **kwargs):
@@ -246,6 +249,11 @@ class ScalpingTrader:
                     self.info(f"💰 매도 완료 - 체결가: {exit_order.price_per_unit}, 수익률 계산 가능") # self.logger.info -> self.info
                     self.discord_notifier.send_end_scalping(entry_order, exit_order, reason)
                     self.trading_logger.log_scalping_result(entry_order, exit_order)
+                    pnl = ((exit_order.price_per_unit - entry_order.price_per_unit) * entry_order.total_volume) - entry_order.paid_fee - exit_order.paid_fee
+                    if pnl < 0:
+                        self.consecutive_losses += 1
+                    else:
+                        self.consecutive_losses = 0
                 else:
                     self.warning("❗ 매도 주문 실패 다시 매도 주문 시도") # self.logger.warning -> self.warning
                     monitoring()
@@ -270,3 +278,7 @@ class ScalpingTrader:
                 self.error(f"[ERROR] run_once 중 예외 발생: {e}", exc_info=True) # self.logger.error -> self.error
 
             time.sleep(loop_interval)
+            
+            if self.max_consecutive_losses <= self.consecutive_losses:
+                self.info("🔴 최대 연속 손실 횟수 도달 - 트레이딩 종료") # self.logger.info -> self.info
+                break
