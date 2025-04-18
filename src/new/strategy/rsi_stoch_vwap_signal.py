@@ -1,8 +1,8 @@
 from src.new.strategy.signal_strategy import SignalStrategy
 from src.new.models.bithumb.response import Candle, Ticker, Orderbook
 from src.new.calculator.rsi_calculator import RSICalculator
-from src.new.calculator.StochRSICalculator import StochRSICalculator
-from src.new.calculator.VWAPCalculator import VWAPCalculator
+from src.new.calculator.stoch_rsi_calculator import StochRSICalculator
+from src.new.calculator.vwap_calculator import VWAPCalculator
 
 class RSIStochVWAPSignal(SignalStrategy):
     def should_buy(self) -> bool:

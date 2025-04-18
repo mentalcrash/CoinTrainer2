@@ -4,7 +4,7 @@ import os
 from typing import Optional, Literal
 from src.new.api.bithumb.client import BithumbApiClient
 from src.new.strategy.VolatilityBreakoutSignal import VolatilityBreakoutSignal
-from src.new.strategy.RSIStochVWAPSignal import RSIStochVWAPSignal
+from src.new.strategy.rsi_stoch_vwap_signal import RSIStochVWAPSignal
 from src.new.models.bithumb.response import CandlesResponse, TickerResponse, OrderbookResponse
 from src.models.order import OrderRequest, OrderResponse
 from src.discord_notifier import DiscordNotifier
