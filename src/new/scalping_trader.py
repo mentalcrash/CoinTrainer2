@@ -4,6 +4,7 @@ import os
 from typing import Optional, Literal
 from src.new.api.bithumb.client import BithumbApiClient
 from src.new.strategy.VolatilityBreakoutSignal import VolatilityBreakoutSignal
+from src.new.strategy.RSIStochVWAPSignal import RSIStochVWAPSignal
 from src.new.models.bithumb.response import CandlesResponse, TickerResponse, OrderbookResponse
 from src.models.order import OrderRequest, OrderResponse
 from src.discord_notifier import DiscordNotifier
@@ -11,7 +12,7 @@ from src.account import Account
 from src.trading_order import TradingOrder
 from src.trading_logger import TradingLogger
 from src.new.calculator.carget_calculator import TargetCalculator
-
+from src.new.strategy.signal_strategy import SignalStrategy
 MonitorResult = Literal["target", "stop_loss", "error"]
 
 class ScalpingTrader:
@@ -77,9 +78,8 @@ class ScalpingTrader:
         orderbook = self.api_client.get_orderbook(self.market)
         return candles, ticker, orderbook
 
-    def analyze_market(self, candles, ticker, orderbook) -> bool:
+    def analyze_market(self, strategy: SignalStrategy) -> bool:
         """시장 데이터를 분석하여 매수 신호 여부를 판단"""
-        strategy = VolatilityBreakoutSignal(candles, ticker, orderbook)
         decision = strategy.should_buy()
         self.info(f"📊 분석 결과: {'매수 신호 감지' if decision else '신호 없음'}") # self.logger.info -> self.info
         return decision
@@ -194,7 +194,7 @@ class ScalpingTrader:
         # self.debug(f"🎯 목표가/손절가 계산됨: Target={target_price}, StopLoss={stop_loss_price}") # 필요시 debug 사용
         return target_price, stop_loss_price
 
-    def monitor_position(self, order_response: OrderResponse, hold_duration_seconds: int = 0 ) -> Optional[MonitorResult]:
+    def monitor_position(self, order_response: OrderResponse, strategy: SignalStrategy, hold_duration_seconds: int = 0) -> Optional[MonitorResult]:
         """포지션 상태를 감시하며 목표가/손절가 도달 여부 판단"""
         entry_price = order_response.price_per_unit
         target_price, stop_loss_price = self.calculate_targets(entry_price)
@@ -206,12 +206,9 @@ class ScalpingTrader:
             ticker = self.api_client.get_ticker(self.market)
             current_price = float(ticker.tickers[0].trade_price)
 
-            if current_price >= target_price:
-                self.info(f"📈 목표가 도달 → 현재가: {current_price:,.0f} ≥ {target_price:,}") # self.logger.info -> self.info
+            if strategy.should_sell(current_price, target_price, stop_loss_price):
+                self.info(f"📈 매도 조건 달성") # self.logger.info -> self.info
                 return "target"
-            elif current_price <= stop_loss_price and elapsed_seconds >= hold_duration_seconds:
-                self.info(f"📉 손절가 도달 → 현재가: {current_price:,.0f} ≤ {stop_loss_price:,}") # self.logger.info -> self.info
-                return "stop_loss"
             else:
                 # 주기적인 상태 로깅 (옵션)
                 # self.debug(f"현재가: {current_price:,.0f}") 
@@ -226,7 +223,8 @@ class ScalpingTrader:
         
         if not self.is_position:
             candles, ticker, orderbook = self.fetch_market_data()
-            if not self.analyze_market(candles, ticker, orderbook):
+            strategy = RSIStochVWAPSignal(candles, ticker, orderbook)
+            if not self.analyze_market(strategy):
                 self.info("🟡 매수 신호 없음 - 사이클 종료") # self.logger.info -> self.info
                 return
 
@@ -242,7 +240,7 @@ class ScalpingTrader:
             self.discord_notifier.send_start_scalping(entry_order, target_price, stop_loss_price)
             
             def monitoring():
-                result = self.monitor_position(entry_order, hold_duration_seconds=0)
+                result = self.monitor_position(entry_order, strategy, hold_duration_seconds=0)
                 exit_order = self.execute_exit_order(result, entry_order.total_volume)
                 
                 if exit_order and exit_order.state == "done":
