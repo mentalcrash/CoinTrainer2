@@ -27,12 +27,12 @@ class RSIStochVWAPSignal(SignalStrategy):
 
     def should_sell(self, current_price: float, target_price: float, stop_loss_price: float, hold_force: bool = False) -> Tuple[bool, str]:
         if current_price >= target_price:
-            return True, f'목표가에 도달했습니다 목표가: 현재가 {current_price}, 목표가 {target_price}'
+            return True, f'목표가에 도달했습니다\n현재가 {current_price}, 목표가 {target_price}'
         elif hold_force:    
-            return False, f'강제 보유 중입니다 현재가 {current_price}, 목표가 {target_price}'
+            return False, f'강제 보유 중입니다\n현재가 {current_price}, 목표가 {target_price}'
         elif current_price <= stop_loss_price:
-            return True, f'손절가에 도달했습니다 현재가 {current_price}, 손절가 {stop_loss_price}'
+            return True, f'손절가에 도달했습니다\n현재가 {current_price}, 손절가 {stop_loss_price}'
         else:
             # RSI가 50 아래로 내려가면 조정 가능성
             rsi = RSICalculator(self.candles).calculate(period=14)
-            return rsi[-1] < 50, f'RSI가 50 아래로 내려갔습니다 현재 RSI: {rsi[-1]}\n현재가 {current_price}, 목표가 {target_price}, 손절가 {stop_loss_price}'
+            return rsi[-1] < 50, f'RSI가 50 아래로 내려갔습니다\n현재 RSI: {rsi[-1]}\n현재가 {current_price}, 목표가 {target_price}, 손절가 {stop_loss_price}'
