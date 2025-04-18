@@ -4,7 +4,6 @@ from src.new.models.bithumb.response import Candle
 class RSICalculator:
     def __init__(self, candles: List[Candle]):
         self.candles = sorted(candles, key=lambda c: c.timestamp)
-        print(self.candles)
 
     def calculate(self, period: int = 14) -> List[float]:
         """

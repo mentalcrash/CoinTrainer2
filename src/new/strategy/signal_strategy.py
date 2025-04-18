@@ -7,8 +7,6 @@ class SignalStrategy(ABC):
         self.candles = sorted(candles, key=lambda c: c.timestamp)
         self.ticker = ticker
         self.orderbook = orderbook
-        
-        print(self.candles)
 
     @abstractmethod
     def should_buy(self) -> bool:
