@@ -8,7 +8,7 @@ from src.discord_notifier import DiscordNotifier
 from src.account import Account
 from src.trading_order import TradingOrder
 from src.trading_logger import TradingLogger
-from new.calculator.target_calculator import TargetCalculator
+from src.new.calculator.target_calculator import TargetCalculator
 from src.new.strategy.signal_strategy import SignalStrategy
 MonitorResult = Literal["target", "stop_loss", "error"]
 
