@@ -229,7 +229,7 @@ class ScalpingTrader:
         
         if not self.is_position:
             candles, ticker, orderbook = self.fetch_market_data()
-            strategy = RSIStochVWAPSignal(candles, ticker, orderbook)
+            strategy = VolatilityBreakoutSignal(candles, ticker, orderbook)
             if not self.analyze_market(strategy):
                 self.info("🟡 매수 신호 없음 - 사이클 종료") # self.logger.info -> self.info
                 return

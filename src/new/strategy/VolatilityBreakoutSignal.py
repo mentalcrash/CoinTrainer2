@@ -32,8 +32,4 @@ class VolatilityBreakoutSignal(SignalStrategy):
             return True
         elif current_price <= stop_loss_price:
             return True
-        else:
-            ema = EMA(self.candles)
-            is_still_crossed = ema.is_golden_cross(short_period=3, long_period=9)
-            result = not is_still_crossed
-            return result
+        return False
