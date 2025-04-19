@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Union, Literal
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, fields
 from datetime import datetime
 import json
 from src.models.market_data import OrderSideType, OrderType
@@ -144,20 +144,35 @@ class OrderResponse:
             
             # 딕셔너리 데이터와 기본값 병합
             merged_data = {**required_fields, **data}
-            
-            # 숫자 형식 변환
-            if 'price' in merged_data and merged_data['price']:
-                merged_data['price'] = float(merged_data['price'])
-            if 'reserved_fee' in merged_data and merged_data['reserved_fee']:
-                merged_data['reserved_fee'] = float(merged_data['reserved_fee'])
-            if 'volume' in merged_data and merged_data['volume']:
-                merged_data['volume'] = float(merged_data['volume'])
-            if 'remaining_volume' in merged_data and merged_data['remaining_volume']:
-                merged_data['remaining_volume'] = float(merged_data['remaining_volume'])
-            if 'locked' in merged_data and merged_data['locked']:
-                # locked는 매수/매도에 따라 다른 타입 사용
-                if merged_data['side'] == 'bid':
-                    merged_data['locked'] = float(merged_data['locked'])
+
+            # --- 안전한 숫자 형식 변환 헬퍼 함수 ---
+            def safe_float(value, default=0.0):
+                """값을 float으로 안전하게 변환, 실패 시 기본값 반환"""
+                if value is None: return default
+                try: return float(value)
+                except (ValueError, TypeError): return default
+
+            def safe_int(value, default=0):
+                """값을 int로 안전하게 변환, 실패 시 기본값 반환"""
+                if value is None: return default
+                try: return int(value)
+                except (ValueError, TypeError): return default
+            # --- 헬퍼 함수 끝 ---
+
+            # 각 필드에 안전한 변환 적용
+            merged_data['trades_count'] = safe_int(merged_data.get('trades_count'))
+            merged_data['paid_fee'] = safe_float(merged_data.get('paid_fee'))
+            merged_data['remaining_fee'] = safe_float(merged_data.get('remaining_fee'), None) # None 가능 필드
+            merged_data['price'] = safe_float(merged_data.get('price'), None) # None 가능 필드
+            merged_data['reserved_fee'] = safe_float(merged_data.get('reserved_fee'), None) # None 가능 필드
+            merged_data['volume'] = safe_float(merged_data.get('volume'), None) # None 가능 필드
+            merged_data['remaining_volume'] = safe_float(merged_data.get('remaining_volume'), None) # None 가능 필드
+
+            # locked 필드 처리 (매수/매도 구분 없이 float으로 변환 시도)
+            locked_value = merged_data.get('locked')
+            merged_data['locked'] = safe_float(locked_value, None) if locked_value is not None else None
+
+            # executed_volume은 클래스 정의에 따라 str 타입 유지
             
             # 체결 목록 변환
             trades = [
