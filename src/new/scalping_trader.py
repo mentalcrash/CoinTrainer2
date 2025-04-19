@@ -253,7 +253,7 @@ class ScalpingTrader:
                     self.info(f"💰 매도 완료 - 체결가: {exit_order.price_per_unit}, 수익률 계산 가능") # self.logger.info -> self.info
                     self.discord_notifier.send_end_scalping(entry_order, exit_order, reason)
                     self.trading_logger.log_scalping_result(entry_order, exit_order)
-                    pnl = ((exit_order.price_per_unit - entry_order.price_per_unit) * entry_order.total_volume) - entry_order.paid_fee - exit_order.paid_fee
+                    pnl = ((exit_order.price_per_unit - entry_order.price_per_unit) * entry_order.total_volume) - float(entry_order.paid_fee) - float(exit_order.paid_fee)
                     if pnl < 0:
                         self.consecutive_losses += 1
                     else:
