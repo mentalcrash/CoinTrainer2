@@ -284,7 +284,7 @@ RSI 지표:
                 )
             return False
     
-    def calculate_holding_time(self, entry_time_str: str, exit_time_str: str) -> str:
+    def calculate_holding_time(self, entry_time: datetime, exit_time: datetime) -> str:
         """
         매수 시간과 매도 시간 문자열을 받아 홀딩 시간을 계산하여 "x시간 y분 z초" 형식의 문자열로 반환합니다.
         
@@ -296,10 +296,6 @@ RSI 지표:
             str: 홀딩 시간을 "x시간 y분 z초" 형식으로 표현한 문자열
         """
         try:
-            # ISO 8601 형식 문자열을 datetime 객체로 파싱
-            entry_time = datetime.fromisoformat(entry_time_str)
-            exit_time = datetime.fromisoformat(exit_time_str)
-            
             # 홀딩 시간 계산 (timedelta 객체)
             holding_time = exit_time - entry_time
             
@@ -334,7 +330,7 @@ RSI 지표:
             # 체결가 및 수량
             entry_price = int(response.price_per_unit)
             entry_volume = float(response.total_volume or 0)
-            entry_time = response.created_at
+            entry_time = response.created_at.strftime('%Y-%m-%d %H:%M:%S')
             target_profit_rate = ((target_price - entry_price) / entry_price) * 100
             stop_loss_rate = ((stop_loss_price - entry_price) / entry_price) * 100
 
@@ -412,11 +408,7 @@ RSI 지표:
                     "error": str(e)
                 }
             )
-            return False
-    
-    def send_scalping_notification(self, entry_order: OrderResponse, exit_order: OrderResponse  ) -> bool:
-        """스캐핑 알림을 Discord로 전송합니다."""
-        
+            return False   
     
     def send_end_round_notification(self, round: TradingRound) -> bool:
         """라운드 종료 알림을 Discord로 전송합니다."""

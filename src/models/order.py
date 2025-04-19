@@ -9,11 +9,11 @@ class Trade:
     """주문 체결 정보"""
     market: str           # 마켓의 유일 키
     uuid: str            # 체결의 고유 아이디
-    price: str           # 체결 가격
-    volume: str          # 체결 양
-    funds: str           # 체결된 총 가격
+    price: float           # 체결 가격
+    volume: float          # 체결 양
+    funds: float           # 체결된 총 가격
     side: str            # 체결 종류
-    created_at: str      # 체결 시각
+    created_at: datetime      # 체결 시각
 
     @classmethod
     def from_dict(cls, data: dict) -> Optional['Trade']:
@@ -22,11 +22,11 @@ class Trade:
             return cls(
                 market=data.get('market', ''),
                 uuid=data.get('uuid', ''),
-                price=data.get('price', '0'),
-                volume=data.get('volume', '0'),
-                funds=data.get('funds', '0'),
+                price=float(data.get('price', 0.0)),
+                volume=float(data.get('volume', 0.0)),
+                funds=float(data.get('funds', 0.0)),
                 side=data.get('side', ''),
-                created_at=data.get('created_at', '')
+                created_at=datetime.fromisoformat(data.get('created_at', ''))
             )
         except Exception:
             return None
