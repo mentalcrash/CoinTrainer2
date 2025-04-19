@@ -30,6 +30,14 @@ class Trade:
             )
         except Exception:
             return None
+    
+    def to_dict(self) -> Dict:
+        """Trade 객체를 딕셔너리로 변환"""
+        return asdict(self)
+    
+    def to_json(self) -> str:
+        """Trade 객체를 JSON 문자열로 변환"""
+        return json.dumps(self.to_dict())
 
 
 @dataclass

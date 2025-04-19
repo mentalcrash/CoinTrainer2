@@ -1,7 +1,7 @@
 import logging
 import time
 import os
-from typing import Optional, Literal
+from typing import Optional
 from src.new.api.bithumb.client import BithumbApiClient
 from src.models.order import OrderRequest, OrderResponse
 from src.discord_notifier import DiscordNotifier
@@ -10,7 +10,6 @@ from src.trading_order import TradingOrder
 from src.trading_logger import TradingLogger
 from src.new.calculator.target_calculator import TargetCalculator
 from src.new.strategy.signal_strategy import SignalStrategy
-MonitorResult = Literal["target", "stop_loss", "error"]
 
 class ScalpingTrader:
     def __init__(self, market: str, strategy: SignalStrategy):
