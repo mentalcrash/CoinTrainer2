@@ -5,7 +5,7 @@ from datetime import datetime
 import logging
 import threading
 from src.new.utils.scalping_candidate_selector import ScalpingCandidateSelector
-
+from src.new.strategy.VolatilityBreakoutSignal import VolatilityBreakoutSignal
 # 프로젝트 루트 경로 추가 (기존 코드 유지)
 # sys.path.append(...) 
 
@@ -62,7 +62,7 @@ def run_trader(market: str):
         # ScalpingTrader는 내부적으로 logging 모듈을 사용한다고 가정합니다.
         # 만약 특정 로거 인스턴스를 전달해야 한다면, setup_logging에서 생성한 로거를 전달할 수 있습니다.
         # logger = logging.getLogger(threading.current_thread().name) # 이렇게 스레드별 로거를 가져와 전달해도 됩니다.
-        scalping_trader = ScalpingTrader(market=market) 
+        scalping_trader = ScalpingTrader(market=market, strategy=VolatilityBreakoutSignal(market)) 
         scalping_trader.run_forever()
     except Exception as e:
         # 오류 발생 시 스레드 이름과 심볼 정보를 포함하여 로깅

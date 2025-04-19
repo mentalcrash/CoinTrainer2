@@ -1,13 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import List, Tuple
+from src.new.api.bithumb.client import BithumbApiClient
 from src.new.models.bithumb.response import Candle, Ticker, Orderbook
 
 class SignalStrategy(ABC):
-    def __init__(self, candles: List[Candle], ticker: Ticker, orderbook: Orderbook):
-        self.candles = sorted(candles, key=lambda c: c.timestamp)
-        self.ticker = ticker
-        self.orderbook = orderbook
-
+    def __init__(self, market: str):
+        self.market = market
+        self.api_client = BithumbApiClient()
+        
     @abstractmethod
     def should_buy(self) -> bool:
         """매수 시그널 발생 여부"""

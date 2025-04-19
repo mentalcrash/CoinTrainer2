@@ -3,34 +3,29 @@ import time
 import os
 from typing import Optional, Literal
 from src.new.api.bithumb.client import BithumbApiClient
-from src.new.strategy.VolatilityBreakoutSignal import VolatilityBreakoutSignal
-from src.new.strategy.rsi_stoch_vwap_signal import RSIStochVWAPSignal
-from src.new.models.bithumb.response import CandlesResponse, TickerResponse, OrderbookResponse
 from src.models.order import OrderRequest, OrderResponse
 from src.discord_notifier import DiscordNotifier
 from src.account import Account
 from src.trading_order import TradingOrder
 from src.trading_logger import TradingLogger
-from src.new.calculator.carget_calculator import TargetCalculator
+from new.calculator.target_calculator import TargetCalculator
 from src.new.strategy.signal_strategy import SignalStrategy
 MonitorResult = Literal["target", "stop_loss", "error"]
 
 class ScalpingTrader:
-    def __init__(self, market: str):
+    def __init__(self, market: str, strategy: SignalStrategy):
         """
         스캘핑 트레이더 초기화
         """
         self.market = market # 마켓 정보 저장
+        self.strategy = strategy # 전략 정보 저장
         self.api_client = BithumbApiClient()
         self.account = Account(
             api_key=os.getenv("BITHUMB_API_KEY"),
             secret_key=os.getenv("BITHUMB_SECRET_KEY")
         )
         self.is_position = False
-        self.loop_interval = 15.0
 
-        # 로깅 설정 - 기본 로거 가져오기
-        # self.logger 대신 self.base_logger 사용
         self.base_logger = logging.getLogger(__name__) 
         
         self.discord_notifier = DiscordNotifier(os.getenv("DISCORD_WEBHOOK_URL"))
@@ -38,7 +33,7 @@ class ScalpingTrader:
             api_key=os.getenv("BITHUMB_API_KEY"),
             secret_key=os.getenv("BITHUMB_SECRET_KEY")
         )
-        
+        self.target_calculator = TargetCalculator(market)
         self.trading_logger = TradingLogger()
         
         self.max_consecutive_losses = 3
@@ -71,21 +66,6 @@ class ScalpingTrader:
         
     def critical(self, msg, *args, **kwargs):
         self._log(logging.CRITICAL, msg, *args, **kwargs)
-    # --- 로깅 헬퍼 메서드 끝 ---
-
-    def fetch_market_data(self) -> tuple[CandlesResponse, TickerResponse, OrderbookResponse]:
-        """시장의 캔들, 티커, 호가 데이터를 가져옵니다."""
-        self.info("📥 시장 데이터 수집 시작") # self.logger.info -> self.info
-        candles = self.api_client.get_candles(self.market, interval="1m", limit=30).candles
-        ticker = self.api_client.get_ticker(self.market)
-        orderbook = self.api_client.get_orderbook(self.market)
-        return candles, ticker, orderbook
-
-    def analyze_market(self, strategy: SignalStrategy) -> bool:
-        """시장 데이터를 분석하여 매수 신호 여부를 판단"""
-        decision = strategy.should_buy()
-        self.info(f"📊 분석 결과: {'매수 신호 감지' if decision else '신호 없음'}") # self.logger.info -> self.info
-        return decision
 
     def execute_entry_order(self) -> Optional[OrderResponse]:
         """시장가 매수 주문 실행"""
@@ -95,7 +75,6 @@ class ScalpingTrader:
             return None
         
         available_balance = float(krw_balance['balance'])
-        locked_balance = float(krw_balance['locked'])
         if available_balance <= 0:
             self.warning("❗ KRW 잔고 부족으로 매수 불가") # self.logger.warning -> self.warning
             return None
@@ -119,23 +98,6 @@ class ScalpingTrader:
     def execute_exit_order(self, volume: float) -> Optional[OrderResponse]:
         """시장가 매도 주문 실행"""
         self.info(f"🔴 매도 주문 실행 시작 - 수량: {volume}") # self.logger.info -> self.info
-        
-        # if monitor_result == "target":
-        #     order_request = OrderRequest(
-        #         market=self.market,
-        #         side="ask",
-        #         order_type="limit",
-        #         price=price,
-        #         volume=volume
-        #     )
-        # elif monitor_result == "stop_loss":
-        #     order_request = OrderRequest(
-        #         market=self.market,
-        #         side="ask",
-        #         order_type="market",
-        #         price=None,
-        #         volume=volume
-        #     )
             
         order_request = OrderRequest(
             market=self.market,
@@ -199,7 +161,6 @@ class ScalpingTrader:
 
     def monitor_position(self, 
                          order_response: OrderResponse, 
-                         strategy: SignalStrategy,
                          target_price: float,
                          stop_loss_price: float,
                          hold_duration_seconds: int = 0) -> str:
@@ -212,7 +173,7 @@ class ScalpingTrader:
             ticker = self.api_client.get_ticker(self.market)
             current_price = float(ticker.tickers[0].trade_price)
 
-            should_sell, reason = strategy.should_sell(current_price, target_price, stop_loss_price)
+            should_sell, reason = self.strategy.should_sell(current_price, target_price, stop_loss_price)
             if should_sell:
                 self.info(f"📈 매도 조건 달성") # self.logger.info -> self.info
                 return reason
@@ -228,9 +189,7 @@ class ScalpingTrader:
         entry_order = None # entry_order 초기화
         
         if not self.is_position:
-            candles, ticker, orderbook = self.fetch_market_data()
-            strategy = VolatilityBreakoutSignal(candles, ticker, orderbook)
-            if not self.analyze_market(strategy):
+            if not self.strategy.should_buy():
                 self.info("🟡 매수 신호 없음 - 사이클 종료") # self.logger.info -> self.info
                 return
 
@@ -241,12 +200,11 @@ class ScalpingTrader:
         
         if entry_order: # 매수 주문이 성공했을 때만 진입
             self.is_position = True
-            # target_price, stop_loss_price = self.calculate_targets(entry_order.price_per_unit)
-            target_price, stop_loss_price = TargetCalculator.from_orderbook(entry_order.price_per_unit, orderbook.orderbooks[0])
+            target_price, stop_loss_price = self.target_calculator.calculate(entry_order.price_per_unit)
             self.discord_notifier.send_start_scalping(entry_order, target_price, stop_loss_price)
             
             def monitoring():
-                reason = self.monitor_position(entry_order, strategy, target_price, stop_loss_price, hold_duration_seconds=3)
+                reason = self.monitor_position(entry_order, target_price, stop_loss_price, hold_duration_seconds=3)
                 exit_order = self.execute_exit_order(entry_order.total_volume)
                 
                 if exit_order and exit_order.state == "done":

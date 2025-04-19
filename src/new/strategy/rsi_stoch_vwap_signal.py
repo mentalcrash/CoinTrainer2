@@ -6,20 +6,22 @@ from src.new.calculator.vwap_calculator import VWAPCalculator
 from typing import Tuple
 class RSIStochVWAPSignal(SignalStrategy):
     def should_buy(self) -> bool:
-        if len(self.candles) < 30:
+        candles = self.api_client.get_candles(self.market, interval="1m", limit=30).candles
+        
+        if len(candles) < 30:
             return False
 
         # 1. RSI 50선 돌파
-        rsi = RSICalculator(self.candles).calculate(period=14)
+        rsi = RSICalculator(candles).calculate(period=14)
         is_rsi_break = rsi[-2] < 50 and rsi[-1] >= 50
 
         # 2. StochRSI 골든크로스
-        stoch_k, stoch_d = StochRSICalculator(self.candles).calculate(stoch_period=14)
+        stoch_k, stoch_d = StochRSICalculator(candles).calculate(stoch_period=14)
         is_stoch_cross = stoch_k[-2] < stoch_d[-2] and stoch_k[-1] > stoch_d[-1]
 
         # 3. VWAP 상회
-        vwap = VWAPCalculator(self.candles).calculate(period=20)
-        current_price = self.candles[-1].trade_price
+        vwap = VWAPCalculator(candles).calculate(period=20)
+        current_price = candles[-1].trade_price
         is_above_vwap = current_price > vwap[-1]
 
         # 종합 판단
