@@ -289,8 +289,8 @@ RSI 지표:
         매수 시간과 매도 시간 문자열을 받아 홀딩 시간을 계산하여 "x시간 y분 z초" 형식의 문자열로 반환합니다.
         
         Args:
-            entry_time_str: 매수 시간 문자열 (ISO 8601 포맷)
-            exit_time_str: 매도 시간 문자열 (ISO 8601 포맷)
+            entry_time: 매수 시간
+            exit_time: 매도 시간
             
         Returns:
             str: 홀딩 시간을 "x시간 y분 z초" 형식으로 표현한 문자열
@@ -330,7 +330,6 @@ RSI 지표:
             # 체결가 및 수량
             entry_price = int(response.price_per_unit)
             entry_volume = float(response.total_volume or 0)
-            entry_time = response.created_at.strftime('%Y-%m-%d %H:%M:%S')
             target_profit_rate = ((target_price - entry_price) / entry_price) * 100
             stop_loss_rate = ((stop_loss_price - entry_price) / entry_price) * 100
 
@@ -338,8 +337,7 @@ RSI 지표:
     [🚀 스캘핑 시작 알림]
 
     [기본 정보]
-    • 심볼: {response.market}
-    • 주문 시각: {entry_time}
+    • 마켓: {response.market}
 
     [매수 정보]
     • 체결가: {entry_price:,.0f} KRW
