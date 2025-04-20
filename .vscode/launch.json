@@ -42,6 +42,20 @@
             },
             "envFile": "${workspaceFolder}/.env",
             "preLaunchTask": "install-dependencies"
+        },
+        {
+            "name": "테스트 스캘핑 트레이더 실행",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/scalping_trader_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "DEV_MODE": "true"
+            },
+            "envFile": "${workspaceFolder}/.env",
+            "preLaunchTask": "install-dependencies"
         }
     ]
 } 

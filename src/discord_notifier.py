@@ -1,6 +1,8 @@
 import json
+import logging
 from datetime import datetime
-from typing import Dict, Optional, Any
+from typing import Optional, Any
+from src.new.scalping_analyzer import Result
 
 import requests
 from requests import Response
@@ -222,6 +224,93 @@ RSI 지표:
         except Exception as e:
             return False
     
+    def format_seconds(self, total_seconds: float) -> str:
+        """
+        총 초 수를 "x시간 y분 z초" 또는 "y분 z초" 또는 "z초" 형식으로 변환합니다.
+        
+        Args:
+            total_seconds: 변환할 총 초 수 (float 또는 int).
+            
+        Returns:
+            str: 포맷된 시간 문자열. total_seconds가 None이거나 음수면 "계산 불가".
+        """
+        if total_seconds is None or total_seconds < 0:
+            return "계산 불가"
+            
+        try:
+             total_seconds = int(total_seconds) # 정수로 변환
+             
+             hours, remainder = divmod(total_seconds, 3600)
+             minutes, seconds = divmod(remainder, 60)
+            
+             time_parts = []
+             if hours > 0:
+                 time_parts.append(f"{hours}시간")
+             if minutes > 0 or hours > 0: # 시간이 있으면 0분도 표시
+                 time_parts.append(f"{minutes}분")
+             time_parts.append(f"{seconds}초") # 초는 항상 표시
+            
+             return " ".join(time_parts) if time_parts else "0초"
+             
+        except (TypeError, ValueError):
+             return "계산 불가"
+
+
+    def send_scalping_result(self, result: Result) -> bool:
+        """스캘핑 결과를 Discord로 전송합니다."""
+        try:
+            # 이모지 설정
+            result_emoji = "🚀" if result.pnl >= 0 else "📉" # 더 의미있는 이모지 사용 가능
+            
+            # 시간 포맷팅
+            holding_time_str = self.format_seconds(result.holding_seconds)
+            total_time_str = self.format_seconds(result.acc_elapsed_seconds)
+            
+
+            
+            # 메시지 구성 (가독성 개선)
+            # f-string 내에서 ':' 다음에 공백을 주어 정렬 효과
+            message = f"""
+```md
+{result_emoji} 스캘핑 결과 요약 {result_emoji}
+
+[거래 성과]
+- 수익/손실   : {result.pnl:,.0f} KRW ({"+" if result.pnl >= 0 else ""}{result.profit_rate:.2f}%)
+- 누적 수익   : {result.acc_pnl:,.0f} KRW
+- 누적 수익률 : {result.acc_profit_rate:.2f}%
+
+[거래 통계]
+- 총 거래 횟수: {result.trade_count} 회
+- 승리 횟수   : {result.win_count} 회
+- 패배 횟수   : {result.loss_count} 회
+- 승률        : {result.win_rate:.1f}%
+
+[상세 정보]
+- 평균 매수가 : {result.entry_price:,.0f} KRW
+- 평균 매도가 : {result.exit_price:,.0f} KRW
+- 홀딩 시간: {holding_time_str}
+- 총 운영 시간: {total_time_str}
+
+[누적 금액]
+- 매수 총액   : {result.entry_total_price:,.0f} KRW
+- 매도 총액   : {result.exit_total_price:,.0f} KRW
+```
+"""
+            # Discord로 메시지 전송
+            self._send_message(message) # _send_message 사용 확인
+            return True
+        except AttributeError as e:
+             # result 객체에 필요한 속성이 없을 경우 오류 로깅
+             logging.error(f"Result 객체 속성 오류: {e}", exc_info=True)
+             # 간단한 오류 메시지 전송 (옵션)
+             # self._send_message(f"결과 리포팅 오류: 필요한 데이터({e})가 없습니다.")
+             raise e
+        except Exception as e:
+            # 기타 예외 로깅
+            logging.error(f"Discord 메시지 전송 실패: {e}", exc_info=True)
+            
+            raise e
+
     def send_end_scalping(self, entry_order: OrderResponse, exit_order: OrderResponse, reason: str) -> bool:
         """스캘핑 종료 알림을 Discord로 전송합니다."""
         try:
@@ -244,7 +333,7 @@ RSI 지표:
             # 홀딩 시간 계산
             holding_time_str = self.calculate_holding_time(entry_order.created_at, exit_order.created_at)
             
-            message = f"""```ini
+            message = f"""ini
     [{result_emoji} 스캘핑 종료 알림]
 
 [거래 정보]
@@ -262,10 +351,7 @@ RSI 지표:
     • 수수료: -{fee:,.0f} KRW
     • 수수료포함 수익: {total_profit:,.0f} KRW
     • 수수료포함 수익률: {profit_rate_with_fee:.2f}%
-
-[거래 이유]
-{'\n'.join(f'   • {msg}' for msg in reason.split('\n'))}
-    ```"""
+"""
             self._send_message(message)
             return True
 

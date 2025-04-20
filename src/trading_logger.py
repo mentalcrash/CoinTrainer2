@@ -1,3 +1,4 @@
+import logging
 import os
 import json
 from datetime import datetime, timedelta
@@ -65,6 +66,25 @@ class TradingLogger:
                     data={"error": str(e)}
                 )
             raise
+ 
+    def create_sheet(self, sheet_name: str, headers: List[str]):
+        """새로운 시트를 생성합니다."""
+        try:
+            sheets = self.service.spreadsheets().get(
+                spreadsheetId=self.SPREADSHEET_ID
+            ).execute().get('sheets', [])
+            
+            existing_sheets = [sheet['properties']['title'] for sheet in sheets]
+            
+            if sheet_name in existing_sheets:
+                return
+            
+            self._create_sheet(sheet_name)
+            self._update_values(sheet_name, 'A1', [headers])
+        except Exception as e:
+            logging.error(f"시트 생성 실패: {e}")
+            raise e
+
     
     def _initialize_sheets(self):
         """필요한 시트들을 초기화합니다."""
@@ -297,7 +317,7 @@ class TradingLogger:
                 )
             raise
     
-    def _append_values(self, sheet_name: str, values: List[List]):
+    def append_values(self, sheet_name: str, values: List[List]):
         """시트에 새로운 행을 추가합니다."""
         try:
             range_name = f"{sheet_name}!A:Z"
@@ -399,7 +419,7 @@ class TradingLogger:
                 "Y" if market_data.new_low_5m else "N"   # New Low 5m
             ]]
             
-            self._append_values(self.SHEETS['order_request'], values)
+            self.append_values(self.SHEETS['order_request'], values)
             
             if self.log_manager:
                 self.log_manager.log(
@@ -422,6 +442,30 @@ class TradingLogger:
                 )
             raise
         
+    def cast_won(self, value: str) -> float:
+        """문자열을 숫자로 변환합니다."""
+        return float(value.replace("₩", "").replace(",", ""))
+    
+    def cast_percent(self, value: str) -> float:
+        """문자열을 퍼센트로 변환합니다."""
+        return float(value.replace("%", "")) / 100
+    
+    def cast_auto(self, value: str) -> float:
+        """문자열을 숫자로 변환합니다."""
+        if value.startswith("₩") or value.startswith("-₩"):
+            return self.cast_won(value)
+        elif value.endswith("%"):
+            return self.cast_percent(value)
+        else:
+            try:
+                float_value = float(value)
+                if "." in value:
+                    return float_value
+                else:
+                    return int(float_value)
+            except:
+                return value
+    
     def query_many(
         self,
         conditions: Dict[str, Any],
@@ -438,7 +482,7 @@ class TradingLogger:
         """
         try:
             # 시트의 모든 데이터 조회
-            range_name = f"{self.SHEETS[sheet_name]}!A:Z"
+            range_name = f"{sheet_name}!A:Z"
             result = self.service.spreadsheets().values().get(
                 spreadsheetId=self.SPREADSHEET_ID,
                 range=range_name
@@ -464,6 +508,7 @@ class TradingLogger:
                         break
                 
                 if matches_all:
+                    record = {k: self.cast_auto(v) for k, v in record.items()}
                     filtered_records.append(record)
             
             if self.log_manager:
@@ -501,7 +546,7 @@ class TradingLogger:
         """
         try:
             # 기록 조회
-            range_name = f"{self.SHEETS[sheet_name]}!A:Z"
+            range_name = f"{sheet_name}!A:Z"
             result = self.service.spreadsheets().values().get(
                 spreadsheetId=self.SPREADSHEET_ID,
                 range=range_name
@@ -547,7 +592,7 @@ class TradingLogger:
                     try:
                         col = headers.index(field)
                         updates_list.append({
-                            'range': f"{self.SHEETS[sheet_name]}!{chr(65+col)}{target_row+1}",
+                            'range': f"{sheet_name}!{chr(65+col)}{target_row+1}",
                             'values': [[str(value)]]
                         })
                     except ValueError:
@@ -618,7 +663,7 @@ class TradingLogger:
                 order_result.trades_count         # Trades Count
             ]]
                     
-            self._append_values(self.SHEETS['order_response'], values)
+            self.append_values(self.SHEETS['order_response'], values)
 
             if order_result.trades:
                 for trade in order_result.trades:
@@ -669,7 +714,7 @@ class TradingLogger:
                 trade.created_at            # Trade Created At
             ]]
             
-            self._append_values(self.SHEETS['trade_response'], values)
+            self.append_values(self.SHEETS['trade_response'], values)
             
         except Exception as e:
             if self.log_manager:
@@ -774,7 +819,7 @@ class TradingLogger:
                 exit_model_type                               # Exit Model Type
             ]]
             
-            self._append_values(self.SHEETS['round_summary'], values)
+            self.append_values(self.SHEETS['round_summary'], values)
             
             if self.log_manager:
                 self.log_manager.log(
@@ -828,7 +873,7 @@ class TradingLogger:
                 "Y" if is_win else "N"
             ]]
 
-            self._append_values(self.SHEETS['scalping_result'], values)
+            self.append_values(self.SHEETS['scalping_result'], values)
 
             if self.log_manager:
                 self.log_manager.log(

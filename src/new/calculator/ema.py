@@ -37,7 +37,7 @@ class EMA:
 
         return ema_values
         
-    def is_golden_cross(self, short_period: int = 3, long_period: int = 9) -> bool:
+    def is_golden_cross(self, short_period: int, long_period: int) -> bool:
         """
         단기 정배열 여부 판단 (예: 3EMA > 9EMA)
 

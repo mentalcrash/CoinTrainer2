@@ -71,7 +71,7 @@ class OrderResponse:
         'cancel'                    # 주문 취소
     ]
     market: str                     # 마켓 정보
-    created_at: str                 # 주문 생성 시각 (2024-04-18T12:00:00+09:00)
+    created_at: datetime                 # 주문 생성 시각 (2024-04-18T12:00:00+09:00)
     trades_count: int               # 거래 횟수
     paid_fee: float                 # 지불된 수수료
     executed_volume: str            # 체결된 수량
@@ -144,7 +144,7 @@ class OrderResponse:
                 'ord_type': 'none',
                 'state': 'wait',
                 'market': '',
-                'created_at': datetime.now().isoformat(),
+                'created_at': datetime.now(),
                 'trades_count': 0,
                 'paid_fee': 0.0,
                 'executed_volume': '0'
@@ -175,6 +175,7 @@ class OrderResponse:
             merged_data['reserved_fee'] = safe_float(merged_data.get('reserved_fee'), None) # None 가능 필드
             merged_data['volume'] = safe_float(merged_data.get('volume'), None) # None 가능 필드
             merged_data['remaining_volume'] = safe_float(merged_data.get('remaining_volume'), None) # None 가능 필드
+            merged_data['created_at'] = datetime.fromisoformat(merged_data.get('created_at'))
 
             # locked 필드 처리 (매수/매도 구분 없이 float으로 변환 시도)
             locked_value = merged_data.get('locked')

@@ -1,0 +1,31 @@
+{
+    "KRW-BTC": {
+        "strategy": "VolatilityBreakoutSignal",
+        "params": {
+            "document_version": 1,
+            "version": 1,
+            "limit_candles": 30,
+            "ema_short_period": 3,
+            "ema_long_period": 9,
+            "bb_period": 20,
+            "bb_multiplier": 2.0,
+            "volume_period": 20,
+            "volume_multiplier": 1.5 
+        }
+    },
+
+    "Other": {
+        "strategy": "VolatilityBreakoutSignal",
+        "params": {
+            "document_version": 1,
+            "version": 1,
+            "limit_candles": 30,
+            "ema_short_period": 3,
+            "ema_long_period": 9,
+            "bb_period": 20,
+            "bb_multiplier": 2.0,
+            "volume_period": 20,
+            "volume_multiplier": 1.5 
+        }
+    }
+}

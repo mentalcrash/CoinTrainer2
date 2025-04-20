@@ -2,22 +2,26 @@ import logging
 import time
 import os
 from typing import Optional
+from src.new.sheet.strategy_score_sheet import StrategyScoreSheetData
 from src.new.api.bithumb.client import BithumbApiClient
 from src.models.order import OrderRequest, OrderResponse
-from src.discord_notifier import DiscordNotifier
 from src.account import Account
 from src.trading_order import TradingOrder
 from src.trading_logger import TradingLogger
 from src.new.calculator.target_calculator import TargetCalculator
-from src.new.strategy.signal_strategy import SignalStrategy
+from src.new.strategy.strategy_manager import StrategyManager
+from src.new.scalping_analyzer import ScalpingAnalyzer
+from src.discord_notifier import DiscordNotifier
 
 class ScalpingTrader:
-    def __init__(self, market: str, strategy: SignalStrategy):
+    def __init__(self, market: str):
         """
         스캘핑 트레이더 초기화
         """
         self.market = market # 마켓 정보 저장
-        self.strategy = strategy # 전략 정보 저장
+        self.strategy_manager = StrategyManager()
+        self.strategy = self.strategy_manager.get_strategy(market)
+        
         self.api_client = BithumbApiClient()
         self.account = Account(
             api_key=os.getenv("BITHUMB_API_KEY"),
@@ -35,9 +39,23 @@ class ScalpingTrader:
         self.target_calculator = TargetCalculator(market)
         self.trading_logger = TradingLogger()
         
-        self.max_consecutive_losses = 3
-        self.consecutive_losses = 0
-
+        strategy_score: StrategyScoreSheetData = self.strategy_manager.find_strategy_score(market, 
+                                                                        self.strategy.get_name(), 
+                                                                        document_version=self.strategy.params.document_version,
+                                                                        version=self.strategy.params.version)
+        self.scalping_analyzer = ScalpingAnalyzer(market,
+                                                  acc_pnl=strategy_score.pnl,
+                                                  total_trade_count=strategy_score.trade_count,
+                                                  acc_win_count=strategy_score.win_count,
+                                                  acc_loss_count=strategy_score.loss_count,
+                                                  acc_win_rate=strategy_score.win_rate,
+                                                  acc_loss_rate=strategy_score.loss_rate,
+                                                  acc_entry_total_price=strategy_score.entry_total_price,
+                                                  acc_exit_total_price=strategy_score.exit_total_price,
+                                                  acc_profit_rate=strategy_score.profit_rate,
+                                                  acc_elapsed_seconds=strategy_score.elapsed_seconds)
+        self.stop = False
+        
     # --- 로깅 헬퍼 메서드 추가 ---
     def _log(self, level, msg, *args, **kwargs):
         """내부 로깅 헬퍼. 메시지에 마켓 프리픽스를 추가합니다."""
@@ -172,7 +190,7 @@ class ScalpingTrader:
             ticker = self.api_client.get_ticker(self.market)
             current_price = float(ticker.tickers[0].trade_price)
 
-            should_sell, reason = self.strategy.should_sell(current_price, target_price, stop_loss_price)
+            should_sell, reason = self.strategy.should_sell(current_price)
             if should_sell:
                 self.info(f"📈 매도 조건 달성") # self.logger.info -> self.info
                 return reason
@@ -199,22 +217,24 @@ class ScalpingTrader:
         
         if entry_order: # 매수 주문이 성공했을 때만 진입
             self.is_position = True
-            target_price, stop_loss_price = self.target_calculator.calculate(entry_order.price_per_unit)
-            self.discord_notifier.send_start_scalping(entry_order, target_price, stop_loss_price)
+            self.strategy.set_entry_price(entry_order.price_per_unit)
+            self.discord_notifier.send_start_scalping(entry_order, self.strategy.target_price, self.strategy.stop_loss_price)
             
             def monitoring():
-                reason = self.monitor_position(entry_order, target_price, stop_loss_price, hold_duration_seconds=3)
+                reason = self.monitor_position(entry_order, self.strategy.target_price, self.strategy.stop_loss_price, hold_duration_seconds=3)
                 exit_order = self.execute_exit_order(entry_order.total_volume)
                 
                 if exit_order and exit_order.state == "done":
                     self.info(f"💰 매도 완료 - 체결가: {exit_order.price_per_unit}, 수익률 계산 가능") # self.logger.info -> self.info
-                    self.discord_notifier.send_end_scalping(entry_order, exit_order, reason)
-                    self.trading_logger.log_scalping_result(entry_order, exit_order)
-                    pnl = ((exit_order.price_per_unit - entry_order.price_per_unit) * entry_order.total_volume) - float(entry_order.paid_fee) - float(exit_order.paid_fee)
-                    if pnl < 0:
-                        self.consecutive_losses += 1
-                    else:
-                        self.consecutive_losses = 0
+                    result = self.scalping_analyzer.analyze(entry_order, exit_order)
+                    self.discord_notifier.send_scalping_result(result)
+                    self.strategy_manager.accumulate_strategy_score(self.market, self.strategy, result)
+                    
+                    if result.should_stop:
+                        self.info(f"🔴 트레이딩 종료 - 이유: {result.stop_reason}") # self.logger.info -> self.info
+                        self.discord_notifier.send_message(f"🔴 {self.market} 트레이딩 종료 - 이유: {result.stop_reason}")
+                        self.stop = True
+                        return
                 else:
                     self.warning("❗ 매도 주문 실패 다시 매도 주문 시도") # self.logger.warning -> self.warning
                     monitoring()
@@ -240,8 +260,5 @@ class ScalpingTrader:
 
             time.sleep(loop_interval)
             
-            if self.max_consecutive_losses <= self.consecutive_losses:
-                self.info("🔴 최대 연속 손실 횟수 도달 - 트레이딩 종료") # self.logger.info -> self.info
-                # slack message 
-                self.discord_notifier.send_message(f"🔴 {self.market} 최대 연속 손실 횟수 도달 - 트레이딩 종료")
+            if self.stop:
                 break

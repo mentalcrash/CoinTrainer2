@@ -7,7 +7,7 @@ class BollingerBands:
         # 오름차순 정렬: 과거 → 현재
         self.candles = sorted(candles, key=lambda c: c.timestamp)
 
-    def calculate(self, period: int = 20, multiplier: float = 2.0) -> List[Optional[Tuple[float, float, float]]]:
+    def calculate(self, period: int, multiplier: float) -> List[Optional[Tuple[float, float, float]]]:
         """
         Bollinger Band를 계산합니다.
 
@@ -39,14 +39,14 @@ class BollingerBands:
 
         return bands
     
-    def is_band_breakout(self) -> Optional[Literal["upper", "lower"]]:
+    def is_band_breakout(self, period: int, multiplier: float) -> Optional[Literal["upper", "lower"]]:
         """
         현재가가 볼린저 밴드의 상단 또는 하단을 돌파했는지 판단합니다.
 
         Returns:
             Optional[Literal["upper", "lower"]]: "upper", "lower", 또는 None
         """
-        bands = self.calculate()
+        bands = self.calculate(period, multiplier)
         latest_band = bands[-1]
         latest_price = self.candles[-1].trade_price
 
