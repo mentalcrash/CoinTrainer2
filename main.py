@@ -5,11 +5,7 @@ from datetime import datetime
 import logging
 import threading
 from src.new.utils.scalping_candidate_selector import ScalpingCandidateSelector
-from new.strategy.volatility_breakout_signal import VolatilityBreakoutSignal
-# 프로젝트 루트 경로 추가 (기존 코드 유지)
-# sys.path.append(...) 
-
-from src.new.scalping_trader import ScalpingTrader # ScalpingTrader 임포트 확인
+from src.new.scalping_trader import ScalpingTrader
 
 # --- 전역 로깅 설정 ---
 def setup_logging():
