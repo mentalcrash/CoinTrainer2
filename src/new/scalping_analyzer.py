@@ -77,7 +77,7 @@ class ScalpingAnalyzer:
         self.acc_exit_total_price += exit_order.price_per_unit * exit_order.total_volume - float(exit_order.paid_fee) - float(entry_order.paid_fee)
         
         # 수익률
-        self.acc_profit_rate += (self.acc_exit_total_price - self.acc_entry_total_price) / self.acc_entry_total_price
+        self.acc_profit_rate = self.acc_pnl / self.acc_entry_total_price
         
         holding_seconds = (exit_order.created_at - entry_order.created_at).total_seconds()
         

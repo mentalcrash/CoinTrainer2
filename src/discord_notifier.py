@@ -286,8 +286,8 @@ RSI 지표:
 - 승률        : {result.win_rate:.1f}%
 
 [상세 정보]
-- 평균 매수가 : {result.entry_price:,.0f} KRW
-- 평균 매도가 : {result.exit_price:,.0f} KRW
+- 매수가 : {result.entry_price:,.0f} KRW
+- 매도가 : {result.exit_price:,.0f} KRW
 - 홀딩 시간: {holding_time_str}
 - 총 운영 시간: {total_time_str}
 
