@@ -111,13 +111,13 @@ class ScalpingTrader:
 
         completed_order = self.wait_order_completion(order_response)  
         if completed_order:
-            self.info(f"✅ 매도 주문 체결 완료\n{completed_order.to_json()}") # self.logger.info -> self.info
+            self.info(f"✅ 매도 주문 체결 완료") # self.logger.info -> self.info
             return completed_order
         else:
             self.info("❗ 매도 주문 체결 실패") # self.logger.warning -> self.warning
             try:
                 cancel_order = self.trading_order.cancel_order_v2(order_response.uuid)
-                self.info(f"❗ 매도 주문 취소 완료\n{cancel_order.to_json()}") # self.logger.warning -> self.warning
+                self.info(f"❗ 매도 주문 취소 완료") # self.logger.warning -> self.warning
             except Exception as e:
                 self.info(f"❗ 매도 주문 취소 실패: {e}\nuuid:{order_response.uuid}") # self.logger.error -> self.error
                 # 마지막으로 주문처리 확인
