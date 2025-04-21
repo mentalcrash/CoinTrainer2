@@ -59,10 +59,3 @@ class TemplateSignal(SignalStrategy):
         trades: List[Trade] = self.api_client.get_trades(self.market, count=1)
         
         return result
-        
-    def should_sell(self, current_price: float) -> Tuple[bool, str]:
-        if current_price >= self.target_price:
-            return True, f'목표가에 도달했습니다\n현재가 {current_price}, 목표가 {self.target_price}'
-        elif current_price <= self.stop_loss_price:
-            return True, f'손절가에 도달했습니다\n현재가 {current_price}, 손절가 {self.stop_loss_price}'
-        return False, "매도 신호 없음"

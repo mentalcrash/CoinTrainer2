@@ -4,27 +4,39 @@ from typing import Optional
 from dataclasses import dataclass
 from datetime import datetime
 
+
+# market=self.market,
+#             entry_price=entry_order.price_per_unit,
+#             exit_price=exit_order.price_per_unit,
+#             volume=entry_order.total_volume,
+#             pnl=pnl,
+#             acc_pnl=self.acc_pnl,
+#             trade_count=self.total_trade_count,
+#             win_count=self.acc_win_count,
+#             entry_total_price=self.acc_entry_total_price,
+#             fee=self.acc_fee,
+#             acc_elapsed_seconds=elapsed_seconds + self.acc_elapsed_seconds,
+#             holding_seconds=holding_seconds,
+#             should_stop=should_stop,
+#             stop_reason=stop_reason
+
 @dataclass
 class Result:
+    market: str
     entry_price: float
     exit_price: float
     volume: float
     pnl: float
-    profit_rate: float
     acc_pnl: float
     trade_count: int
     win_count: int
-    loss_count: int
-    win_rate: float
-    loss_rate: float
     entry_total_price: float
-    exit_total_price: float
-    acc_profit_rate: float
     holding_seconds: int
     acc_elapsed_seconds: int
     should_stop: bool
+    fee: float
     stop_reason: Optional[str] = None
-    
+    reason: Optional[str] = None
     
 class ScalpingAnalyzer:
     MAX_CONSECUTIVE_LOSSES = 3
@@ -35,80 +47,81 @@ class ScalpingAnalyzer:
                  acc_pnl: float = 0,
                  total_trade_count: int = 0,
                  acc_win_count: int = 0,
-                 acc_loss_count: int = 0,
-                 acc_win_rate: float = 0,
-                 acc_loss_rate: float = 0,
                  acc_entry_total_price: float = 0,
-                 acc_exit_total_price: float = 0,
-                 acc_profit_rate: float = 0,
+                 acc_fee: float = 0,
                  acc_elapsed_seconds: int = 0):
         self.market = market
         self.acc_pnl = acc_pnl
         self.total_trade_count = total_trade_count
         self.acc_win_count = acc_win_count
-        self.acc_loss_count = acc_loss_count
-        self.acc_win_rate = acc_win_rate
-        self.acc_loss_rate = acc_loss_rate
         self.acc_entry_total_price = acc_entry_total_price
-        self.acc_exit_total_price = acc_exit_total_price
-        self.acc_profit_rate = acc_profit_rate
+        self.acc_fee = acc_fee
         self.acc_elapsed_seconds = acc_elapsed_seconds
         
         self.consecutive_losses = 0
         self.created_at = datetime.now()
     
-    def analyze(self, entry_order: OrderResponse, exit_order: OrderResponse) -> Result:
-        pnl = ((exit_order.price_per_unit - entry_order.price_per_unit) * entry_order.total_volume) - float(entry_order.paid_fee) - float(exit_order.paid_fee)
-        profit_rate = pnl / entry_order.price_per_unit * entry_order.total_volume 
+    def analyze(self, entry_order: OrderResponse, exit_order: OrderResponse, reason: Optional[str] = None) -> Result:
+        pnl = ((exit_order.price_per_unit - entry_order.price_per_unit) * entry_order.total_volume)
+        fee = float(entry_order.paid_fee) + float(exit_order.paid_fee)
+        pnl -= fee
         
         if pnl > 0:
             self.acc_win_count += 1
             self.consecutive_losses = 0
         else:
             self.consecutive_losses += 1
-            self.acc_loss_count += 1
         self.acc_pnl += pnl
         self.total_trade_count += 1
         
         self.acc_win_rate = self.acc_win_count / self.total_trade_count
-        self.acc_loss_rate = self.acc_loss_count / self.total_trade_count
         
         self.acc_entry_total_price += entry_order.price_per_unit * entry_order.total_volume
-        self.acc_exit_total_price += exit_order.price_per_unit * exit_order.total_volume - float(exit_order.paid_fee) - float(entry_order.paid_fee)
         
         # 수익률
         self.acc_profit_rate = self.acc_pnl / self.acc_entry_total_price
+        self.acc_fee += fee
         
         holding_seconds = (exit_order.created_at - entry_order.created_at).total_seconds()
         
         elapsed_seconds = (datetime.now() - self.created_at).total_seconds()
+        acc_elapsed_seconds = elapsed_seconds + self.acc_elapsed_seconds
+        
+        acc_hours = acc_elapsed_seconds / 60 / 60
         
         should_stop = False
         stop_reason = None
-        if self.consecutive_losses >= self.MAX_CONSECUTIVE_LOSSES:
+        win_rate = self.acc_win_count / self.total_trade_count
+        if self.total_trade_count >= 5 and win_rate <= 0.1:
             should_stop = True
-            stop_reason = "연속 손실 횟수 초과"
-        elif self.acc_profit_rate <= self.MAX_PROFIT_RATE:
+            stop_reason = "승률 초과, 총 5회 거래 후 승률 10% 이하"
+        elif self.total_trade_count >= 10 and win_rate <= 0.25:
             should_stop = True
-            stop_reason = "손실률 초과"
+            stop_reason = "승률 초과, 총 10회 거래 후 승률 20% 이하"
+        elif self.total_trade_count >= 15 and win_rate <= 0.4:
+            should_stop = True
+            stop_reason = "승률 초과, 총 15회 거래 후 승률 40% 이하"
+        elif self.total_trade_count >= 20 and win_rate <= 0.5:
+            should_stop = True
+            stop_reason = "승률 초과, 총 20회 거래 후 승률 50% 이하"
+        elif self.total_trade_count < acc_hours:
+            should_stop = True
+            stop_reason = "총 거래 횟수 미달"
         
         return Result(
+            market=self.market,
             entry_price=entry_order.price_per_unit,
             exit_price=exit_order.price_per_unit,
             volume=entry_order.total_volume,
             pnl=pnl,
-            profit_rate=profit_rate,
             acc_pnl=self.acc_pnl,
             trade_count=self.total_trade_count,
             win_count=self.acc_win_count,
-            loss_count=self.acc_loss_count,
-            win_rate=self.acc_win_rate,
-            loss_rate=self.acc_loss_rate,
             entry_total_price=self.acc_entry_total_price,
-            exit_total_price=self.acc_exit_total_price,
-            acc_profit_rate=self.acc_profit_rate,
-            holding_seconds=holding_seconds,
+            fee=self.acc_fee,
             acc_elapsed_seconds=elapsed_seconds + self.acc_elapsed_seconds,
+            holding_seconds=holding_seconds,
             should_stop=should_stop,
-            stop_reason=stop_reason
+            stop_reason=stop_reason,
+            reason=reason
         )

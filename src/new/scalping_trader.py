@@ -3,6 +3,7 @@ import time
 import os
 from typing import Optional
 from src.new.sheet.strategy_score_sheet import StrategyScoreSheetData
+from src.new.sheet.ai_strategy_score_sheet import AiStrategyScoreSheetData
 from src.new.api.bithumb.client import BithumbApiClient
 from src.models.order import OrderRequest, OrderResponse
 from src.account import Account
@@ -20,7 +21,7 @@ class ScalpingTrader:
         """
         self.market = market # 마켓 정보 저장
         self.strategy_manager = StrategyManager()
-        self.strategy = self.strategy_manager.get_strategy(market)
+        self.strategy = self.strategy_manager.get_ai_strategy(market)
         
         self.api_client = BithumbApiClient()
         self.account = Account(
@@ -39,20 +40,14 @@ class ScalpingTrader:
         self.target_calculator = TargetCalculator(market)
         self.trading_logger = TradingLogger()
         
-        strategy_score: StrategyScoreSheetData = self.strategy_manager.find_strategy_score(market, 
-                                                                        self.strategy.get_name(), 
-                                                                        document_version=self.strategy.params.document_version,
-                                                                        version=self.strategy.params.version)
+        strategy_score: AiStrategyScoreSheetData = self.strategy_manager.find_ai_strategy_score(market, version=self.strategy.params['version'])
+        
         self.scalping_analyzer = ScalpingAnalyzer(market,
                                                   acc_pnl=strategy_score.pnl,
                                                   total_trade_count=strategy_score.trade_count,
                                                   acc_win_count=strategy_score.win_count,
-                                                  acc_loss_count=strategy_score.loss_count,
-                                                  acc_win_rate=strategy_score.win_rate,
-                                                  acc_loss_rate=strategy_score.loss_rate,
                                                   acc_entry_total_price=strategy_score.entry_total_price,
-                                                  acc_exit_total_price=strategy_score.exit_total_price,
-                                                  acc_profit_rate=strategy_score.profit_rate,
+                                                  acc_fee=strategy_score.fee,
                                                   acc_elapsed_seconds=strategy_score.elapsed_seconds)
         self.stop = False
         
@@ -218,7 +213,7 @@ class ScalpingTrader:
         if entry_order: # 매수 주문이 성공했을 때만 진입
             self.is_position = True
             self.strategy.set_entry_price(entry_order.price_per_unit)
-            self.discord_notifier.send_start_scalping(entry_order, self.strategy.target_price, self.strategy.stop_loss_price)
+            # self.discord_notifier.send_start_scalping(entry_order, self.strategy.target_price, self.strategy.stop_loss_price)
             
             def monitoring():
                 reason = self.monitor_position(entry_order, self.strategy.target_price, self.strategy.stop_loss_price, hold_duration_seconds=3)
@@ -226,12 +221,13 @@ class ScalpingTrader:
                 
                 if exit_order and exit_order.state == "done":
                     self.info(f"💰 매도 완료 - 체결가: {exit_order.price_per_unit}, 수익률 계산 가능") # self.logger.info -> self.info
-                    result = self.scalping_analyzer.analyze(entry_order, exit_order)
+                    result = self.scalping_analyzer.analyze(entry_order, exit_order, reason)
                     self.discord_notifier.send_scalping_result(result)
                     self.strategy_manager.accumulate_strategy_score(self.market, self.strategy, result)
                     
                     if result.should_stop:
                         self.info(f"🔴 트레이딩 종료 - 이유: {result.stop_reason}") # self.logger.info -> self.info
+                        self.strategy_manager.create_next_score_sheet(self.market)
                         self.discord_notifier.send_message(f"🔴 {self.market} 트레이딩 종료 - 이유: {result.stop_reason}")
                         self.stop = True
                         return

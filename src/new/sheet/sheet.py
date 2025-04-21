@@ -4,9 +4,12 @@ from typing import List, Dict
 
 
 class Sheet(ABC):
+    _sheet_created = False
     def __init__(self):
         self.trading_logger = TradingLogger()
-        self.trading_logger.create_sheet(self.get_sheet_name(), self.get_headers())
+        if not self.__class__._sheet_created:
+            self.trading_logger.create_sheet(self.get_sheet_name(), self.get_headers())
+            self.__class__._sheet_created = True
     
     def get_data_many(self, conditions: dict) -> List[Dict]:
         data = self.trading_logger.query_many(conditions=conditions, sheet_name=self.get_sheet_name())    

@@ -28,10 +28,10 @@ class StrategyGenerator:
 ⑤ Orderbook  : Spread, DepthImbalance, VWAPShift, TickRatio
 
 규칙
-1. 매 호출마다 서로 다른 카테고리에서 **3~4개 지표를 무작위 선택**하여 조합한다.  
+1. 코드 생성 시 다른 카테고리에서 **3~4개 지표를 무작위 선택**하여 조합한다.  
 2. **직전 응답과 지표가 2개 이상 겹치면 안 된다.**  
    (필요 시 `previous_indicators` 변수를 참고)  
-3. 각 지표의 period·multiplier 는 `random.randint / random.uniform` 등을 사용해 호출 시마다 달라지도록 설정한다.  
+3. 지표의 디테일한 값도 코드 생성 시 마다 다른게 되도록 한다.
 4. 코드만 반환(``` 태그 금지)ㆍexec 오류 없어야 한다.
 """
         
@@ -40,7 +40,7 @@ class StrategyGenerator:
 - 'Template' 이라는 단어를 전략 핵심을 드러내는 이름으로 교체하십시오.
 - 반드시 should_buy() 를 구현하고, 선택한 3~4개 지표만 사용하십시오.
 - 중복 API 호출을 피하고 예외를 처리해 연속성을 보장하십시오.
-- 수치 기준(예: RSI < 25, EMA 5 > EMA 20)을 코드에 명시하십시오.
+- 수치 기준(예: RSI < 25, EMA 5 > EMA 20)을 get_description()에 명시하십시오.
 - **지난 응답에 사용된 지표 목록은 previous_indicators 변수로 전달됩니다.**  
   새 전략은 이 목록과 2개 이상 겹치면 안 됩니다.
 - 함수 시그니처·매개변수·반환값은 변경 불가, 주석은 한글로 작성하십시오.
@@ -63,12 +63,12 @@ class StrategyGenerator:
         
         return response.output_text
     
-    def generate_auto(self):
+    def generate_auto(self, model: str = "gpt-4.1-mini-2025-04-14"):
         system_prompt, user_prompt = self.create_prompt()
-        code = self.create_from_gpt(system_prompt, user_prompt)
+        code = self.create_from_gpt(system_prompt, user_prompt, model)
         return code
 
-    def generate_latest(self, model: str = "gpt-4.1-mini-2025-04-14"):
+    def generate_latest(self, model: str = "gpt-4.1-mini-2025-04-14") -> Tuple[int, str]:
         next_version = 1
         sheet = AiGeneratedStrategySheet()
         data_list = sheet.get_data_many(conditions={})
@@ -79,31 +79,7 @@ class StrategyGenerator:
         system_prompt, user_prompt = self.create_prompt()
         code = self.create_from_gpt(system_prompt, user_prompt, model)
         
-        
-        # 클래스 이름 찾기
-        pattern = re.compile(r"class\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*SignalStrategy\s*\)\s*:")
-        match = pattern.search(code)
-        
-        # 결과 확인
-        if match:
-            class_name = match.group(1)
-            print(f"SignalStrategy를 상속하는 클래스 이름 발견: {class_name}") # 출력: VolumeRsiEmaScalper
-        else:
-            raise Exception("SignalStrategy를 상속하는 클래스를 찾지 못했습니다.")
-        
-        try:
-            execute_namespace = {'SignalStrategy': SignalStrategy, 
-                                 'StrategyParams': StrategyParams,
-                                 'Candle': Candle,
-                                 'Orderbook': Orderbook,
-                                 'Trade': Trade,
-                                 'OrderbookUnit': OrderbookUnit}
-                
-            exec(code, execute_namespace)
-            generated_class = execute_namespace.get(class_name)
-            instance = generated_class('KRW-BTC', {'version': next_version, 'document_version': 1})
-        except Exception as e:
-            raise Exception(f"exec 실행 중 오류 발생: {e}")
+        instance = self.execute_code('KRW-BTC', next_version, code)
             
         sheet_data = AiGeneratedStrategySheetData(
             version=next_version,
@@ -116,4 +92,28 @@ class StrategyGenerator:
         )
         
         sheet.append(sheet_data)
+        return next_version, code
+
+    def execute_code(self, market: str, version: int, code: str) -> SignalStrategy:
+        execute_namespace = {'SignalStrategy': SignalStrategy, 
+                             'StrategyParams': StrategyParams,
+                             'Candle': Candle,
+                             'Orderbook': Orderbook,
+                             'Trade': Trade,
+                             'OrderbookUnit': OrderbookUnit}
         
+        # 클래스 이름 찾기
+        pattern = re.compile(r"class\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*SignalStrategy\s*\)\s*:")
+        match = pattern.search(code)
+        
+        # 결과 확인
+        if match:
+            class_name = match.group(1)
+            print(f"SignalStrategy를 상속하는 클래스 이름 발견: {class_name}") # 출력: VolumeRsiEmaScalper
+        else:
+            raise Exception("SignalStrategy를 상속하는 클래스를 찾지 못했습니다.")
+
+        exec(code, execute_namespace)
+        generated_class = execute_namespace.get(class_name)
+        instance = generated_class(market, {'version': version, 'document_version': 1})
+        return instance

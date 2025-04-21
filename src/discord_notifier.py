@@ -260,7 +260,7 @@ RSI 지표:
         """스캘핑 결과를 Discord로 전송합니다."""
         try:
             # 이모지 설정
-            result_emoji = "🚀" if result.pnl >= 0 else "📉" # 더 의미있는 이모지 사용 가능
+            result_emoji = "🔥" if result.pnl >= 0 else "💧" # 더 의미있는 이모지 사용 가능
             
             # 시간 포맷팅
             holding_time_str = self.format_seconds(result.holding_seconds)
@@ -274,26 +274,33 @@ RSI 지표:
 ```md
 {result_emoji} 스캘핑 결과 요약 {result_emoji}
 
-[거래 성과]
-- 수익/손실   : {result.pnl:,.0f} KRW ({"+" if result.pnl >= 0 else ""}{result.profit_rate:.2f}%)
-- 누적 수익   : {result.acc_pnl:,.0f} KRW
-- 누적 수익률 : {result.acc_profit_rate:.2f}%
+[기본 정보]
+- 마켓 : {result.market}
+
+[거래 정보]
+- 매수가 : {result.entry_price:,.0f} KRW 
+- 매도가 : {result.exit_price:,.0f} KRW
+- 수익/손실 : {result.pnl:,.0f} KRW
+- 수익률 : {(result.exit_price-result.entry_price)/result.entry_price:.2f}%
 
 [거래 통계]
-- 총 거래 횟수: {result.trade_count} 회
-- 승리 횟수   : {result.win_count} 회
-- 패배 횟수   : {result.loss_count} 회
-- 승률        : {result.win_rate:.1f}%
+- 총 거래 횟수 : {result.trade_count} 회
+- 승리 횟수 : {result.win_count} 회
+- 승률 : {(result.win_count/result.trade_count)*100:.1f}%
 
 [상세 정보]
-- 매수가 : {result.entry_price:,.0f} KRW
-- 매도가 : {result.exit_price:,.0f} KRW
+- 거래수량 : {result.volume}
+- 거래금액 : {result.entry_price*result.volume:,.0f} KRW
 - 홀딩 시간: {holding_time_str}
 - 총 운영 시간: {total_time_str}
 
 [누적 금액]
-- 매수 총액   : {result.entry_total_price:,.0f} KRW
-- 매도 총액   : {result.exit_total_price:,.0f} KRW
+- 누적 수익 : {result.acc_pnl:,.0f} KRW
+- 누적 수수료 : {result.fee:,.0f} KRW
+- 매수 총액 : {result.entry_total_price:,.0f} KRW
+
+[거래 이유]
+- {result.reason}
 ```
 """
             # Discord로 메시지 전송

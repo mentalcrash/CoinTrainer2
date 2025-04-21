@@ -29,9 +29,12 @@ class SignalStrategy(ABC):
         """매수 시그널 발생 여부"""
         pass
 
-    @abstractmethod
     def should_sell(self, current_price: float) -> Tuple[bool, str]:
-        pass
+        if current_price >= self.target_price:
+            return True, f'목표가에 도달했습니다\n현재가 {int(current_price)}, 목표가 {int(self.target_price)}'
+        elif current_price <= self.stop_loss_price:
+            return True, f'손절가에 도달했습니다\n현재가 {int(current_price)}, 손절가 {int(self.stop_loss_price)}'
+        return False, "매도 신호 없음"
     
     def set_entry_price(self, price: float):
         self.entry_price = price

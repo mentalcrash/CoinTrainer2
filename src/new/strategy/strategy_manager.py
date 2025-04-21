@@ -8,12 +8,15 @@ from src.new.strategy.strategy_params import StrategyParams
 from src.new.sheet.strategy_score_sheet import StrategyScoreSheet, StrategyScoreSheetData
 from src.new.scalping_analyzer import Result
 from typing import Optional
-
+from src.new.sheet.ai_strategy_score_sheet import AiStrategyScoreSheet, AiStrategyScoreSheetData
+from src.new.sheet.ai_generated_strategy_sheet import AiGeneratedStrategySheet, AiGeneratedStrategySheetData
+from src.new.strategy.strategy_generator import StrategyGenerator
 class StrategyManager:
     def __init__(self, config_path: str = 'src/new/config.json'):
         self.config_path = config_path
         self.config = self.load_config()
         self.trading_logger = TradingLogger()
+        self.strategy_generator = StrategyGenerator()
         
     def load_config(self):
         with open(self.config_path, 'r') as f:
@@ -42,6 +45,46 @@ class StrategyManager:
                 self.create_strategy_params(market, strategy_name, params)
             self.create_strategy_score(market, strategy_name, params.document_version, params.version)
             return VolatilityBreakoutSignal(market, params)
+        
+    def get_ai_strategy(self, market: str) -> SignalStrategy:
+        score_sheet = AiStrategyScoreSheet()
+        conditions = {"market": market}
+        score_dict_list = score_sheet.get_data_many(conditions=conditions)
+        if score_dict_list:
+            score_list = [AiStrategyScoreSheetData.from_dict(score) for score in score_dict_list]
+            max_version = max([score.version for score in score_list])
+            strategy_sheet = AiGeneratedStrategySheet()
+            conditions = {"version": max_version}
+            strategy_data_list = strategy_sheet.get_data_many(conditions=conditions)
+            if strategy_data_list:
+                strategy_data = strategy_data_list[-1]
+                return self.strategy_generator.execute_code(market, strategy_data.version, strategy_data.code)
+            else:
+                version, code = self.strategy_generator.generate_latest()
+                return self.strategy_generator.execute_code(market, version, code)                
+        else:
+            score_sheet.append(AiStrategyScoreSheetData(market=market, version=1, pnl=0, trade_count=0, win_count=0, entry_total_price=0, fee=0, elapsed_seconds=0))
+            strategy_sheet = AiGeneratedStrategySheet()
+            conditions = {"version": 1}
+            data_list = strategy_sheet.get_data_many(conditions=conditions)
+            if data_list:
+                strategy_data = data_list[-1]
+                return self.strategy_generator.execute_code(market, 1, strategy_data.code)
+            else:
+                version, code = self.strategy_generator.generate_latest()
+                return self.strategy_generator.execute_code(market, version, code)                
+            
+    def create_next_score_sheet(self, market: str) -> AiStrategyScoreSheet:
+        score_sheet = AiStrategyScoreSheet()
+        score_dict_list = score_sheet.get_data_many(conditions={"market": market})
+        if score_dict_list:
+            score_list = [AiStrategyScoreSheetData.from_dict(score) for score in score_dict_list]
+            max_version = max([score.version for score in score_list])
+            next_version = max_version + 1
+        else:
+            next_version = 1
+            
+        score_sheet.append(AiStrategyScoreSheetData(market=market, version=next_version, pnl=0, trade_count=0, win_count=0, entry_total_price=0, fee=0, elapsed_seconds=0))
 
     def get_strategy_params_from_dict(self, strategy: str, default_params: dict) -> StrategyParams:
         if strategy == 'VolatilityBreakoutSignal':
@@ -50,26 +93,52 @@ class StrategyManager:
             raise ValueError(f"지원하지 않는 전략입니다: {strategy}")
         
     def accumulate_strategy_score(self, market: str, strategy: SignalStrategy, result: Result):
-        if strategy.get_name() == 'VolatilityBreakoutSignal':
-            sheet = StrategyScoreSheet()
-            sheet.update_data(conditions={"market": market, 
-                                          "strategy": strategy.get_name(),
-                                          "document_version": strategy.params.document_version,
-                                          "version": strategy.params.version},
-                            updates={"pnl": result.acc_pnl,
-                                    "profit_rate": result.acc_profit_rate,
-                                    "trade_count": result.trade_count,
-                                    "win_count": result.win_count,
-                                    "loss_count": result.loss_count,
-                                    "win_rate": result.win_rate,
-                                    "loss_rate": result.loss_rate,
-                                    "entry_total_price": result.entry_total_price,
-                                    "exit_total_price": result.exit_total_price,
-                                    "elapsed_seconds": result.acc_elapsed_seconds,
-                                    })
+        score_sheet = AiStrategyScoreSheet()
+        score_sheet.update_data(
+            conditions={
+                "market": market,
+                "version": strategy.params['version']
+            },
+            updates={
+                "pnl": result.acc_pnl,
+                "trade_count": result.trade_count,
+                "win_count": result.win_count,
+                "entry_total_price": result.entry_total_price,
+                "elapsed_seconds": result.acc_elapsed_seconds,
+                "fee": result.fee
+            }
+        )
+        
+        # if strategy.get_name() == 'VolatilityBreakoutSignal':
+        #     sheet = StrategyScoreSheet()
+        #     sheet.update_data(conditions={"market": market, 
+        #                                   "strategy": strategy.get_name(),
+        #                                   "document_version": strategy.params.document_version,
+        #                                   "version": strategy.params.version},
+        #                     updates={"pnl": result.acc_pnl,
+        #                             "profit_rate": result.acc_profit_rate,
+        #                             "trade_count": result.trade_count,
+        #                             "win_count": result.win_count,
+        #                             "loss_count": result.loss_count,
+        #                             "win_rate": result.win_rate,
+        #                             "loss_rate": result.loss_rate,
+        #                             "entry_total_price": result.entry_total_price,
+        #                             "exit_total_price": result.exit_total_price,
+        #                             "elapsed_seconds": result.acc_elapsed_seconds,
+        #                             })
             
+        # else:
+        #     raise ValueError(f"지원하지 않는 전략입니다: {strategy}")
+    
+    def find_ai_strategy_score(self, market: str, version: int) -> AiStrategyScoreSheetData:
+        score_sheet = AiStrategyScoreSheet()
+        conditions = {"market": market,
+                      "version": version}
+        score_dict_list = score_sheet.get_data_many(conditions=conditions)
+        if score_dict_list:
+            return AiStrategyScoreSheetData.from_dict(score_dict_list[-1])
         else:
-            raise ValueError(f"지원하지 않는 전략입니다: {strategy}")
+            return None
         
     def find_strategy_score(self, market: str, strategy: str, document_version: Optional[int] = None, version: Optional[int] = None) -> StrategyScoreSheetData:
         if strategy == 'VolatilityBreakoutSignal':
