@@ -1,4 +1,5 @@
 from src.new.scalping_trader import ScalpingTrader
+from src.new.strategy.strategy_generator import StrategyGenerator
 import logging
 import os
 from datetime import datetime
@@ -37,6 +38,12 @@ def setup_logging():
         logging.info("통합 로깅 설정 완료. 로그 파일: %s", log_filename)
 
 if __name__ == "__main__":
-    setup_logging()
-    scalping_trader = ScalpingTrader(market="KRW-BTC") 
-    scalping_trader.run_forever()
+    # setup_logging()
+    # scalping_trader = ScalpingTrader(market="KRW-BTC") 
+    # scalping_trader.run_forever()
+    
+    strategy_generator = StrategyGenerator()
+    code = strategy_generator.generate_auto()
+    print(code)
+    
+    

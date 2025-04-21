@@ -132,3 +132,6 @@ class StrategyManager:
             sheet.append(params)
         else:
             raise ValueError(f"지원하지 않는 전략입니다: {strategy}")
+
+
+        

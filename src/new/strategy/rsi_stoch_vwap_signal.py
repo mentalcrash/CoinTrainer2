@@ -4,6 +4,7 @@ from src.new.calculator.rsi_calculator import RSICalculator
 from src.new.calculator.stoch_rsi_calculator import StochRSICalculator
 from src.new.calculator.vwap_calculator import VWAPCalculator
 from typing import Tuple
+
 class RSIStochVWAPSignal(SignalStrategy):
     def should_buy(self) -> bool:
         candles = self.api_client.get_candles(self.market, interval="1m", limit=30).candles
