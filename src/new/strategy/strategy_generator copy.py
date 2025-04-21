@@ -18,34 +18,22 @@ class StrategyGenerator:
         template_code = open('src/new/strategy/template_signal.py', 'r').read()
         system_prompt = """
 이 클래스는 코인 스캘핑 매매 시그널을 위한 클래스입니다.
-당신은 최고의 소프트웨어 엔지니어로서, **다양한 조합**으로 최고 수익률을 노립니다.
-
-▼ 지표 카테고리
-① Trend      : SMA, EMA, WMA, ADX
-② Momentum   : RSI, CCI, Stoch, MACD, TSI
-③ Volatility : BollingerBands, ATR, Keltner, Donchian
-④ Volume     : OBV, VWAP, VolumeSurge, ChaikinAD
-⑤ Orderbook  : Spread, DepthImbalance, VWAPShift, TickRatio
-
-규칙
-1. 매 호출마다 서로 다른 카테고리에서 **3~4개 지표를 무작위 선택**하여 조합한다.  
-2. **직전 응답과 지표가 2개 이상 겹치면 안 된다.**  
-   (필요 시 `previous_indicators` 변수를 참고)  
-3. 각 지표의 period·multiplier 는 `random.randint / random.uniform` 등을 사용해 호출 시마다 달라지도록 설정한다.  
-4. 코드만 반환(``` 태그 금지)ㆍexec 오류 없어야 한다.
+당신은 최고의 소프트웨어 엔지니어로서, 최고의 수익률을 목표로 합니다.
+정형화된 방법이 아닌 다양하고 창의적인 방법으로 매매 시그널을 구현해야 합니다.
+코드는 즉시 실전에 투입할 수 있는 수준이어야 하며, 효율성과 가독성, 유지보수성이 높아야 합니다.
+응답은 반드시 코드 형식으로 반환해주세요.
+```python 태그는 사용하지 말고 순수 코딩만 반환해주세요.
+exec() 실행 시 오류가 발생하지 않도록 주의해주세요.
 """
         
         user_prompt = f"""
-요구사항
-- 'Template' 이라는 단어를 전략 핵심을 드러내는 이름으로 교체하십시오.
-- 반드시 should_buy() 를 구현하고, 선택한 3~4개 지표만 사용하십시오.
-- 중복 API 호출을 피하고 예외를 처리해 연속성을 보장하십시오.
-- 수치 기준(예: RSI < 25, EMA 5 > EMA 20)을 코드에 명시하십시오.
-- **지난 응답에 사용된 지표 목록은 previous_indicators 변수로 전달됩니다.**  
-  새 전략은 이 목록과 2개 이상 겹치면 안 됩니다.
-- 함수 시그니처·매개변수·반환값은 변경 불가, 주석은 한글로 작성하십시오.
-
-아래 템플릿 외에는 참고 자료가 없습니다.
+이 클래스는 코인 스캘핑 매매 시그널을 위한 클래스입니다.
+당신은 최고의 소프트웨어 엔지니어로서, 최고의 수익률을 목표로 합니다.
+정형화된 방법이 아닌 다양하고 창의적인 방법으로 매매 시그널을 구현해야 합니다.
+코드는 즉시 실전에 투입할 수 있는 수준이어야 하며, 효율성과 가독성, 유지보수성이 높아야 합니다.
+응답은 반드시 코드 형식으로 반환해주세요.
+```python 태그는 사용하지 말고 순수 코딩만 반환해주세요.
+exec() 실행 시 오류가 발생하지 않도록 주의해주세요.
 
 {template_code}
 """

@@ -43,7 +43,7 @@ if __name__ == "__main__":
     # scalping_trader.run_forever()
     
     strategy_generator = StrategyGenerator()
-    code = strategy_generator.generate_auto()
+    code = strategy_generator.generate_latest()
     print(code)
     
     
