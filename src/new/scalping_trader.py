@@ -259,15 +259,23 @@ class ScalpingTrader:
             
             if self.stop:
                 break
-            
-        if time.time() - start_time < life_time:
-            score_sheet = AiStrategyScoreSheet()
-            score_sheet.update_data(
-                conditions={
-                    "market": self.market,
-                    "version": self.strategy.params['version']
-                },
-                updates={
-                    "elapsed_seconds": self.scalping_analyzer.acc_elapsed_seconds + (time.time() - start_time)
+        
+        score_sheet = AiStrategyScoreSheet()
+        score_sheet.update_data(
+            conditions={
+                "market": self.market,
+                "version": self.strategy.params['version']
+            },
+            updates={
+                "elapsed_seconds": self.scalping_analyzer.acc_elapsed_seconds + (time.time() - start_time)
             }
         )
+        
+        if not self.stop and self.scalping_analyzer.acc_elapsed_seconds < life_time:
+            hour = self.scalping_analyzer.acc_elapsed_seconds / 60 / 60
+            total_trade_count = self.scalping_analyzer.total_trade_count
+            if total_trade_count < hour:
+                self.strategy_manager.create_next_score_sheet(self.market)
+                self.discord_notifier.send_message(f"🔴 {self.market} 트레이딩 종료 - 이유: 총 거래 횟수 미달 {hour}시간 동안 {total_trade_count}회 in fun_forever")
+            
+            
