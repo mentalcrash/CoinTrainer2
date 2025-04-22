@@ -33,6 +33,7 @@ class StrategyGenerator:
    (필요 시 `previous_indicators` 변수를 참고)  
 3. 지표의 디테일한 값도 코드 생성 시 마다 다른게 되도록 한다.
 4. 코드만 반환(``` 태그 금지)ㆍexec 오류 없어야 한다.
+5. 실전 사용 코드이기 때문에 절대로 지표에 논리적인 오류가 있으면 안된다.
 """
         
         user_prompt = f"""
