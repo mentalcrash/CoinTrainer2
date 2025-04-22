@@ -44,7 +44,7 @@ class TemplateSignal(SignalStrategy):
         # bid_price: float # 매수 호가
         # ask_size: float # 매도 주문 수량
         # bid_size: float # 매수 주문 수량
-        orderbook: Orderbook = self.api_client.get_orderbook(self.market)[0]
+        orderbook: Orderbook = self.api_client.get_orderbook(self.market).orderbooks[0]
         
         # **Trade**
         # market: str # 마켓 구분 코드 (예: KRW-BTC)
@@ -58,6 +58,6 @@ class TemplateSignal(SignalStrategy):
         # ask_bid: str # 매도/매수 (ASK: 매도, BID: 매수)
         # sequential_id: Optional[int] # 체결 번호(Unique)
         # 사용전 정렬이 되어있는지 확인
-        trades: List[Trade] = self.api_client.get_trades(self.market, count=1)
+        trades: List[Trade] = self.api_client.get_trades(self.market, count=1).trades
         
         return result
