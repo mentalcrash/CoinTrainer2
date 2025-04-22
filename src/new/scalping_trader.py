@@ -179,7 +179,7 @@ class ScalpingTrader:
                          hold_duration_seconds: int = 0) -> str:
         """포지션 상태를 감시하며 목표가/손절가 도달 여부 판단"""
         entry_price = order_response.price_per_unit
-        interval_sec = 1
+        interval_sec = 0.1
         self.info(f"👀 포지션 모니터링 시작 (평균 진입가: {entry_price:,.0f}, 목표가: {target_price:,}, 손절가: {stop_loss_price:,}), 강제 홀드: {hold_duration_seconds}초") # self.logger.info -> self.info
         time.sleep(hold_duration_seconds)
         while True:
@@ -194,6 +194,7 @@ class ScalpingTrader:
                 # 주기적인 상태 로깅 (옵션)
                 # self.debug(f"현재가: {current_price:,.0f}") 
                 time.sleep(interval_sec)
+                interval_sec = min(interval_sec * 2, 1)
         return None
 
     def run_once(self):
@@ -224,7 +225,7 @@ class ScalpingTrader:
                 if exit_order and exit_order.state == "done":
                     self.info(f"💰 매도 완료 - 체결가: {exit_order.price_per_unit}, 수익률 계산 가능") # self.logger.info -> self.info
                     result = self.scalping_analyzer.analyze(entry_order, exit_order, reason)
-                    self.discord_notifier.send_scalping_result(result)
+                    self.discord_notifier.send_scalping_result(result, self.strategy.target_price, self.strategy.stop_loss_price)
                     self.strategy_manager.accumulate_strategy_score(self.market, self.strategy, result)
                     
                     if result.should_stop:
