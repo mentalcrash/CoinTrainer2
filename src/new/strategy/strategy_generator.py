@@ -15,7 +15,20 @@ class StrategyGenerator:
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         
     def create_prompt(self) -> Tuple[str, str]:
-        template_code = open('src/new/strategy/template_signal.py', 'r').read()
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        template_path = os.path.join(current_dir, 'template_signal.py')
+        
+        try:
+            # 절대 경로와 UTF-8 인코딩으로 파일 열기
+            template_code = open(template_path, 'r', encoding='utf-8').read()
+        except FileNotFoundError:
+            print(f"오류: 템플릿 파일({template_path})을 찾을 수 없습니다.")
+            # 적절한 오류 처리 (예: 기본 템플릿 사용, 예외 다시 발생 등)
+            raise # 또는 다른 처리
+        except Exception as e:
+            print(f"오류: 템플릿 파일({template_path})을 읽는 중 오류 발생: {e}")
+            raise # 또는 다른 처리
+        
         system_prompt = """
 이 클래스는 초단기 암호화폐 스캘핑 매매 시그널 생성을 위한 클래스입니다.
 당신은 최고의 소프트웨어 엔지니어로서, **안정적인 고수익률(목표 수익률: 최소 0.1% 이상/트레이드)을 달성하고, 리스크-리워드 비율(1:1.5 이상)을 확보하기 위해 최적의 지표와 로직을 창의적으로 조합합니다.**
