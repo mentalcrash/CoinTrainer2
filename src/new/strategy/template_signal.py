@@ -29,6 +29,7 @@ class TemplateSignal(SignalStrategy):
         # candle_acc_trade_price: float # 누적 거래 금액
         # candle_acc_trade_volume: float # 누적 거래량
         # unit: int # 분 단위 (예: 1분, 3분, 5분, 10분, 15분, 30분, 60분, 240분)
+        # 사용전 정렬이 되어있는지 확인
         candles: List[Candle] = self.api_client.get_candles(self.market, interval="1m", limit=30).candles
         
         # **Orderbook**
@@ -56,6 +57,7 @@ class TemplateSignal(SignalStrategy):
         # change_price: float # 변화량
         # ask_bid: str # 매도/매수 (ASK: 매도, BID: 매수)
         # sequential_id: Optional[int] # 체결 번호(Unique)
+        # 사용전 정렬이 되어있는지 확인
         trades: List[Trade] = self.api_client.get_trades(self.market, count=1)
         
         return result
