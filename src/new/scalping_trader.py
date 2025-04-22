@@ -213,11 +213,12 @@ class ScalpingTrader:
         
         if entry_order: # 매수 주문이 성공했을 때만 진입
             self.is_position = True
-            self.strategy.set_entry_price(entry_order.price_per_unit)
+            # self.strategy.set_entry_price(entry_order.price_per_unit)
+            self.strategy.set_target_and_stop_loss_price(entry_order.price_per_unit)
             # self.discord_notifier.send_start_scalping(entry_order, self.strategy.target_price, self.strategy.stop_loss_price)
             
             def monitoring():
-                reason = self.monitor_position(entry_order, self.strategy.target_price, self.strategy.stop_loss_price, hold_duration_seconds=3)
+                reason = self.monitor_position(entry_order, self.strategy.target_price, self.strategy.stop_loss_price)
                 exit_order = self.execute_exit_order(entry_order.total_volume)
                 
                 if exit_order and exit_order.state == "done":

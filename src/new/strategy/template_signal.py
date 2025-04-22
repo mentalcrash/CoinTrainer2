@@ -61,3 +61,9 @@ class TemplateSignal(SignalStrategy):
         trades: List[Trade] = self.api_client.get_trades(self.market, count=1).trades
         
         return result
+    
+    def set_target_and_stop_loss_price(self, entry_price: float):
+        return 
+    
+    def should_sell(self, current_price: float) -> Tuple[bool, str]:
+        return False, "매도 신호 없음"

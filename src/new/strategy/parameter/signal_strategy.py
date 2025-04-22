@@ -45,3 +45,8 @@ class SignalStrategy(ABC):
     def update_params(self, params: StrategyParams):
         """파라미터 업데이트"""
         self.params = params
+        
+    @abstractmethod
+    def set_target_and_stop_loss_price(self, entry_price: float):
+        """타겟 및 손절가 설정"""
+        pass
