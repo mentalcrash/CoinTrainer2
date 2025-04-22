@@ -38,12 +38,12 @@ def setup_logging():
         logging.info("통합 로깅 설정 완료. 로그 파일: %s", log_filename)
 
 if __name__ == "__main__":
-    setup_logging()
-    scalping_trader = ScalpingTrader(market="KRW-XRP") 
-    scalping_trader.run_forever()
+    # setup_logging()
+    # scalping_trader = ScalpingTrader(market="KRW-XRP") 1
+    # scalping_trader.run_forever()
     
-    # strategy_generator = StrategyGenerator()
-    # code = strategy_generator.generate_latest()
-    # print(code)
+    strategy_generator = StrategyGenerator()
+    code = strategy_generator.generate_latest(model="o4-mini-2025-04-16")
+    print(code)
     
     

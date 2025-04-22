@@ -4,6 +4,7 @@ from src.new.api.bithumb.client import BithumbApiClient
 from src.new.models.bithumb.response import Candle, Ticker, Orderbook
 from src.new.strategy.strategy_params import StrategyParams
 from src.new.calculator.target_calculator import TargetCalculator
+import logging
 
 class SignalStrategy(ABC):
     def __init__(self, market: str, params: StrategyParams):
@@ -15,6 +16,7 @@ class SignalStrategy(ABC):
         self.entry_price: float = None
         self.target_price: float = None
         self.stop_loss_price: float = None
+        self.logger = logging.getLogger()
     
     @abstractmethod
     def get_name(self) -> str:

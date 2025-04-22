@@ -42,6 +42,7 @@ class StrategyGenerator:
 - 중복 API 호출을 피하고 예외를 처리해 연속성을 보장하십시오.
 - 수치 기준(예: RSI < 25, EMA 5 > EMA 20)을 get_description()에 명시하십시오.
 - 지표를 로그에 출력하세요
+- 로그 출력은 self.logger 를 사용하여 출력하세요. (부모에 있는 logger 사용)
 - **지난 응답에 사용된 지표 목록은 previous_indicators 변수로 전달됩니다.**  
   새 전략은 이 목록과 2개 이상 겹치면 안 됩니다.
 - 데이터 사용시 시간상 정렬을 확인한다
@@ -59,8 +60,7 @@ class StrategyGenerator:
             input=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.8
+            ]
         )
         
         return response.output_text
