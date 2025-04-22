@@ -1,3 +1,4 @@
+
 import logging
 import time
 import os
@@ -13,7 +14,7 @@ from src.new.calculator.target_calculator import TargetCalculator
 from src.new.strategy.strategy_manager import StrategyManager
 from src.new.scalping_analyzer import ScalpingAnalyzer
 from src.discord_notifier import DiscordNotifier
-
+from src.new.sheet.ai_strategy_score_sheet import AiStrategyScoreSheet
 class ScalpingTrader:
     def __init__(self, market: str):
         """
@@ -258,3 +259,15 @@ class ScalpingTrader:
             
             if self.stop:
                 break
+            
+        if time.time() - start_time < life_time:
+            score_sheet = AiStrategyScoreSheet()
+            score_sheet.update_data(
+                conditions={
+                    "market": self.market,
+                    "version": self.strategy.params['version']
+                },
+                updates={
+                    "elapsed_seconds": self.scalping_analyzer.acc_elapsed_seconds + (time.time() - start_time)
+            }
+        )
