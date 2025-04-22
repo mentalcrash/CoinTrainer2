@@ -260,19 +260,21 @@ class ScalpingTrader:
             if self.stop:
                 break
         
-        score_sheet = AiStrategyScoreSheet()
-        score_sheet.update_data(
-            conditions={
-                "market": self.market,
-                "version": self.strategy.params['version']
-            },
-            updates={
-                "elapsed_seconds": self.scalping_analyzer.acc_elapsed_seconds + (time.time() - start_time)
-            }
-        )
-        
-        if not self.stop and self.scalping_analyzer.acc_elapsed_seconds < life_time:
-            hour = self.scalping_analyzer.acc_elapsed_seconds / 60 / 60
+        # 시간에 의한 종료
+        if not self.stop and time.time() - start_time > life_time:
+            acc_elapsed_seconds = self.scalping_analyzer.acc_elapsed_seconds + (time.time() - start_time)
+            score_sheet = AiStrategyScoreSheet()
+            score_sheet.update_data(
+                conditions={
+                    "market": self.market,
+                    "version": self.strategy.params['version']
+                },
+                updates={
+                    "elapsed_seconds": acc_elapsed_seconds
+                }
+            )
+            
+            hour = acc_elapsed_seconds / 60 / 60
             total_trade_count = self.scalping_analyzer.total_trade_count
             if total_trade_count < hour:
                 self.strategy_manager.create_next_score_sheet(self.market)
