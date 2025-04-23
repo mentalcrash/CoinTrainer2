@@ -10,10 +10,10 @@ class TargetCalculator:
         orderbook_res = api_client.get_orderbook(self.market)
         
         self.tick_size = self.get_tick_size(orderbook_res.orderbooks[0])
-        self.take_ticks = 5
+        self.take_ticks = 2
         self.stop_ticks = 2
-        self.take_profit_rate = 0.001
-        self.stop_loss_rate = 0.0005
+        self.take_profit_rate = 0.0005
+        self.stop_loss_rate = 0.00025
         
     def get_tick_size(self, orderbook: Orderbook) -> float:
         orderbook_units = orderbook.orderbook_units

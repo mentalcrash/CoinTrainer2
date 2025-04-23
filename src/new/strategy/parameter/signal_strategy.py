@@ -27,7 +27,7 @@ class SignalStrategy(ABC):
         pass
       
     @abstractmethod
-    def should_buy(self) -> bool:
+    def should_buy(self) -> Tuple[bool, float, float]:
         """매수 시그널 발생 여부"""
         pass
 
@@ -46,7 +46,6 @@ class SignalStrategy(ABC):
         """파라미터 업데이트"""
         self.params = params
         
-    @abstractmethod
     def set_target_and_stop_loss_price(self, entry_price: float):
-        """타겟 및 손절가 설정"""
-        pass
+        self.entry_price = entry_price
+        self.target_price, self.stop_loss_price = self.target_calculator.calculate(self.entry_price)

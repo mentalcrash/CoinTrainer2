@@ -16,7 +16,7 @@ class TemplateSignal(SignalStrategy):
         return "Template description"
 
     # 매수를 결정하기 위한 함수
-    def should_buy(self) -> bool:
+    def should_buy(self) -> Tuple[bool, float, float]:
         # **Candle**
         # market: str #  시장 정보 (예: KRW-BTC)
         # candle_date_time_utc: str # UTC 기준 캔들 생성 시각
@@ -61,9 +61,3 @@ class TemplateSignal(SignalStrategy):
         trades: List[Trade] = self.api_client.get_trades(self.market, count=1).trades
         
         return result
-    
-    def set_target_and_stop_loss_price(self, entry_price: float):
-        return 
-    
-    def should_sell(self, current_price: float) -> Tuple[bool, str]:
-        return False, "매도 신호 없음"
