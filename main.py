@@ -72,7 +72,6 @@ def main():
     # 처리할 심볼 리스트 정의
     scalping_candidate_selector = ScalpingCandidateSelector()
     markets = [ticker.market for ticker in scalping_candidate_selector.select_candidates()]
-    markets = markets[:5]
 
     # 로깅 설정 호출 (스레드 시작 전)
     setup_logging()
@@ -86,7 +85,7 @@ def main():
         thread = threading.Thread(target=run_trader, args=(market,), name=thread_name)
         threads.append(thread)
         thread.start() # 스레드 시작
-        # time.sleep(1) # 필요 시 API 요청 분산을 위한 딜레이
+        time.sleep(30) # 필요 시 API 요청 분산을 위한 딜레이
 
     # 모든 스레드가 종료될 때까지 대기
     for thread in threads:
