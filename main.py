@@ -72,7 +72,7 @@ def main():
     # 처리할 심볼 리스트 정의
     scalping_candidate_selector = ScalpingCandidateSelector()
     markets = [ticker.market for ticker in scalping_candidate_selector.select_candidates()]
-    markets = markets[:1]
+    markets = markets[:5]
 
     # 로깅 설정 호출 (스레드 시작 전)
     setup_logging()
