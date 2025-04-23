@@ -51,6 +51,7 @@ class SignalStrategy(ABC):
         self.params = params
         
     def set_target_and_stop_loss_price(self, entry_price: float, target_price: float, stop_loss_price: float):
+        self.entry_time = datetime.now()
         self.entry_price = entry_price
         self.target_price = target_price
         self.stop_loss_price = stop_loss_price
