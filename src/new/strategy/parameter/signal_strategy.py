@@ -46,6 +46,7 @@ class SignalStrategy(ABC):
         """파라미터 업데이트"""
         self.params = params
         
-    def set_target_and_stop_loss_price(self, entry_price: float):
+    def set_target_and_stop_loss_price(self, entry_price: float, target_price: float, stop_loss_price: float):
         self.entry_price = entry_price
-        self.target_price, self.stop_loss_price = self.target_calculator.calculate(self.entry_price)
+        self.target_price = target_price
+        self.stop_loss_price = stop_loss_price
