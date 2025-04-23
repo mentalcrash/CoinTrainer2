@@ -4,6 +4,7 @@ from src.new.api.bithumb.client import BithumbApiClient
 from src.new.models.bithumb.response import Candle, Ticker, Orderbook
 from src.new.strategy.strategy_params import StrategyParams
 from src.new.calculator.target_calculator import TargetCalculator
+from datetime import datetime, timedelta
 import logging
 
 class SignalStrategy(ABC):
@@ -36,9 +37,12 @@ class SignalStrategy(ABC):
             return True, f'목표가에 도달했습니다\n현재가 {int(current_price)}, 목표가 {int(self.target_price)}'
         elif current_price <= self.stop_loss_price:
             return True, f'손절가에 도달했습니다\n현재가 {int(current_price)}, 손절가 {int(self.stop_loss_price)}'
+        elif datetime.now() - self.entry_time > timedelta(minutes=10):
+            return True, f'10분 소요 후 매도'
         return False, "매도 신호 없음"
     
     def set_entry_price(self, price: float):
+        self.entry_time = datetime.now()
         self.entry_price = price
         self.target_price, self.stop_loss_price = self.target_calculator.calculate(self.entry_price)
     
