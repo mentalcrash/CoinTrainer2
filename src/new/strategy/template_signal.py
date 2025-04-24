@@ -15,49 +15,53 @@ class TemplateSignal(SignalStrategy):
     def get_description(self) -> str:
         return "Template description"
 
-    # 매수를 결정하기 위한 함수
+    # 매수를 결정하기 위한 함수 (캐싱하지 않고 실시간 데이터 호출)
     def should_buy(self) -> Tuple[bool, float, float]:
-        # **Candle**
-        # market: str #  시장 정보 (예: KRW-BTC)
-        # candle_date_time_utc: str # UTC 기준 캔들 생성 시각
-        # candle_date_time_kst: str # KST 기준 캔들 생성 시각
-        # opening_price: float # 시가
-        # high_price: float # 고가
-        # low_price: float # 저가
-        # trade_price: float # 종가(체결가)
-        # timestamp: int # 타임스탬프 (밀리초)
-        # candle_acc_trade_price: float # 누적 거래 금액
-        # candle_acc_trade_volume: float # 누적 거래량
-        # unit: int # 분 단위 (예: 1분, 3분, 5분, 10분, 15분, 30분, 60분, 240분)
-        # 사용전 정렬이 되어있는지 확인
-        candles: List[Candle] = self.api_client.get_candles(self.market, interval="1m", limit=30).candles
-        
-        # **Orderbook**
-        # market: str # 시장 정보 (예: KRW-BTC)
-        # timestamp: int # 타임스탬프 (밀리초)
-        # total_ask_size: float # 총 매도 주문 수량
-        # total_bid_size: float # 총 매수 주문 수량
-        # orderbook_units: List[OrderbookUnit] # 호가 단위 목록
-        
-        # **OrderbookUnit**
-        # ask_price: float # 매도 호가
-        # bid_price: float # 매수 호가
-        # ask_size: float # 매도 주문 수량
-        # bid_size: float # 매수 주문 수량
-        orderbook: Orderbook = self.api_client.get_orderbook(self.market).orderbooks[0]
-        
-        # **Trade**
-        # market: str # 마켓 구분 코드 (예: KRW-BTC)
-        # trade_date_utc: str # 체결 일자(UTC 기준) 포맷: yyyy-MM-dd
-        # trade_time_utc: str # 체결 시각(UTC 기준) 포맷: HH:mm:ss
-        # timestamp: int # 체결 타임스탬프
-        # trade_price: float # 체결 가격
-        # trade_volume: float # 체결량
-        # prev_closing_price: float # 전일 종가(UTC 0시 기준)
-        # change_price: float # 변화량
-        # ask_bid: str # 매도/매수 (ASK: 매도, BID: 매수)
-        # sequential_id: Optional[int] # 체결 번호(Unique)
-        # 사용전 정렬이 되어있는지 확인
-        trades: List[Trade] = self.api_client.get_trades(self.market, count=1).trades
-        
-        return result
+        # 실시간 Candle 데이터 호출 (캐싱 없음)
+        candles_response = self.api_client.get_candles(self.market, interval="1m", limit=30)
+        if not candles_response or not candles_response.candles:
+            self.logger.warning("캔들 데이터 API 호출 실패로 매수 판단 보류")
+            return False, 0.0, 0.0
+
+        candles: List[Candle] = candles_response.candles
+        candles.sort(key=lambda c: c.timestamp)  # 오름차순 정렬 명시적으로 보장
+
+        # 실시간 Orderbook 데이터 호출
+        orderbook_response = self.api_client.get_orderbook(self.market)
+        if not orderbook_response or not orderbook_response.orderbooks:
+            self.logger.warning("호가창 데이터 API 호출 실패로 매수 판단 보류")
+            return False, 0.0, 0.0
+
+        orderbook: Orderbook = orderbook_response.orderbooks[0]
+
+        # 실시간 최근 체결(trade) 데이터 호출
+        trades_response = self.api_client.get_trades(self.market, count=1)
+        if not trades_response or not trades_response.trades:
+            self.logger.warning("최근 체결 데이터 API 호출 실패로 매수 판단 보류")
+            return False, 0.0, 0.0
+
+        trades: List[Trade] = trades_response.trades
+        trades.sort(key=lambda t: t.timestamp)  # 오름차순 정렬 명시적으로 보장
+
+        # ---------------------------------------------------
+        # 여기서부터 지표 계산, ATR 기반 목표가와 손절가 설정 등
+        # 매수 조건 평가 로직을 구체적으로 작성하십시오.
+        # ---------------------------------------------------
+
+        # 조건 예시 (구체적 로직으로 반드시 변경 필요)
+        should_enter_trade = True  # 실제 조건 평가 로직 필요
+
+        current_price = trades[-1].trade_price
+        atr_value = 50.0  # 실제 ATR 계산으로 변경 필요 (예시용 고정값)
+
+        # 목표가와 손절가를 ATR의 0.5배로 예시 설정
+        target_price = current_price + (atr_value * 0.5)
+        stop_loss_price = current_price - (atr_value * 0.5)
+
+        # 최종 결정 결과 상세 로그
+        self.logger.info(
+            f"매수 판단: {should_enter_trade}, 현재가: {current_price}, "
+            f"목표가: {target_price}, 손절가: {stop_loss_price}, ATR: {atr_value}"
+        )
+
+        return should_enter_trade, target_price, stop_loss_price
