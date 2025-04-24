@@ -55,9 +55,15 @@ class StrategyGenerator:
 요구사항:
 - 클래스와 메서드 이름을 초단기(15초 단위) 전략의 핵심을 명확히 나타내도록 설정하십시오.
   (예: MicroMomentumScalper, OrderbookPressureScalper 등)
-- should_buy()의 반환 값은 반드시 Tuple[bool, float, float]이며,
-  매매 결정 여부(True/False), 목표가(target_price), 손절가(stop_loss_price)를 순서대로 반환합니다.
-  - 예시: `(True, 25000.0, 24950.0)`
+- should_buy()의 반환 값은 반드시 Tuple[bool, str]이며,
+  매매 결정 여부(True/False), 진입 이유(str)를 순서대로 반환합니다.
+  - 예시: `(True, "매수 신호 발생")`
+- set_entry_price()의 반환 값은 반드시 Tuple[float, float]이며,
+  목표가(float), 손절가(float)를 순서대로 반환합니다.
+  - 예시: `(25000.0, 24950.0)`
+- should_sell()의 반환 값은 반드시 Tuple[bool, str]이며,
+  매도 결정 여부(True/False), 매도 이유(str)를 순서대로 반환합니다.
+  - 예시: `(True, "목표가 도달 – 현재가 25000, 목표가 25050")`
 - 15초마다 매수 여부를 판단하므로, 진입 결정은 반드시 **실시간 호가창(Orderbook)의 매수 우위 조건과 초단기 모멘텀 지표 조건을 모두 만족할 때만 True를 반환**합니다.
 - 진입 직후 목표가 및 손절가는 **1분봉 ATR의 0.3~0.7배 이내에서 좁게 설정**하여 초단기 변동성에 적합하도록 합니다.
 - **캔들, orderbook, 최근 체결(trade) 데이터를 포함한 모든 데이터는 반드시 호출 시마다 실시간 API를 사용하여 최신 상태를 유지합니다. 절대로 데이터를 캐싱하지 않습니다.**
@@ -65,8 +71,6 @@ class StrategyGenerator:
 - 진입 조건 평가 과정, ATR 계산, 목표가 및 손절가 설정 등 모든 주요 판단 과정과 결정 이유를 self.logger에 매우 상세히 기록합니다.
 - 선택된 지표, timeframe, 조건(예: RSI(1분,14)<30, DepthImbalance(실시간)>120%) 등을 get_description()에 명확히 기술하십시오.
 - 함수 시그니처 및 주석은 변경하지 않으며, 모든 주석은 한글로 작성하십시오.
-
-다음은 수정된 함수 템플릿 예시입니다.
 
 다음은 코드 템플릿입니다:
 

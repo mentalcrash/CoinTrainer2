@@ -6,6 +6,7 @@ from src.new.strategy.strategy_params import StrategyParams
 from src.new.calculator.target_calculator import TargetCalculator
 from datetime import datetime, timedelta
 import logging
+from math import ceil, floor
 
 class SignalStrategy(ABC):
     def __init__(self, market: str, params: StrategyParams):
@@ -28,7 +29,7 @@ class SignalStrategy(ABC):
         pass
       
     @abstractmethod
-    def should_buy(self) -> Tuple[bool, float, float]:
+    def should_buy(self) -> Tuple[bool, str]:
         """매수 시그널 발생 여부"""
         pass
 
