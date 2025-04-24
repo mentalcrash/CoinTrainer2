@@ -80,15 +80,16 @@ class StrategyManager:
                 score_sheet.append(AiStrategyScoreSheetData(market=market, version=strategy_data.version, pnl=0, trade_count=0, win_count=0, entry_total_price=0, fee=0, elapsed_seconds=0))
                 return self.strategy_generator.execute_code(market, strategy_data.version, strategy_data.code)                
         else:
-            score_sheet.append(AiStrategyScoreSheetData(market=market, version=1, pnl=0, trade_count=0, win_count=0, entry_total_price=0, fee=0, elapsed_seconds=0))
             strategy_sheet = AiGeneratedStrategySheet()
             conditions = {"active": True}
             data_list = strategy_sheet.get_data_many(conditions=conditions)
             if data_list:
                 strategy_data = data_list[0]
+                score_sheet.append(AiStrategyScoreSheetData(market=market, version=strategy_data.version, pnl=0, trade_count=0, win_count=0, entry_total_price=0, fee=0, elapsed_seconds=0))
                 return self.strategy_generator.execute_code(market, strategy_data.version, strategy_data.code)
             else:
                 sheet_data = self.strategy_generator.generate_latest()
+                score_sheet.append(AiStrategyScoreSheetData(market=market, version=sheet_data.version, pnl=0, trade_count=0, win_count=0, entry_total_price=0, fee=0, elapsed_seconds=0))
                 return self.strategy_generator.execute_code(market, sheet_data.version, sheet_data.code)                
             
     def create_next_score_sheet(self, market: str) -> AiStrategyScoreSheet:
