@@ -33,6 +33,7 @@ class TemplateSignal(SignalStrategy):
             return False, 0.0, 0.0
 
         orderbook: Orderbook = orderbook_response.orderbooks[0]
+        orderbook_units: List[OrderbookUnit] = orderbook.orderbook_units
 
         # 실시간 최근 체결(trade) 데이터 호출
         trades_response = self.api_client.get_trades(self.market, count=1)
