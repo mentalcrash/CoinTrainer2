@@ -280,10 +280,10 @@ RSI 지표:
 [거래 정보]
 - 매수가 : {result.entry_price:,.0f} KRW 
 - 매도가 : {result.exit_price:,.0f} KRW
-- 목표가 : {target_price:,.0f} KRW (수익률: {(target_price-result.entry_price)/result.entry_price:.2f}%)
-- 손절가 : {stop_loss_price:,.0f} KRW (손실률: {(stop_loss_price-result.entry_price)/result.entry_price:.2f}%)
+- 목표가 : {target_price:,.0f} KRW (수익률: {((target_price-result.entry_price)/result.entry_price)*100:.2f}%)
+- 손절가 : {stop_loss_price:,.0f} KRW (손실률: {((stop_loss_price-result.entry_price)/result.entry_price)*100:.2f}%)
 - 수익/손실 : {result.pnl:,.0f} KRW (수수료포함)
-- 수익률 : {(result.exit_price-result.entry_price)/result.entry_price:.2f}%
+- 수익률 : {((result.exit_price-result.entry_price)/result.entry_price)*100:.2f}%
 
 [거래 통계]
 - 총 거래 횟수 : {result.trade_count} 회
