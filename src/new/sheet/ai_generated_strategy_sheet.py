@@ -15,7 +15,7 @@ class AiGeneratedStrategySheetData:
     @classmethod
     def from_dict(cls, data: dict) -> 'AiGeneratedStrategySheetData':
         data['created_at'] = datetime.strptime(data['created_at'], '%Y-%m-%d %H:%M:%S') 
-        data['active'] = True if data['active'] == 'True' else False
+        data['active'] = True if data['active'] == 'True' or 'TRUE' else False
         return cls(**data)
     
     def to_str_list(self) -> list[str]:
