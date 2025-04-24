@@ -90,7 +90,7 @@ class StrategyGenerator:
         code = self.create_from_gpt(system_prompt, user_prompt, model)
         return code
 
-    def generate_latest(self, model: str = "o4-mini-2025-04-16") -> Tuple[int, str]:
+    def generate_latest(self, model: str = "o4-mini-2025-04-16") -> AiGeneratedStrategySheetData:
         next_version = 1
         sheet = AiGeneratedStrategySheet()
         data_list = sheet.get_data_many(conditions={})
@@ -114,7 +114,7 @@ class StrategyGenerator:
         )
         
         sheet.append(sheet_data)
-        return next_version, code
+        return sheet_data
 
     def execute_code(self, market: str, version: int, code: str) -> SignalStrategy:
         execute_namespace = {'SignalStrategy': SignalStrategy, 
