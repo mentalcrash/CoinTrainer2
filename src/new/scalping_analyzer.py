@@ -87,7 +87,7 @@ class ScalpingAnalyzer:
         elapsed_seconds = (datetime.now() - self.created_at).total_seconds()
         acc_elapsed_seconds = elapsed_seconds + self.acc_elapsed_seconds
         
-        acc_hours = acc_elapsed_seconds / 60 / 60
+        acc_days = acc_elapsed_seconds / 60 / 60 / 24
         
         should_stop = False
         stop_reason = None
@@ -104,7 +104,7 @@ class ScalpingAnalyzer:
         elif self.total_trade_count >= 20 and win_rate <= 0.5:
             should_stop = True
             stop_reason = "승률 초과, 총 20회 거래 후 승률 50% 이하"
-        elif self.total_trade_count < acc_hours:
+        elif self.total_trade_count < acc_days:
             should_stop = True
             stop_reason = "총 거래 횟수 미달"
         
