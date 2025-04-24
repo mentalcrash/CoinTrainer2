@@ -52,8 +52,12 @@ class StrategyManager:
         strategy_data_list = strategy_sheet.get_data_many(conditions=conditions)
         if strategy_data_list:
             # version 보다 큰 버전 중 가장 작은 버전
-            strategy_data = min([data for data in strategy_data_list if data.version > verison], key=lambda x: x.version)
-            return strategy_data
+            strategy_data_list = [data for data in strategy_data_list if data.version > verison]
+            if strategy_data_list:
+                return min(strategy_data_list, key=lambda x: x.version)
+            else:
+                sheet_data = self.strategy_generator.generate_latest()
+                return sheet_data.version
         else:
             sheet_data = self.strategy_generator.generate_latest()
             return sheet_data.version
@@ -66,7 +70,7 @@ class StrategyManager:
             score_list = [AiStrategyScoreSheetData.from_dict(score) for score in score_dict_list]
             current_version = max([score.version for score in score_list])
             strategy_sheet = AiGeneratedStrategySheet()
-            conditions = {"version": current_version, "active": True}
+            conditions = {"version": current_version, "active": "TRUE"}
             strategy_data_list = strategy_sheet.get_data_many(conditions=conditions)
             if strategy_data_list:
                 strategy_data = strategy_data_list[-1]
