@@ -2,7 +2,7 @@ from typing import Tuple, List
 from datetime import datetime, timedelta
 from src.new.strategy.parameter.signal_strategy import SignalStrategy
 from src.new.strategy.strategy_params import StrategyParams
-from src.new.models.bithumb.response import Candle, Orderbook, Trade, OrderbookUnit
+from src.new.models.bithumb.response import Orderbook, Trade, OrderbookUnit
 from math import ceil, floor
 
 class TemplateSignal(SignalStrategy):
