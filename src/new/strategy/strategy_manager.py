@@ -81,7 +81,7 @@ class StrategyManager:
                 return self.strategy_generator.execute_code(market, strategy_data.version, strategy_data.code)                
         else:
             strategy_sheet = AiGeneratedStrategySheet()
-            conditions = {"active": True}
+            conditions = {"active": "TRUE"}
             data_list = strategy_sheet.get_data_many(conditions=conditions)
             if data_list:
                 strategy_data = data_list[0]
