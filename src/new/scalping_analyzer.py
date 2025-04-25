@@ -36,7 +36,8 @@ class Result:
     should_stop: bool
     fee: float
     stop_reason: Optional[str] = None
-    reason: Optional[str] = None
+    entry_reason: Optional[str] = None
+    exit_reason: Optional[str] = None
     
 class ScalpingAnalyzer:
     MAX_CONSECUTIVE_LOSSES = 3
@@ -61,7 +62,7 @@ class ScalpingAnalyzer:
         self.consecutive_losses = 0
         self.created_at = datetime.now()
     
-    def analyze(self, entry_order: OrderResponse, exit_order: OrderResponse, reason: Optional[str] = None) -> Result:
+    def analyze(self, entry_order: OrderResponse, exit_order: OrderResponse, entry_reason: Optional[str] = None, exit_reason: Optional[str] = None) -> Result:
         pnl = ((exit_order.price_per_unit - entry_order.price_per_unit) * entry_order.total_volume)
         fee = float(entry_order.paid_fee) + float(exit_order.paid_fee)
         pnl -= fee
@@ -123,5 +124,6 @@ class ScalpingAnalyzer:
             holding_seconds=holding_seconds,
             should_stop=should_stop,
             stop_reason=stop_reason,
-            reason=reason
+            entry_reason=entry_reason,
+            exit_reason=exit_reason
         )

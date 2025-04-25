@@ -297,12 +297,15 @@ RSI 지표:
 - 총 운영 시간: {total_time_str}
 
 [누적 금액]
-- 누적 수익 : {result.acc_pnl:,.0f} KRW (수익률: {((result.acc_pnl-result.entry_total_price)/result.entry_total_price)*100:.2f}%)
+- 누적 수익 : {result.acc_pnl:,.0f} KRW (수익률: {((result.acc_pnl)/result.entry_total_price)*100:.2f}%)
 - 누적 수수료 : {result.fee:,.0f} KRW
 - 매수 총액 : {result.entry_total_price:,.0f} KRW
 
 [거래 이유]
-- {result.reason}
+- 매수 이유
+{"\n".join(f"  ▸ {reason}" for reason in result.entry_reason)}
+- 매도 이유
+{"\n".join(f"  ▸ {reason}" for reason in result.exit_reason)}
 ```
 """
             # Discord로 메시지 전송

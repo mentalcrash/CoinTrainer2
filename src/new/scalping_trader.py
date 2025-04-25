@@ -203,7 +203,7 @@ class ScalpingTrader:
         entry_order = None # entry_order 초기화
         
         if not self.is_position:
-            should_buy, buy_reason = self.strategy.should_buy()
+            should_buy, entry_reason = self.strategy.should_buy()
             if not should_buy:
                 self.info("🟡 매수 신호 없음 - 사이클 종료") # self.logger.info -> self.info
                 return
@@ -220,12 +220,12 @@ class ScalpingTrader:
             # self.discord_notifier.send_start_scalping(entry_order, self.strategy.target_price, self.strategy.stop_loss_price)
             
             def monitoring():
-                reason = self.monitor_position(entry_order, target_price, stop_loss_price)
+                exit_reason = self.monitor_position(entry_order, target_price, stop_loss_price)
                 exit_order = self.execute_exit_order(entry_order.total_volume)
                 
                 if exit_order and exit_order.state == "done":
                     self.info(f"💰 매도 완료 - 체결가: {exit_order.price_per_unit}, 수익률 계산 가능") # self.logger.info -> self.info
-                    result = self.scalping_analyzer.analyze(entry_order, exit_order, reason)
+                    result = self.scalping_analyzer.analyze(entry_order, exit_order, entry_reason, exit_reason)
                     self.discord_notifier.send_scalping_result(result, self.strategy.target_price, self.strategy.stop_loss_price)
                     self.strategy_manager.accumulate_strategy_score(self.market, self.strategy, result)
                     
