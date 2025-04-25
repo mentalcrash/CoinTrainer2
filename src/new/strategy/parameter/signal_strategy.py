@@ -41,16 +41,11 @@ class SignalStrategy(ABC):
             return True, f"목표가 도달 – 현재가 {int(current_price)}, 목표가 {int(self.target_price)}"
         if current_price <= self.stop_loss_price:
             return True, f"손절가 도달 – 현재가 {int(current_price)}, 손절가 {int(self.stop_loss_price)}"
-        if datetime.now() - self.entry_time > timedelta(seconds=10):
+        if datetime.now() - self.entry_time > timedelta(minutes=5):
             return True, "10초 경과 – 시간 기반 청산"
 
         # (선택) 추가 Trailing-Stop · 호가창 급변 로직 위치
         return False, "매도 신호 없음"
-    
-    # def set_entry_price(self, price: float):
-    #     self.entry_time = datetime.now()
-    #     self.entry_price = price
-    #     self.target_price, self.stop_loss_price = self.target_calculator.calculate(self.entry_price)
         
     def set_entry_price(self, price: float) -> Tuple[float, float]:
         # 필요하다면 초봉 데이터 생서
@@ -63,8 +58,8 @@ class SignalStrategy(ABC):
         # ==== 파라미터 ====
         take_ticks = 1
         stop_ticks = 1
-        take_rate = 0.0002
-        stop_rate = 0.0001
+        take_rate = 0.002
+        stop_rate = 0.001
         # ================
 
         target_by_tick = ceil(price + tick_size * take_ticks)
