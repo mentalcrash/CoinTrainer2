@@ -10,7 +10,7 @@ class TargetCalculator:
         orderbook_res = api_client.get_orderbook(self.market)
         
         self.tick_size = self.get_tick_size(orderbook_res.orderbooks[0])
-        self.take_ticks = 4
+        self.take_ticks = 3
         self.stop_ticks = 2
         self.take_profit_rate = 0.002
         self.stop_loss_rate = 0.001
