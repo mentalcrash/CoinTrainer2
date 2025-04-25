@@ -153,7 +153,16 @@ class BithumbApiClient:
         """
         params = {"markets": markets}
         response = self._make_request("GET", "/ticker", params=params)
-        return TickerResponse(tickers=[Ticker.model_validate(item) for item in response])
+        
+        
+        tickers = []
+        for item in response:
+            try:
+                tickers.append(Ticker.model_validate(item))
+            except:
+                logger.error(f"Ticker 데이터 유효성 검사 실패: {item}")
+        
+        return TickerResponse(tickers=tickers)
     
     def get_orderbook(self, markets: str) -> OrderbookResponse:
         """
