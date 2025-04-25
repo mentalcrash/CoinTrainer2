@@ -56,7 +56,7 @@ class SignalStrategy(ABC):
         tick_size = abs(float(orderbook.orderbook_units[0].ask_price) -
                         float(orderbook.orderbook_units[1].ask_price))
         # ==== 파라미터 ====
-        take_ticks = 2
+        take_ticks = 3
         stop_ticks = 2
         take_rate = 0.002
         stop_rate = 0.001
