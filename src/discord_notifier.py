@@ -303,9 +303,9 @@ RSI 지표:
 
 [거래 이유]
 - 매수 이유
-{"\n".join(f"  ▸ {reason}" for reason in result.entry_reason)}
+{result.entry_reason}
 - 매도 이유
-{"\n".join(f"  ▸ {reason}" for reason in result.exit_reason)}
+{result.exit_reason}
 ```
 """
             # Discord로 메시지 전송
